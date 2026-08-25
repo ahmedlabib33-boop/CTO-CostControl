@@ -1,0 +1,745 @@
+{
+  "file_count": 148,
+  "files": [
+    {
+      "path": ".env.example",
+      "bytes": 152,
+      "sha256": "ab9fa69dc489e4b3da653bfc594fe165e378e2915ce282e3e71789c9a00fbf34"
+    },
+    {
+      "path": ".gitignore",
+      "bytes": 91,
+      "sha256": "c40cac53a3d4b17c4e6671f8b906f9b4b13c8ec791171d5f091e47291053b1d9"
+    },
+    {
+      "path": "GENERATE_SAMPLES.bat",
+      "bytes": 207,
+      "sha256": "c6fafe96316fa53b91dd40ec9b876d8f1429cdccbc7ec212b75c4ad4730e3195"
+    },
+    {
+      "path": "INPUT/README.txt",
+      "bytes": 544,
+      "sha256": "f13e0fe8a64a814986e78e75076a09b932753060eb0f169b0745f9abc4fbdb09"
+    },
+    {
+      "path": "INSTALL_AND_VERIFY.bat",
+      "bytes": 537,
+      "sha256": "4ead870771555c2f714bb210567d39921e4575471a87fb53946aeea34b60a716"
+    },
+    {
+      "path": "README.md",
+      "bytes": 6811,
+      "sha256": "ef392d7e622b2678bdf72024b0a668749407afb21c1137603d2f4b6b72f54779"
+    },
+    {
+      "path": "RELEASE_MANIFEST.json",
+      "bytes": 3706,
+      "sha256": "a81e3d4a3ac70a05bf2a2c0c2e486e50ad6172fe1cda9e668116f181833fcdcc"
+    },
+    {
+      "path": "START_LOCAL_APP.bat",
+      "bytes": 165,
+      "sha256": "894fc17a7cbe373c97d83421aa09803d1ae586637d70cec937543251904d4e8c"
+    },
+    {
+      "path": "START_WATCHER.bat",
+      "bytes": 134,
+      "sha256": "42f5674131fbb1cdf14b3b098ceb1dc3d8ed85f39eb7a512497ce6c2613abccf"
+    },
+    {
+      "path": "VALIDATION_REPORT.md",
+      "bytes": 1982,
+      "sha256": "864a14e408fa1992256ef265703248fcf913f918e4ad63713e5f503f5e2ff731"
+    },
+    {
+      "path": "WATCH_ONCE_NO_PUBLISH.bat",
+      "bytes": 131,
+      "sha256": "e96385b2ea657d9555a26c78a90e20805b51c1fa1208f916a3132b7757b655da"
+    },
+    {
+      "path": "config/project-aliases.json",
+      "bytes": 3,
+      "sha256": "ca3d163bab055381827226140568f3bef7eaac187cebd76878e0b63e9e442356"
+    },
+    {
+      "path": "docs/ARCHITECTURE.md",
+      "bytes": 1430,
+      "sha256": "9320cf33a3854e95c74dd8d027c36eec9cc88dd9954b050d3404e05981680f9f"
+    },
+    {
+      "path": "docs/LOCAL_SETUP.md",
+      "bytes": 623,
+      "sha256": "53fe09127c822eccf2a2fd42a83b0eca8acffbb8cb4fab4d7050950a39d6506f"
+    },
+    {
+      "path": "docs/VALIDATION_REPORT.md",
+      "bytes": 1982,
+      "sha256": "864a14e408fa1992256ef265703248fcf913f918e4ad63713e5f503f5e2ff731"
+    },
+    {
+      "path": "docs/parity/GLORIA.html",
+      "bytes": 3231497,
+      "sha256": "9404087cc595c3847bec79d1a4cc41b2f7279a6088358a684a64902a7c382bc3"
+    },
+    {
+      "path": "docs/parity/THE_BIG.html",
+      "bytes": 1233673,
+      "sha256": "4a80c593249cf29785ae1158bbab78edc3106484dda430db05f2e38ba2562257"
+    },
+    {
+      "path": "docs/parity/approved-cto-reference.html",
+      "bytes": 6224210,
+      "sha256": "9776c4f771dbdab4b5acdd4ab4e7986d2c00ac395d5b9e718d7a5e8c704b711f"
+    },
+    {
+      "path": "docs/parity/data/GLORIA.json",
+      "bytes": 2599621,
+      "sha256": "a8a4b297a3ef8c259071dbb77bceb3b1da410dfee81e422105000b34401903da"
+    },
+    {
+      "path": "docs/parity/data/THE_BIG.json",
+      "bytes": 864154,
+      "sha256": "dc6dbc4ee76c6fe7a891e6dca723caf50b81e3543f31553a84a0f0993e0b1b7e"
+    },
+    {
+      "path": "docs/parity/data/index.json",
+      "bytes": 560,
+      "sha256": "29fcdf4a2a60eb5d63d4790eb78b3bbcb2a24b549bca699a5aeaf27b6fd9792b"
+    },
+    {
+      "path": "next-env.d.ts",
+      "bytes": 81,
+      "sha256": "879741880b6ab48da99dcc06dcc674d381c9826137b0496bf7bb368f302de9fc"
+    },
+    {
+      "path": "next.config.ts",
+      "bytes": 154,
+      "sha256": "77d6e3f221b128465f382d5323e06a88cd67cccaa02ea6cd5d1d31527188f2b8"
+    },
+    {
+      "path": "package.json",
+      "bytes": 652,
+      "sha256": "6e91516131a9eb6bcb7eca6543c3ec7067bdb7c5770bd55f643ae9e304178c58"
+    },
+    {
+      "path": "public/generated/portfolio/latest.json",
+      "bytes": 4248,
+      "sha256": "da697da52bdcdf483d58981f28971308695b61585491b0e8e94af0c2ca71682a"
+    },
+    {
+      "path": "public/generated/projects/gloria/enriched/2026-06/e62a8bfd545c78c5/normalized.json",
+      "bytes": 2599621,
+      "sha256": "a8a4b297a3ef8c259071dbb77bceb3b1da410dfee81e422105000b34401903da"
+    },
+    {
+      "path": "public/generated/projects/gloria/history/2026-06/e62a8bfd545c78c5cbcf73a0675f2283b685d5f0de16a2e4033e662e588f89f8.json",
+      "bytes": 775314,
+      "sha256": "10ec23340ea3ff7781bd0a1711d802fa247d164c4f68bde71eb321d027ae6d11"
+    },
+    {
+      "path": "public/generated/projects/gloria/history/2026-06/latest.json",
+      "bytes": 775314,
+      "sha256": "10ec23340ea3ff7781bd0a1711d802fa247d164c4f68bde71eb321d027ae6d11"
+    },
+    {
+      "path": "public/generated/projects/gloria/latest.json",
+      "bytes": 775314,
+      "sha256": "10ec23340ea3ff7781bd0a1711d802fa247d164c4f68bde71eb321d027ae6d11"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/001-0-cover-sheet.json",
+      "bytes": 1668,
+      "sha256": "538c1d087b7ebcffe23142848679947f1d927e93376aa73c64fae0a4ac249edf"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/002-dashboard.json",
+      "bytes": 4656,
+      "sha256": "299b61c194c69b94d8bdd30b74ed78979ae8844d18e38d9e7b70e827119699da"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/003-dashboard.json",
+      "bytes": 17618,
+      "sha256": "adc5f4b6d26a08b104db644f15a00e7920843301fb57959d53cd36e83972c9b6"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/004-gross-profit.json",
+      "bytes": 2902,
+      "sha256": "c184ed6023fa9f37ce23c5655df01f2782aec91e0ae35038cd89c2d6529eca9b"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/005-1-project-summary.json",
+      "bytes": 70390,
+      "sha256": "f289aabccf961a9bc4a4e995b190ded8c3ff747da34d497ea9ec546d45182933"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/006-cashflow.json",
+      "bytes": 13703,
+      "sha256": "bcd8a17cf357a2832739613a89250c830473100c9778948631f9b6207d7a93ab"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/007-indirect-breakdown.json",
+      "bytes": 16223,
+      "sha256": "bb8b07b25656e5110553288499b9b791f437eea26241a77776b05198b0e97204"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/008-final-direct-breakdown.json",
+      "bytes": 34517,
+      "sha256": "1db49878315631b3a1aa0ee852c465ce83655bc56dbfc93e1285565cfe776fd4"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/009-wastage.json",
+      "bytes": 14324,
+      "sha256": "392f1c1fb63afd6f618e4cabce499f7a4b51bf4e9adfcf704660e6b3d8b420b0"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/010-direct-reallocation.json",
+      "bytes": 68234,
+      "sha256": "882e437eded7f60f0ce5908ac549d60fa57571ba090aa8ce2537521d08d95f2a"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/011-gp.json",
+      "bytes": 3688,
+      "sha256": "99a97ee832279fb4622c9f2f946a475a458f9a629c2ba80011c0e0214e5331d4"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/012-balance.json",
+      "bytes": 85870,
+      "sha256": "a28ee64cdac2708cd98e1fcc66c9c40ef715d328751381f6ba38624414c414ec"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/013-cost-codes.json",
+      "bytes": 93693,
+      "sha256": "580b4e2bb7b8557d845ab9de0f95ecfec7fdf3ea1d6fb91a2fddd8e3c8576af1"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/014-direct-details.json",
+      "bytes": 104866,
+      "sha256": "f71ea59953b92e66efbb012f240140e74ddbfd1956b08fb76a202e87950e1f7f"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/015-expenses-actual-cost.json",
+      "bytes": 8848943,
+      "sha256": "0454f411b0b9efde050ac26d4b01a8f8c4b5ec4c23726267e6136a2539f68e2e"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/016-indirect-details.json",
+      "bytes": 74031,
+      "sha256": "dac813784d7c79f303874748a54cce4510ad773581a8fd89a4a53ef6a3c3b2bf"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/017-wages.json",
+      "bytes": 94719,
+      "sha256": "6898ccf751ef6fcdc590d0a061b36116f2ad532410b6a3c59db85ae07de33d6a"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/018-copy-from-it.json",
+      "bytes": 16173,
+      "sha256": "5a48382c097a4292358752eafa405cf34f12ca79c4b12c766d448277f6031d28"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/019-project.json",
+      "bytes": 22196,
+      "sha256": "cbf4fcac70da24aa2b2d0697adae0720bc4778e3b46e2f339c16c46e2ef457c1"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/020-project.json",
+      "bytes": 17013,
+      "sha256": "7b027e41cffb949d2b74c50356eafbc45909fbe11180f30d2ae2fb2434956a45"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/021-project.json",
+      "bytes": 24243,
+      "sha256": "2dc6323d82391d15048f2cce15a31a085bdd1f983fda1e25304b4c6f65583c66"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/022-project.json",
+      "bytes": 35915,
+      "sha256": "c4a6b92cec2889442870aa6fe37c44d0ada7a15b75617cf15b2a7efb60882baa"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/023-80.json",
+      "bytes": 35066,
+      "sha256": "b0fddc910d0651d67763bf4da3b6f1e2e790b3760f83329f1fa8ba47ba3f8052"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/024-soil-nailing.json",
+      "bytes": 22299,
+      "sha256": "f9abf3bc2acb8410ff50c4bb71d2a3f34b132e6ed808335f5e9cf6ecfab895ff"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/025-project.json",
+      "bytes": 23860,
+      "sha256": "fb759551cd6a5dd938ef483263308c1d477794876efb6851b7238a6563757935"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/026-project.json",
+      "bytes": 15371,
+      "sha256": "83bcb9651e2c628be5110f5bfd6dda7a287dbe20fadffbfc5ff654b1aa414fa8"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/027-50-4.json",
+      "bytes": 22627,
+      "sha256": "9918436db74611e1c187b95fe9a8dd1aa4c796b6c16b414350bb90ba0f2c00a1"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/028-56-5.json",
+      "bytes": 22732,
+      "sha256": "b31715f237a39ea88edd5f1e1f386d8beea979131379efaa9be78fe015760ae9"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/029-50-5.json",
+      "bytes": 22665,
+      "sha256": "c9e004866c4c59f65f0f4f1d6c25768964c32c8611ef5b4a6afa54db77997159"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/030-40-4.json",
+      "bytes": 22590,
+      "sha256": "db3e0b066940140731c6fdbd031a21da018f90b54153be22ec3d70a0a0689d7d"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/031-10.json",
+      "bytes": 23266,
+      "sha256": "fae380e2e9f344264b76d8d0ab3ad914cf959abba657edba7a295619bb155d46"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/032-project.json",
+      "bytes": 40233,
+      "sha256": "b87e152fb2b46f71d1b188134b60b4bfedaffeed8600f027250c4044c406587c"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/033-20.json",
+      "bytes": 38929,
+      "sha256": "6ae98ff9932398acc7ae33573d9109f0b1ee975debc4948340e11effc3674d73"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/034-project.json",
+      "bytes": 21033,
+      "sha256": "f32ef244e29cab86537297d0de4cad9619f777e2ebcd1c1e2aec690eb3fb2561"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/035-project.json",
+      "bytes": 20764,
+      "sha256": "d8ec5a09cc6a9ecf3f1360027ce271743155e4c287c5f6eb40410c3cb4d4f25b"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/036-project.json",
+      "bytes": 20414,
+      "sha256": "de335e9f504f80edbe16ab0b08ca32f0f3c12b2449a890782ea433a5ced5e287"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/037-project.json",
+      "bytes": 20476,
+      "sha256": "1580ba33b4de9048f8fc363be7e5e11353e33ff01d5fe7d60e3702e18d21e386"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/038-project.json",
+      "bytes": 20353,
+      "sha256": "c47998747c85610b528ca6061319f6c1ffba0af28aea35e3ed5a3dc4813a8eb6"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/039-project.json",
+      "bytes": 20574,
+      "sha256": "f7448208e6576fd799f99f7200257e9005c0bd075330e4f416cead52b5468277"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/040-project.json",
+      "bytes": 20474,
+      "sha256": "28ae7120d44ecb9b239892c945721b2ea9c15b27b4b6388fef9cf54cc7b41ebc"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/041-project.json",
+      "bytes": 20259,
+      "sha256": "6277ccc19837bbb78c4c3097f058b0f62a2ef8de260baa84b2753cda84a076ab"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/042-project.json",
+      "bytes": 47155,
+      "sha256": "3d76e62b882fca21d8b7d4f855a45ef8498a60f0467df01e6f128f8483dc9948"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/043-project.json",
+      "bytes": 20388,
+      "sha256": "121ad4f76953239f0c5d295d37aa887a7734c5f25ab360d0d4b881fbcefa3518"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/044-1-2.json",
+      "bytes": 24769,
+      "sha256": "7e8c2583dba30264c7c152c3f68df41acff6baa5320e7a01048b93dff21567ba"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/045-4-6.json",
+      "bytes": 24826,
+      "sha256": "a64ee93fd3cc5c1233929e7dea369b9f1579c2e89a294f53d69a6fddc26f1fd0"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/046-project.json",
+      "bytes": 20081,
+      "sha256": "6efcf0044dfe3120e3d30804a9a21613212f74a0a05e2d10d7d0b2b1f2e904f5"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/047-project.json",
+      "bytes": 42007,
+      "sha256": "42730c5adbc4cd5182a961c8ff72d3fa1033a1a4f1ce0ada4ec753ef285938b2"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/048-struts.json",
+      "bytes": 38761,
+      "sha256": "6d9bfe76cf3eeaf44b23593eb5ad62da554ab2ed482b764deda942fa89131942"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/049-project.json",
+      "bytes": 22340,
+      "sha256": "d0ed7c93f430831008b27ae98e8d61aff58947c6d32a486f8afdcb4a9d5939fe"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/050-22.json",
+      "bytes": 23613,
+      "sha256": "58d8bb40316395bc1832d93a3675dc28bc403d94493e3a345f92ec3d4a04605c"
+    },
+    {
+      "path": "public/generated/projects/gloria/raw/2026-06/e62a8bfd545c78c5/051-16.json",
+      "bytes": 21674,
+      "sha256": "e376ba2438ae0bf892b86f49a4ede0d8d1d280fda4ff35d29754791e319ccbef"
+    },
+    {
+      "path": "public/generated/projects/the-big/enriched/2026-06/45bc474cb6799b30/normalized.json",
+      "bytes": 864154,
+      "sha256": "dc6dbc4ee76c6fe7a891e6dca723caf50b81e3543f31553a84a0f0993e0b1b7e"
+    },
+    {
+      "path": "public/generated/projects/the-big/history/2026-06/45bc474cb6799b3088892d23b60f7bcd829bb4a200a483860f9db9d2d1376221.json",
+      "bytes": 308638,
+      "sha256": "41fdc8623cf5eafa1a8c2f08d4cbc3357781f514767bab08470b9c8c1149c14c"
+    },
+    {
+      "path": "public/generated/projects/the-big/history/2026-06/latest.json",
+      "bytes": 308638,
+      "sha256": "41fdc8623cf5eafa1a8c2f08d4cbc3357781f514767bab08470b9c8c1149c14c"
+    },
+    {
+      "path": "public/generated/projects/the-big/latest.json",
+      "bytes": 308638,
+      "sha256": "41fdc8623cf5eafa1a8c2f08d4cbc3357781f514767bab08470b9c8c1149c14c"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/001-0-cover-sheet.json",
+      "bytes": 1931,
+      "sha256": "b687d4309333adc88b5abc8b53aa46320614d522c7ac8735a4d1812a78410a2c"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/002-dashboard.json",
+      "bytes": 12665,
+      "sha256": "6f6654233149a74f32abe4faec6c37de70e3fd3673bb70343ebbf42a6c9b3c82"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/003-dashboard.json",
+      "bytes": 4501,
+      "sha256": "a814612ae5ba6856db92c9ddc688b5ac7d5aa8cbdb73b9159c1271f677eb62de"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/004-gross-profit.json",
+      "bytes": 2802,
+      "sha256": "2dbfb28835cdeb9bfe627a291a78c775387c5b98b99d27e08da6e7d1081f0bba"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/005-1-project-summary.json",
+      "bytes": 52174,
+      "sha256": "b7a8654d47546178af6f53131ac170755f0cdf42584a6bf913530bce5336e3ef"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/006-cashflow.json",
+      "bytes": 9071,
+      "sha256": "ddfed8071cffce89896505c8410c46c29bb2b8b24c2ba54f164645937bd3d9f8"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/007-gp-ev.json",
+      "bytes": 3386,
+      "sha256": "713d663ec347725336a6dcffbb0b3ef9fc82cea8ef0e9da2bb44660954f34d75"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/008-indirect-direct-breakdown.json",
+      "bytes": 26132,
+      "sha256": "e4ac1c3caed9a997e837ca6bcf274b1e71b913d030d1f98c875b83bb0ed7b46e"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/009-waste-report.json",
+      "bytes": 3863,
+      "sha256": "05fb222abef946496ccbc2e6f82cc246a2593d1e42c6c27a28965ef1631ae863"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/010-cost-codes.json",
+      "bytes": 41699,
+      "sha256": "e8dceb2af6393a514e17658948cea41ed1c52e1aa47383039795c79eaa0aedc1"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/011-direct-details.json",
+      "bytes": 65519,
+      "sha256": "cb2fb106baf97ed173ba259bccfde5776c90210120c8e1696235bd16c0f5c892"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/012-expenses-actual-cost.json",
+      "bytes": 32803385,
+      "sha256": "a17caa74a4278a55c6583a25c2b2833a72203faadc5a38af807e064763c1362c"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/013-fixed-assets.json",
+      "bytes": 3110,
+      "sha256": "999257d274428272d857e2b2727eccbe1734088b01c4fbfdfd656c2f212c651b"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/014-balance.json",
+      "bytes": 20199,
+      "sha256": "a9fe5b19d19da23f5339944da84040095fde88a421698969164afcdd93595bc6"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/015-copy-from-it.json",
+      "bytes": 16169,
+      "sha256": "11727389128b035fb4d8a52fc3367fe2cf7fba4a9675a2d3bc974edcb0f38a44"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/016-indirect-details.json",
+      "bytes": 47788,
+      "sha256": "18b45c6125cdfc40fa86a78d7e555e1bb7db468fd2dcd49e967bf952901cf1c5"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/017-a-exc-in-ordinary-soil-2-1.json",
+      "bytes": 10995,
+      "sha256": "cc191e760aad41980ecfae91d784c8a3bcf1f8f3ec0b1d9073c3da97449c7c7b"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/018-b-exc-in-rock-2-2.json",
+      "bytes": 8147,
+      "sha256": "bc66837646caca9323ff7e71e363e1c7fa172859966b6ed5d4c8c47045bad636"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/019-c-replacement-soil-2-3.json",
+      "bytes": 17373,
+      "sha256": "b9006810463cbc06b38bf710c84b0839d33036d03c5d03c3ea033db131de6217"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/020-d-back-filling-on-found-2-4.json",
+      "bytes": 12181,
+      "sha256": "2084a1d68f7c86bfe3c6a465ba0549319853aead8a4eb62e63cf4373ab864baf"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/021-e-pc-g200-kg-foundation-3-1.json",
+      "bytes": 15528,
+      "sha256": "0883437e1a25a16f54872eef66c1daceb68625dc63fd906eb31712cee0e0e585"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/022-f-raft-foundation-3-2-1.json",
+      "bytes": 18079,
+      "sha256": "a76970111a83e116169de4a525f357ad736e7a31ed1dc2a9f0605e557fee8dd6"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/023-g-retaining-walls-3-2-2.json",
+      "bytes": 17833,
+      "sha256": "dc1b1fe1b9b42934e98e78fcb01fdcd18cdafb4886e1c26d36d75da80674f0dd"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/024-h-tanks-3-2-3.json",
+      "bytes": 21724,
+      "sha256": "3fc005668241ef956a0931d8cf5a02230fde88b14ab44be4afd4544eb12c62f4"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/025-i-coulmns-walls-3-2-4.json",
+      "bytes": 17837,
+      "sha256": "346c6c613b79c5ade8acbc524bade57fec68712f5564476e270ad4d8e0b69f19"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/026-j-coulmns-3-3-1.json",
+      "bytes": 16388,
+      "sha256": "fa6aedd796c8be1a6032f2d83c6d008e463009501178fdaf5c5b0eefab32fc3f"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/027-k-slab-3-3-2.json",
+      "bytes": 17663,
+      "sha256": "a5e94cce08d34f71006cf2a613aaa6b7a59d0f6bfbfe4431be6f4e905624e427"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/028-l-beams-3-3-3.json",
+      "bytes": 16281,
+      "sha256": "c7d720f8314b56538061a1e127608a20e2d941196f34092e282bdc0251b4b568"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/029-m-shear-walls-3-3-4.json",
+      "bytes": 16361,
+      "sha256": "ef96770581689f4d720690b6fa432e1d1d93bf33dc733eabf4b45b8395932956"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/030-n-stairs-3-3-5.json",
+      "bytes": 16373,
+      "sha256": "dec41d84b6e4efb3cfa7a371c7e66b75d84bd9566b479ebed1b05863cd829473"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/031-q-slab-on-grade-150mm-3-4-1.json",
+      "bytes": 17431,
+      "sha256": "41f4c5472f7f239175d19aebca6b8a03b2f4e750a50196e9b7acf55cd458215c"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/032-r-deformed-high-steel-bars-3-5.json",
+      "bytes": 9312,
+      "sha256": "7411e939a357433d50ad44e11b681f9933aaceb955eba725006bc252dfab3efe"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/033-s-membrane-sbs-4mm-3-6-1.json",
+      "bytes": 16988,
+      "sha256": "5b1b549c3627164b56c6a77fa3530e2900d2b7bf6c4acb089dd9b2da809484f2"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/034-t-primer-paint-isolate-3-7-1.json",
+      "bytes": 13011,
+      "sha256": "30d99ade09a8b6c75b71fd236040890b007bbca201b3828a85042c5ccdc3bb05"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/035-u-water-tank-isolate-3-7-2.json",
+      "bytes": 13459,
+      "sha256": "1051fdbf7789e24a73d759a595e2c8f7199de894b0f898df921f198e56d9e498"
+    },
+    {
+      "path": "public/generated/projects/the-big/raw/2026-06/45bc474cb6799b30/036-sheet1.json",
+      "bytes": 298,
+      "sha256": "6d8e73887f7e5f1439188ef7e60711d7e3159d0fabb4a326cf5c3b1988f1ef81"
+    },
+    {
+      "path": "public/generated/projects.json",
+      "bytes": 3826,
+      "sha256": "7f3ed62324ff8d57770a9894315c6af468962fadb401bb9e193253c06da3a06b"
+    },
+    {
+      "path": "samples/INPUT/Gloria Cost Report 06.2026.xlsx",
+      "bytes": 3761086,
+      "sha256": "e62a8bfd545c78c5cbcf73a0675f2283b685d5f0de16a2e4033e662e588f89f8"
+    },
+    {
+      "path": "samples/INPUT/THE BIG cost Report 06.2026.xlsx",
+      "bytes": 15967995,
+      "sha256": "45bc474cb6799b3088892d23b60f7bcd829bb4a200a483860f9db9d2d1376221"
+    },
+    {
+      "path": "src/app/api/health/route.ts",
+      "bytes": 601,
+      "sha256": "da6c9ae161a6c73546ad1f925dab0f6ef31683924c55459ea66ff749b57a6e3d"
+    },
+    {
+      "path": "src/app/globals.css",
+      "bytes": 20029,
+      "sha256": "c1954c85bc87f63a911edd2eda8e24efd504c72c22add42c8114c6e21be6b8bb"
+    },
+    {
+      "path": "src/app/layout.tsx",
+      "bytes": 417,
+      "sha256": "adcb75f4c00925ee9524a4700d6043e73d8216d31f1a6c722262916a2bfeeeef"
+    },
+    {
+      "path": "src/app/page.tsx",
+      "bytes": 105,
+      "sha256": "c0072139e3bae11e5ae0388c910ae1a9f2266dcbbfc0e0d9e615209888889641"
+    },
+    {
+      "path": "src/app/project/[projectId]/page.tsx",
+      "bytes": 241,
+      "sha256": "89b18d790753ff9c4e59342799d4c45e6d3731698754126b0fbcf4d184f8dc88"
+    },
+    {
+      "path": "src/components/Charts.tsx",
+      "bytes": 8155,
+      "sha256": "6b832147e3603c7f7efde510df36ca12b923770706c10be230c8fa1a9142bbec"
+    },
+    {
+      "path": "src/components/Dashboard.tsx",
+      "bytes": 6305,
+      "sha256": "a01919d9a21f953488bca05a0f45a63ca6c552da71e254789bd359937721818c"
+    },
+    {
+      "path": "src/components/OutputStudio.tsx",
+      "bytes": 33777,
+      "sha256": "fbf18d41a58c79325dde79411eb03b0fb4fff2749dc14c3729585a0355de3782"
+    },
+    {
+      "path": "src/components/PortfolioWorkspace.tsx",
+      "bytes": 19899,
+      "sha256": "4c2b5930ac1d90a2843acd43c651882b982eed54bd555e989956e1be1ec039b8"
+    },
+    {
+      "path": "src/components/ProjectWorkspace.tsx",
+      "bytes": 32626,
+      "sha256": "23de706c877344560b687b122209000789c9bb6d97955ba5163c63a50cc0520d"
+    },
+    {
+      "path": "src/components/Tables.tsx",
+      "bytes": 4281,
+      "sha256": "3f9fbae2eea8b366eb0fa573adc96e73305122bf73003bec17d62b58953a43f2"
+    },
+    {
+      "path": "src/lib/normalized.ts",
+      "bytes": 5130,
+      "sha256": "7cfc7126d13d5780b076577f62721458436205f4af2736c7c36a3e2fd9503993"
+    },
+    {
+      "path": "src/lib/types.ts",
+      "bytes": 2139,
+      "sha256": "b6ff1070c7313ecc724fa1e5f1b7b5836d29e0a87debd0ed2bd20e169bb9241a"
+    },
+    {
+      "path": "tests/test_adaptive_new_project.py",
+      "bytes": 6522,
+      "sha256": "ea13a0b568354625d6cfaf800ad0762e6db55d128621ac2b08cab56fb5587189"
+    },
+    {
+      "path": "tests/test_generated_data.py",
+      "bytes": 3164,
+      "sha256": "50c1335128c3b3bc07720ab066946e4b28865e801d5a42848a62a2181acbb416"
+    },
+    {
+      "path": "tests/test_history_revision_model.py",
+      "bytes": 894,
+      "sha256": "ecfdb806394dececfede51f977fadd79413cfd634762d078d755937d2a302c51"
+    },
+    {
+      "path": "tests/test_no_project_hardcoding.py",
+      "bytes": 894,
+      "sha256": "4a6ad0c14d9e43219e061274be22cc96f803b8e155f6643cd8c6ded43c5444f1"
+    },
+    {
+      "path": "tests/test_output_studio.py",
+      "bytes": 1294,
+      "sha256": "360ca959588bbdddb56c0798e185869cd0629c5caaf4f5b1fe6c7370d6d7831d"
+    },
+    {
+      "path": "tsconfig.json",
+      "bytes": 563,
+      "sha256": "7b58fe1b59e22acb0673a272048620c9302e238f6030db0f439ca38a031e1d39"
+    },
+    {
+      "path": "watcher/__init__.py",
+      "bytes": 50,
+      "sha256": "17cfc7b43f7679b7df8c3141b4729a344c83956c352e70d6b6f92a63bd5e3197"
+    },
+    {
+      "path": "watcher/generate.py",
+      "bytes": 984,
+      "sha256": "77bf0eaa80784a7b5064aea434f151baa37888b931dea8962b30fb96f2ba8682"
+    },
+    {
+      "path": "watcher/publisher.py",
+      "bytes": 1777,
+      "sha256": "188ae1f4f148c0bb7054ca5aa15c017cdcf8242dbe2421cdb029969d46c749b1"
+    },
+    {
+      "path": "watcher/validate_all.py",
+      "bytes": 2062,
+      "sha256": "af8f8cf9afc38934ae3c73f651523ae7c76d4ad971152fdd0d0987fa38f66a56"
+    },
+    {
+      "path": "watcher/watch.py",
+      "bytes": 3850,
+      "sha256": "517db97f3cb97e8e7c1a428ddb2617e2e0b8fb7ea1df827a84be302341e2e30a"
+    },
+    {
+      "path": "watcher/xlsx_engine.py",
+      "bytes": 33898,
+      "sha256": "b5b30807d4c3c85ee534cf77608d68745ef0f9c43275027ba846bfaeb824e719"
+    }
+  ]
+}

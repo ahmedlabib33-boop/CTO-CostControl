@@ -1,0 +1,113 @@
+{
+  "release": "CTO-CostControl standalone adaptive Next.js/Vercel package + Output Studio",
+  "runtime_project_hardcoding": false,
+  "project_isolation_gate": "PASS",
+  "generated_data_gate": "PASS",
+  "python_tests": 10,
+  "output_studio": {
+    "status": "PASS",
+    "reports": [
+      "SAP Cost Executive Report",
+      "SAP Cost Detailed Report",
+      "Cost Control Pack",
+      "Monthly Cost Comparison",
+      "Cost Reconciliation & Data Quality Report",
+      "CTO Portfolio Cost Review"
+    ],
+    "interactive_html": true,
+    "pdf_export": "browser Save as PDF",
+    "paper_sizes": [
+      "A4",
+      "A3"
+    ],
+    "orientations": [
+      "portrait",
+      "landscape"
+    ],
+    "project_revision_aware": true,
+    "hardcoded_projects": false
+  },
+  "typescript_tsx_syntax_modified_files_checked": 2,
+  "typescript_tsx_syntax_diagnostics": 0,
+  "next_production_build": "NOT_EXECUTED_IN_BUILD_ENVIRONMENT_NPM_INSTALL_NOT_AVAILABLE",
+  "included_projects": [
+    {
+      "project_id": "gloria",
+      "project_name": "Gloria",
+      "reporting_period": "2026-06",
+      "source_sha256": "e62a8bfd545c78c5cbcf73a0675f2283b685d5f0de16a2e4033e662e588f89f8",
+      "sheet_count": 51,
+      "chart_count": 6
+    },
+    {
+      "project_id": "the-big",
+      "project_name": "THE BIG",
+      "reporting_period": "2026-06",
+      "source_sha256": "45bc474cb6799b3088892d23b60f7bcd829bb4a200a483860f9db9d2d1376221",
+      "sheet_count": 36,
+      "chart_count": 5
+    }
+  ],
+  "critical_file_checksums": {
+    "package.json": {
+      "sha256": "6e91516131a9eb6bcb7eca6543c3ec7067bdb7c5770bd55f643ae9e304178c58",
+      "bytes": 652
+    },
+    "README.md": {
+      "sha256": "ef392d7e622b2678bdf72024b0a668749407afb21c1137603d2f4b6b72f54779",
+      "bytes": 6811
+    },
+    "watcher/xlsx_engine.py": {
+      "sha256": "b5b30807d4c3c85ee534cf77608d68745ef0f9c43275027ba846bfaeb824e719",
+      "bytes": 33898
+    },
+    "watcher/watch.py": {
+      "sha256": "517db97f3cb97e8e7c1a428ddb2617e2e0b8fb7ea1df827a84be302341e2e30a",
+      "bytes": 3850
+    },
+    "watcher/publisher.py": {
+      "sha256": "188ae1f4f148c0bb7054ca5aa15c017cdcf8242dbe2421cdb029969d46c749b1",
+      "bytes": 1777
+    },
+    "watcher/validate_all.py": {
+      "sha256": "af8f8cf9afc38934ae3c73f651523ae7c76d4ad971152fdd0d0987fa38f66a56",
+      "bytes": 2062
+    },
+    "src/components/Dashboard.tsx": {
+      "sha256": "a01919d9a21f953488bca05a0f45a63ca6c552da71e254789bd359937721818c",
+      "bytes": 6305
+    },
+    "src/components/OutputStudio.tsx": {
+      "sha256": "fbf18d41a58c79325dde79411eb03b0fb4fff2749dc14c3729585a0355de3782",
+      "bytes": 33777
+    },
+    "src/components/PortfolioWorkspace.tsx": {
+      "sha256": "4c2b5930ac1d90a2843acd43c651882b982eed54bd555e989956e1be1ec039b8",
+      "bytes": 19899
+    },
+    "src/components/ProjectWorkspace.tsx": {
+      "sha256": "23de706c877344560b687b122209000789c9bb6d97955ba5163c63a50cc0520d",
+      "bytes": 32626
+    },
+    "src/components/Charts.tsx": {
+      "sha256": "6b832147e3603c7f7efde510df36ca12b923770706c10be230c8fa1a9142bbec",
+      "bytes": 8155
+    },
+    "src/components/Tables.tsx": {
+      "sha256": "3f9fbae2eea8b366eb0fa573adc96e73305122bf73003bec17d62b58953a43f2",
+      "bytes": 4281
+    },
+    "src/app/globals.css": {
+      "sha256": "c1954c85bc87f63a911edd2eda8e24efd504c72c22add42c8114c6e21be6b8bb",
+      "bytes": 20029
+    },
+    "public/generated/projects.json": {
+      "sha256": "7f3ed62324ff8d57770a9894315c6af468962fadb401bb9e193253c06da3a06b",
+      "bytes": 3826
+    },
+    "public/generated/portfolio/latest.json": {
+      "sha256": "da697da52bdcdf483d58981f28971308695b61585491b0e8e94af0c2ca71682a",
+      "bytes": 4248
+    }
+  }
+}

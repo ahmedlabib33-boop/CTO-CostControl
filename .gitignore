@@ -1,0 +1,11 @@
+node_modules/
+.next/
+.runtime/
+INPUT/
+logs/*.log
+.env*
+*.xlsx
+*.xls
+*.xlsm
+*.tmp
+.DS_Store
