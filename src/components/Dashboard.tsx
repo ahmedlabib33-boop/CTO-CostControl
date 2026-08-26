@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { IdentityConflict, ProjectRegistryItem } from "@/lib/types";
-import ProjectWorkspace, { type ProjectView } from "@/components/ProjectWorkspace";
+import ProjectWorkspace from "@/components/ProjectWorkspace";
+import { DEFAULT_PROJECT_VIEW, normalizeProjectView, type ProjectView } from "@/lib/projectViews";
 import { IdentityConflictAlerts, MonthlyHistory, PortfolioCommandCenter, PortfolioQuality, ProjectCards } from "@/components/PortfolioWorkspace";
 import { money } from "@/lib/normalized";
 import OutputStudio from "@/components/OutputStudio";
@@ -32,12 +33,12 @@ function OlaOverlay(){
  </div>
 }
 
-export default function Dashboard({initialProjectId,initialProjectView="executive"}:{initialProjectId?:string;initialProjectView?:ProjectView}){
+export default function Dashboard({initialProjectId,initialProjectView=DEFAULT_PROJECT_VIEW}:{initialProjectId?:string;initialProjectView?:ProjectView}){
  const [projects,setProjects]=useState<ProjectRegistryItem[]>([]),[conflicts,setConflicts]=useState<IdentityConflict[]>([]),[,setPortfolio]=useState<any>(null),[tab,setTab]=useState<Tab>("portfolio"),[projectId,setProjectId]=useState(initialProjectId||""),[projectView,setProjectView]=useState<ProjectView>(initialProjectView),[clock,setClock]=useState("");
  useEffect(()=>{Promise.all([fetch("/generated/projects.json").then(r=>r.json()),fetch("/generated/portfolio/latest.json").then(r=>r.json()),fetch("/generated/identity-conflicts.json").then(r=>r.ok?r.json():[]).catch(()=>[])]).then(([p,po,c])=>{setProjects(p);setPortfolio(po);setConflicts(Array.isArray(c)?c:[])}).catch(()=>{})},[]);
  useEffect(()=>{const t=()=>setClock(new Intl.DateTimeFormat("en-GB",{timeZone:"Africa/Cairo",hour:"2-digit",minute:"2-digit",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date()));t();const id=setInterval(t,30000);return()=>clearInterval(id)},[]);
- useEffect(()=>{const pop=()=>{const m=location.pathname.match(/^\/project\/([^/]+)(?:\/([^/]+))?/);setProjectId(m?decodeURIComponent(m[1]):"");setProjectView((m?.[2] as ProjectView)||"executive")};window.addEventListener("popstate",pop);return()=>window.removeEventListener("popstate",pop)},[]);
- const open=(id:string)=>{setProjectId(id);setProjectView("executive");history.pushState({},"",`/project/${encodeURIComponent(id)}/executive`);window.scrollTo({top:0,behavior:"smooth"})};
+ useEffect(()=>{const pop=()=>{const m=location.pathname.match(/^\/project\/([^/]+)(?:\/([^/]+))?/);setProjectId(m?decodeURIComponent(m[1]):"");setProjectView(normalizeProjectView(m?.[2]))};window.addEventListener("popstate",pop);return()=>window.removeEventListener("popstate",pop)},[]);
+ const open=(id:string)=>{setProjectId(id);setProjectView(DEFAULT_PROJECT_VIEW);history.pushState({},"",`/project/${encodeURIComponent(id)}/${DEFAULT_PROJECT_VIEW}`);window.scrollTo({top:0,behavior:"smooth"})};
  const navigateProject=(view:ProjectView)=>{setProjectView(view);history.pushState({},"",`/project/${encodeURIComponent(projectId)}/${view}`);window.scrollTo({top:0,behavior:"smooth"})};
  const back=()=>{setProjectId("");history.pushState({},"","/");setTab("portfolio");window.scrollTo({top:0,behavior:"smooth"})};
  if(projectId)return <main className="shell"><OlaOverlay/><ProjectWorkspace projectId={projectId} view={projectView} onNavigate={navigateProject} onBack={back}/></main>;

@@ -1,5 +1,7 @@
 # CTO CostControl
 
+The complete family/page arrangement and chart/table signal inventory is documented in [`docs/DASHBOARD_CONTENT_MAP.md`](docs/DASHBOARD_CONTENT_MAP.md).
+
 Standalone **CTO Cost Intelligence Command Center** for Next.js/Vercel.
 
 This repository is intentionally isolated from any previous Project Intelligence Hub. It has its own workbook detector, parser, validation gates, generated data model, watcher, UI, tests, Git/Vercel publishing flow and source-audit model.
