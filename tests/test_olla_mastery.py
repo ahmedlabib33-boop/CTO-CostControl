@@ -20,13 +20,31 @@ class EngOllaMasteryTests(unittest.TestCase):
         self.assertIn('window.addEventListener("pointerup",touch', DASHBOARD)
 
     def test_content_is_data_driven_and_has_exact_question_count(self):
-        ids = re.findall(r'id: "(M[12]-Q\d{2})"', CONTENT)
-        self.assertEqual(24, len(ids))
-        self.assertEqual(24, len(set(ids)))
+        base_ids = re.findall(r'id: "(M[12]-Q\d{2})"', CONTENT)
+        ceo_content = (ROOT / "src/lib/ollaCeoMasteryContent.ts").read_text(encoding="utf-8")
+        ceo_ids = re.findall(r'id: "(M3-Q\d{2})"', ceo_content)
+        ids = base_ids + ceo_ids
+        self.assertEqual(66, len(ids))
+        self.assertEqual(66, len(set(ids)))
         self.assertEqual(12, len([item for item in ids if item.startswith("M1-")]))
         self.assertEqual(12, len([item for item in ids if item.startswith("M2-")]))
+        self.assertEqual(42, len([item for item in ids if item.startswith("M3-")]))
         self.assertIn("export const MAX_QUESTIONS_PER_PAGE = 3", CONTENT)
         self.assertIn("slice(page*MAX_QUESTIONS_PER_PAGE", MASTERY)
+
+    def test_ceo_visual_module_is_wired_without_replacing_existing_layer(self):
+        modules = (ROOT / "src/lib/ollaMasteryModules.ts").read_text(encoding="utf-8")
+        visual = (ROOT / "src/components/OllaMasteryVisual.tsx").read_text(encoding="utf-8")
+        visual_data = (ROOT / "src/lib/ollaCeoVisuals.ts").read_text(encoding="utf-8")
+        self.assertIn("CEO_COST_CONTROL_MASTERY", modules)
+        self.assertIn("...BASE_OLLA_MODULES", modules)
+        self.assertIn("OllaMasteryVisual", MASTERY)
+        self.assertIn('questionId={item.id}', MASTERY)
+        self.assertIn("CEO_VISUALS", visual)
+        self.assertIn('"M3-Q42"', visual_data)
+        visual_ids = re.findall(r'"(M3-Q\d{2})":', visual_data)
+        self.assertEqual(42, len(visual_ids))
+        self.assertEqual(42, len(set(visual_ids)))
 
     def test_requested_learning_flow_and_controls_exist(self):
         self.assertIn("Eng. Olla,", MASTERY)

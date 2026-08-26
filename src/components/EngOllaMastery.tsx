@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { MAX_QUESTIONS_PER_PAGE, OLLA_MODULES, type ExecutiveQuestion } from "@/lib/ollaMasteryContent";
+import { MAX_QUESTIONS_PER_PAGE, OLLA_MODULES, type ExecutiveQuestion } from "@/lib/ollaMasteryModules";
+import { OllaMasteryVisual } from "@/components/OllaMasteryVisual";
 
 type Screen = "hero" | "modules" | "learning" | "complete";
 
@@ -19,6 +20,7 @@ function OllaQuestion({item,revealed,onReveal}:{item:ExecutiveQuestion;revealed:
     <div className="ollaAnswer" id={`${item.id}-answer`} aria-hidden={!revealed}>
       <div className="ollaAnswerInner">
         <section><span className="ollaAnswerLabel">Core answer</span><p className="ollaCore"><Lines text={item.answer}/></p></section>
+        <OllaMasteryVisual questionId={item.id}/>
         <section><span className="ollaAnswerLabel">Plain English</span><p><Lines text={item.plainEnglish}/></p></section>
         <ExecutiveCallout>{item.engOlla}</ExecutiveCallout>
         {item.managementChallenge&&<section className="ollaChallenge"><span className="ollaAnswerLabel">Management challenge</span><p><Lines text={item.managementChallenge}/></p></section>}
