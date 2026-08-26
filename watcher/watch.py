@@ -85,13 +85,16 @@ def main() -> int:
                 state["files"][key] = {
                     "stat": sig,
                     "sha256": digest,
-                    "status": "parsed",
+                    "status": summary.get("status", "parsed"),
                     "project_id": summary["project_id"],
                     "period": summary["reporting_period"],
                     "updated_at": time.time(),
                 }
                 changed.append(summary)
-                print(f"PARSED {path.name} -> {summary['project_id']} {summary['reporting_period']}")
+                if summary.get("published_project"):
+                    print(f"PARSED {path.name} -> {summary['project_id']} {summary['reporting_period']}")
+                else:
+                    print(f"BLOCKED {path.name} -> {summary.get('status')} (no project data updated)")
             except Exception as exc:
                 state["files"][key] = {"stat": sig, "sha256": digest, "status": "failed", "error": str(exc)}
                 print(f"FAILED {path}: {exc}")

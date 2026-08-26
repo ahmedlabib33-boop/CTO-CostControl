@@ -8,4 +8,5 @@ logs/*.log
 *.xls
 *.xlsm
 *.tmp
+*.tsbuildinfo
 .DS_Store

@@ -16,6 +16,7 @@ def _write_minimal_xlsx(path: Path) -> None:
 <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
 <Override PartName="/xl/worksheets/sheet2.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
 <Override PartName="/xl/worksheets/sheet3.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+<Override PartName="/xl/worksheets/sheet4.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
 </Types>'''
     root_rels = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
@@ -26,17 +27,27 @@ def _write_minimal_xlsx(path: Path) -> None:
 <sheet name="Cover" sheetId="1" r:id="rId1"/>
 <sheet name="Dashboard" sheetId="2" r:id="rId2"/>
 <sheet name="Extra Intelligence" sheetId="3" r:id="rId3"/>
+<sheet name="metadata" sheetId="4" state="hidden" r:id="rId4"/>
 </sheets></workbook>'''
     wb_rels = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
 <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet2.xml"/>
 <Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet3.xml"/>
+<Relationship Id="rId4" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet4.xml"/>
 </Relationships>'''
     cover = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:A2"/><sheetData>
 <row r="1"><c r="A1" t="inlineStr"><is><t>Project Phoenix</t></is></c></row>
 <row r="2"><c r="A2" t="inlineStr"><is><t>Cost Report August 2026</t></is></c></row>
+</sheetData></worksheet>'''
+    metadata = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:B5"/><sheetData>
+<row r="1"><c r="A1" t="inlineStr"><is><t> PROJECT SAP ID </t></is></c><c r="B1" t="inlineStr"><is><t>PHX-001</t></is></c></row>
+<row r="2"><c r="A2" t="inlineStr"><is><t>Project Code</t></is></c><c r="B2" t="inlineStr"><is><t>P/2026</t></is></c></row>
+<row r="3"><c r="A3" t="inlineStr"><is><t>Project Name</t></is></c><c r="B3" t="inlineStr"><is><t>Project Phoenix</t></is></c></row>
+<row r="4"><c r="A4" t="inlineStr"><is><t>Report Start</t></is></c><c r="B4" t="inlineStr"><is><t>2026-08-01</t></is></c></row>
+<row r="5"><c r="A5" t="inlineStr"><is><t>Report Finish</t></is></c><c r="B5" t="inlineStr"><is><t>2026-08-31</t></is></c></row>
 </sheetData></worksheet>'''
     dashboard = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="A1:B3"/><sheetData>
@@ -59,6 +70,7 @@ def _write_minimal_xlsx(path: Path) -> None:
         z.writestr("xl/worksheets/sheet1.xml", cover)
         z.writestr("xl/worksheets/sheet2.xml", dashboard)
         z.writestr("xl/worksheets/sheet3.xml", extra)
+        z.writestr("xl/worksheets/sheet4.xml", metadata)
 
 
 class AdaptiveNewProjectTests(unittest.TestCase):
@@ -70,8 +82,8 @@ class AdaptiveNewProjectTests(unittest.TestCase):
             _write_minimal_xlsx(source)
             summary = parse_workbook(source, out)
             self.assertEqual(summary["project_id"], "project-phoenix")
-            self.assertEqual(summary["reporting_period"], "2026-08")
-            self.assertEqual(summary["manifest"]["sheet_count"], 3)
+            self.assertEqual(summary["reporting_period"], "2026-08-01_to_2026-08-31")
+            self.assertEqual(summary["manifest"]["sheet_count"], 4)
             self.assertEqual(summary["manifest"]["unaccounted_sheets"], 0)
             self.assertGreaterEqual(summary["manifest"]["detected_table_count"], 1)
             # This intentionally sparse workbook has no ledger/cashflow, and they must stay unavailable.

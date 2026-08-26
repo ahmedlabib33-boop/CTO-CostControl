@@ -6,14 +6,16 @@ This repository is intentionally isolated from any previous Project Intelligence
 
 ## Non-negotiable design rules
 
-1. **No project-specific hard-coding.** Runtime source does not contain THE BIG / GLORIA branches, fixed project lists, fixed project routes, fixed months, or fixed workbook cell addresses.
-2. **Workbook-driven UI.** A validated new workbook creates or updates a project dataset and the generated project registry. Next.js reads the registry dynamically.
-3. **Project isolation.** Every generated record is namespaced by `project_id`, `reporting_period` and source SHA-256. Isolation/completeness tests block publishing if a raw sheet resolves to another project.
-4. **Variable workbook capability.** Less data means the unavailable capability is reported as unavailable. More data is inventoried and remains available in Source Explorer even when it is not recognized by a standard cost module.
-5. **No silent loss.** Every visible and hidden sheet is parsed. Populated cells, formulas, detected table regions and embedded Excel chart definitions are retained in generated project data.
-6. **No invention.** Missing is not converted to zero and never falls back to another project.
-7. **Monthly/revision history.** Each source fingerprint is retained under the detected reporting period. A later month becomes project `latest`; an older revised month does not overwrite a newer latest month.
-8. **Approved HTML parity reference retained.** `docs/parity/` contains the approved reference application and extracted project references for acceptance comparison. The production UI is native Next.js; these references are not the runtime data architecture.
+1. **No project-specific hard-coding.** Runtime source does not contain sample-project branches, fixed project lists, fixed project routes, fixed months, or fixed workbook cell addresses.
+2. **Metadata-driven identity.** The `metadata` worksheet determines the project and reporting period. Display names and filenames are never authoritative identity fallbacks.
+3. **Workbook-driven UI.** A validated new workbook creates or updates a project dataset and the generated project registry. Next.js reads the registry dynamically.
+4. **Project isolation.** Every generated record is namespaced by `project_id`, `reporting_period` and source SHA-256. Isolation/completeness tests block publishing if a raw sheet resolves to another project.
+5. **Stable universal dashboard.** Every project uses the same project families, component names and positions. Missing source data leaves an unavailable shell; it never rearranges the dashboard.
+6. **Variable workbook capability.** More data is inventoried and remains available in Source Explorer even when it is not recognized by a standard cost module.
+7. **No silent loss.** Every visible and hidden sheet is parsed. Populated cells, formulas, detected table regions and embedded Excel chart definitions are retained in generated project data.
+8. **No invention.** Missing is not converted to zero and never falls back to another project.
+9. **Monthly/revision history.** Each source fingerprint is retained under the metadata-derived reporting period. A later period becomes project `latest`; an older revised period does not overwrite a newer latest period.
+10. **Approved HTML parity reference retained.** `docs/parity/` contains the approved reference application and extracted project references for acceptance comparison. The production UI is native Next.js; these references are not the runtime data architecture.
 
 ## Main folders
 
@@ -23,6 +25,8 @@ CTO-CostControl/
 ├─ watcher/                       # adaptive XLSX detector/parser/publisher
 ├─ public/generated/              # controlled web payloads
 │  ├─ projects.json               # dynamic project registry
+│  ├─ identity-registry.json       # identifier-to-namespace registry
+│  ├─ identity-conflicts.json      # blocked identity alerts for the UI
 │  ├─ portfolio/latest.json
 │  └─ projects/<project_id>/
 │     ├─ latest.json
@@ -30,7 +34,7 @@ CTO-CostControl/
 │     └─ raw/<period>/<sha-prefix>/<sheet>.json
 ├─ src/                           # native Next.js command-center UI
 ├─ tests/                         # isolation/completeness/no-hardcode gates
-├─ config/project-aliases.json    # optional controlled aliases, no code changes
+├─ config/project-identity-migration.json # controlled IDs for legacy projects
 ├─ docs/parity/                   # approved HTML reference only
 └─ samples/INPUT/                 # supplied June 2026 test workbooks
 ```
@@ -67,7 +71,36 @@ Create/use:
 CTO-CostControl\INPUT\
 ```
 
-Drop any `.xlsx` cost report there. The watcher ignores temporary Excel files beginning `~$`.
+Drop any `.xlsx` or `.xlsm` cost report there. The watcher ignores temporary Excel files beginning `~$`. `INPUT` is a transient inbox, not the history database. Removing a processed workbook never removes generated periods or revisions.
+
+## Required metadata worksheet
+
+Each incoming workbook must contain a worksheet named `metadata` (visible or hidden). Labels are read case-insensitively from Column A and values from Column B:
+
+| Column A label | Column B value |
+|---|---|
+| Project SAP ID | Identifier string; optional when Project Code is supplied |
+| Project Code | Identifier string; optional when Project SAP ID is supplied |
+| Project Name | Descriptive display name |
+| Report Start | Excel date or supported unambiguous text date |
+| Report Finish | Excel date or supported unambiguous text date |
+
+Identifiers may contain leading zeros, letters, spaces, slashes, hyphens, underscores and ordinary symbols. Numeric-looking cells with a zero-padding number format retain their displayed leading zeros. Dates are normalized to `YYYY-MM-DD`; the history period key is `<report-start>_to_<report-finish>`. Ambiguous or invalid dates are blocked and recorded in Data Quality rather than guessed.
+
+### Identity decision table
+
+| Incoming metadata | Registry result | Action |
+|---|---|---|
+| SAP ID + Code match the same project | Existing | Add validated period/revision; preserve history |
+| Both identifiers are new | New | Create isolated namespace, registry entry, latest/history and portfolio entry |
+| New SAP ID + existing Code | Conflict | Block update; create critical red Data Quality alert |
+| Existing SAP ID + new Code | Conflict | Block update; create critical red Data Quality alert |
+| SAP ID and Code point to different projects | Conflict | Block both; no merge or overwrite |
+| SAP ID only, existing/new | Existing/New | Resolve or create by SAP ID |
+| Code only, existing/new | Existing/New | Resolve or create by Code |
+| Both identifiers missing | Unresolved | Block publication as a valid project; retain audit evidence |
+
+Project Name is used only for display. It never overrides identifier conflicts. Identifier lookup uses Unicode-normalized, whitespace-trimmed, case-insensitive canonical keys while retaining the exact source value for audit.
 
 ### One local parse without publishing
 
@@ -88,7 +121,10 @@ new/changed workbook
 → file stability check
 → SHA-256 fingerprint
 → workbook discovery
-→ project + period detection
+→ hidden/visible metadata detection and A/B extraction
+→ exact SAP ID / Project Code resolution
+→ metadata date parsing and report-period identity
+→ conflict block or isolated project selection
 → every-sheet extraction
 → semantic metric mapping
 → isolated project output
@@ -115,29 +151,60 @@ The parser does not use fixed THE BIG / GLORIA coordinates. It reads XLSX Open X
 - merged ranges and dimensions;
 - embedded Excel chart definitions and cached series when present;
 - table-like regions through header/data heuristics;
-- project identity and reporting period from workbook content, with filename only as fallback evidence;
+- authoritative project identity and reporting period from the `metadata` worksheet only;
 - standard metrics by semantic labels and adjacent numeric values;
 - capability flags (cashflow, direct, indirect, BOQ, forecast, ledger, cost codes, waste, wages, reallocation, etc.).
 
 If an unrecognized sheet is added in the future, it is **not discarded**. It remains available in the adaptive Source Explorer and is counted in the completeness manifest.
 
-## Optional project aliases
+## History, revisions and legacy migration
 
-If a supplier changes a project title substantially between months and automatic identity resolution cannot safely match it, add an alias to:
-
-```text
-config/project-aliases.json
-```
-
-Example shape:
+- Deleting a workbook from `INPUT` does not delete generated history.
+- A new metadata period creates a new `history/<period>/` directory and may become project `latest`.
+- A changed SHA-256 in the same period creates another fingerprint-named revision. `history/<period>/latest.json` points to the latest validated revision while older revisions remain.
+- Existing generated projects created before metadata identity are migrated into `identity-registry.json` as `legacy_generated_data` without changing their namespace or history.
+- Because their real SAP IDs/Codes cannot be inferred safely, populate `config/project-identity-migration.json` before processing a metadata workbook for the same legacy project.
 
 ```json
 {
-  "project display name from workbook": "permanent-project-id"
+  "existing-internal-project-id": {
+    "project_sap_id": "SAP-001",
+    "project_code": "P/001"
+  }
 }
 ```
 
-This is controlled configuration, not source-code hard-coding.
+If a new workbook has the same display name as an unmapped legacy project, automatic creation is blocked instead of guessing or creating a duplicate.
+
+## Critical identity alerts
+
+Conflicting/unresolved workbooks receive a local private evidence copy under ignored `.runtime/identity-problems/<sha>/`; web-safe evidence is stored under `public/generated/identity-problems/` and indexed in `identity-conflicts.json`. They do not update any project `latest.json`, history, or identity registration. The red alert appears first in **Monthly Intelligence & Data Quality** with incoming IDs, project name, report dates, matched/conflicting project, filename, SHA-256, timestamp and reason.
+
+## Universal project dashboard
+
+All current and future projects use the same order:
+
+1. Executive Cost Position
+2. Cost & Forecast Engineering
+3. Cost Ledger & Controls
+4. Data Quality & Source Audit
+
+Standard chart/table shells are always rendered. Missing normalized source data produces `Source data unavailable for this reporting period` in the unchanged position. Additional workbook content remains available in the adaptive Source Explorer and source-audit area.
+
+## Automatic Vercel visibility
+
+After a valid new identity passes parsing and validation, the watcher creates its namespace/history/latest data, registers the identity, regenerates `projects.json` and portfolio JSON, runs unit/isolation/completeness/build gates, then pushes generated data. The dynamic Next.js route, project selector, portfolio and Output Studio read the registry, so no React code edit is required.
+
+## Validation commands
+
+```bat
+npm run test
+npm run validate:data
+npx tsc --noEmit
+npm run build
+```
+
+Publishing is blocked on any unit, project-isolation, workbook-completeness or production-build failure; the previously deployed validated Vercel version remains unchanged.
 
 ## Vercel
 

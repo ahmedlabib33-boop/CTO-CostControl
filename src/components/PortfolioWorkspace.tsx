@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { NormalizedData, PortfolioModel, ProjectRegistryItem } from "@/lib/types";
+import type { IdentityConflict, NormalizedData, PortfolioModel, ProjectRegistryItem } from "@/lib/types";
 import { money, pct, portfolioBase, scoped } from "@/lib/normalized";
 import { BubbleChart, ChartShell, GroupedBarChart, LineChart } from "@/components/Charts";
 
@@ -60,6 +60,8 @@ export function PortfolioCommandCenter({projects,onOpen}:{projects:ProjectRegist
 }
 
 export function ProjectCards({projects,onOpen}:{projects:ProjectRegistryItem[];onOpen:(id:string)=>void}){return <div className="projectGrid">{projects.map(p=><button className="projectCard" onClick={()=>onOpen(p.project_id)} key={p.project_id}><div className="projectTitle">{p.project_name}</div><div className="sub">Reporting {p.reporting_period}</div><div className="miniGrid"><span>CPI <b>{p.metrics?.cpi?.toFixed(2)??"—"}</b></span><span>CV <b>{money(p.metrics?.cost_variance)}</b></span><span>Sheets <b>{p.sheet_count}</b></span><span>Quality <b>{p.quality_count}</b></span></div><div className="sourceMeta"><span>{p.approved_parity?"Approved parity source":"Adaptive source"}</span><span>{p.chart_count} Excel charts</span></div></button>)}</div>}
+
+export function IdentityConflictAlerts({conflicts}:{conflicts:IdentityConflict[]}){if(!conflicts.length)return null;return <section className="identityAlerts" aria-label="Critical project identity alerts"><div className="identityAlertHeader"><span>CRITICAL IDENTITY CONTROL</span><b>{conflicts.length} blocked workbook{conflicts.length===1?"":"s"}</b></div>{conflicts.map((c,i)=><article className="identityAlert" key={c.evidence?.sha256_fingerprint||i}><h2>{c.title}</h2><p>{c.message}</p><dl><dt>SAP Project ID</dt><dd>{c.evidence?.incoming_project_sap_id||"Missing"}</dd><dt>Project Code</dt><dd>{c.evidence?.incoming_project_code||"Missing"}</dd><dt>Project Name</dt><dd>{c.evidence?.incoming_project_name||"Missing"}</dd><dt>Report Period</dt><dd>{[c.evidence?.report_start,c.evidence?.report_finish].filter(Boolean).join(" to ")||"Unresolved"}</dd><dt>Matched Identifier</dt><dd>{c.evidence?.matched_existing_identifier||"None"}</dd><dt>Conflicting Project</dt><dd>{c.evidence?.conflicting_existing_project||"None"}</dd><dt>Workbook</dt><dd>{c.evidence?.source_workbook_filename||"—"}</dd><dt>SHA-256</dt><dd className="mono">{c.evidence?.sha256_fingerprint||"—"}</dd><dt>Detected</dt><dd>{c.evidence?.detection_timestamp||"—"}</dd><dt>Reason</dt><dd>{c.evidence?.conflict_reason||"—"}</dd></dl></article>)}</section>}
 
 export function PortfolioQuality({projects,onOpen}:{projects:ProjectRegistryItem[];onOpen:(id:string)=>void}){return <div className="card"><h3>Portfolio Data Quality</h3><p className="sub">Quality findings remain project-scoped; source contradictions are reported, not silently reconciled.</p><div className="tablewrap"><table><thead><tr><th>Project</th><th>Period</th><th>Findings</th><th>Sheets</th><th>Charts</th><th>Source Fingerprint</th></tr></thead><tbody>{projects.map(p=><tr key={p.project_id} className="clickable-row" onClick={()=>onOpen(p.project_id)}><td className="pname">{p.project_name}</td><td>{p.reporting_period}</td><td>{p.quality_count}</td><td>{p.sheet_count}</td><td>{p.chart_count}</td><td className="mono">{p.source_fingerprint}</td></tr>)}</tbody></table></div></div>}
 

@@ -12,7 +12,10 @@ def main() -> int:
     out = Path(args.output).resolve()
     for src in args.sources:
         summary = parse_workbook(Path(src).resolve(), out)
-        print(f"OK {summary['project_id']} {summary['reporting_period']} sheets={summary['manifest']['sheet_count']} charts={summary['manifest']['excel_chart_count']}")
+        if summary.get("published_project"):
+            print(f"OK {summary['project_id']} {summary['reporting_period']} sheets={summary['manifest']['sheet_count']} charts={summary['manifest']['excel_chart_count']}")
+        else:
+            print(f"BLOCKED {Path(src).name}: {summary.get('status')} (no project latest/history changed)")
     portfolio = regenerate_portfolio(out)
     print(f"PORTFOLIO projects={portfolio['project_count']} fingerprint={portfolio['registry_fingerprint']}")
     return 0

@@ -2,6 +2,11 @@
   {
     "project_id": "gloria",
     "project_name": "Gloria",
+    "identity": {
+      "status": "legacy_migration_required",
+      "project_sap_id": null,
+      "project_code": null
+    },
     "reporting_period": "2026-06",
     "source_fingerprint": "e62a8bfd545c78c5cbcf73a0675f2283b685d5f0de16a2e4033e662e588f89f8",
     "normalized_path": "/generated/projects/gloria/enriched/2026-06/e62a8bfd545c78c5/normalized.json",
@@ -60,6 +65,11 @@
   {
     "project_id": "the-big",
     "project_name": "THE BIG",
+    "identity": {
+      "status": "legacy_migration_required",
+      "project_sap_id": null,
+      "project_code": null
+    },
     "reporting_period": "2026-06",
     "source_fingerprint": "45bc474cb6799b3088892d23b60f7bcd829bb4a200a483860f9db9d2d1376221",
     "normalized_path": "/generated/projects/the-big/enriched/2026-06/45bc474cb6799b30/normalized.json",

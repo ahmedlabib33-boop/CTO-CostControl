@@ -14,6 +14,7 @@ def run(cmd: list[str], cwd: Path, check: bool = True) -> subprocess.CompletedPr
 
 
 def publish(repo_root: Path, expected_fingerprint: str) -> None:
+    run(["python", "-m", "unittest", "discover", "-s", "tests", "-v"], repo_root)
     run(["python", "-m", "watcher.validate_all", "--root", str(repo_root)], repo_root)
     run(["npm", "run", "build"], repo_root)
     run(["git", "add", "public/generated"], repo_root)

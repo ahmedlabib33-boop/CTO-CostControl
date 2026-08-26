@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "projects": [
+    {
+      "internal_project_id": "gloria",
+      "project_sap_id": null,
+      "project_code": null,
+      "project_name": "Gloria",
+      "identity_creation_source": "legacy_generated_data",
+      "identity_history": [],
+      "created_at": "2026-08-25T18:33:15.973625+00:00",
+      "latest_processed_reporting_period": "2026-06",
+      "latest_validated_source_fingerprint": "e62a8bfd545c78c5cbcf73a0675f2283b685d5f0de16a2e4033e662e588f89f8"
+    },
+    {
+      "internal_project_id": "the-big",
+      "project_sap_id": null,
+      "project_code": null,
+      "project_name": "THE BIG",
+      "identity_creation_source": "legacy_generated_data",
+      "identity_history": [],
+      "created_at": "2026-08-25T18:33:01.552686+00:00",
+      "latest_processed_reporting_period": "2026-06",
+      "latest_validated_source_fingerprint": "45bc474cb6799b3088892d23b60f7bcd829bb4a200a483860f9db9d2d1376221"
+    }
+  ],
+  "updated_at": "2026-08-26T00:32:37.699538+00:00"
+}

@@ -1,11 +1,16 @@
 {
-  "generated_at": "2026-08-25T18:33:16.270997+00:00",
-  "registry_fingerprint": "72dbef9a6d6f1dcdbddb4501c5029873959afc23ef1d24257ea5420f2ddb2cd6",
+  "generated_at": "2026-08-26T00:32:37.733204+00:00",
+  "registry_fingerprint": "01aac651bdb3ac06f3a8f1eb3e3b343e5215840cfd9f38fd908df5e8dd11ae3c",
   "project_count": 2,
   "projects": [
     {
       "project_id": "gloria",
       "project_name": "Gloria",
+      "identity": {
+        "status": "legacy_migration_required",
+        "project_sap_id": null,
+        "project_code": null
+      },
       "reporting_period": "2026-06",
       "source_fingerprint": "e62a8bfd545c78c5cbcf73a0675f2283b685d5f0de16a2e4033e662e588f89f8",
       "normalized_path": "/generated/projects/gloria/enriched/2026-06/e62a8bfd545c78c5/normalized.json",
@@ -64,6 +69,11 @@
     {
       "project_id": "the-big",
       "project_name": "THE BIG",
+      "identity": {
+        "status": "legacy_migration_required",
+        "project_sap_id": null,
+        "project_code": null
+      },
       "reporting_period": "2026-06",
       "source_fingerprint": "45bc474cb6799b3088892d23b60f7bcd829bb4a200a483860f9db9d2d1376221",
       "normalized_path": "/generated/projects/the-big/enriched/2026-06/45bc474cb6799b30/normalized.json",

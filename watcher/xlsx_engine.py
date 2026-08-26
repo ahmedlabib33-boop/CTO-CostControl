@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import difflib
 import math
 import re
 import shutil
@@ -14,6 +13,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 from xml.etree import ElementTree as ET
+from .identity import (extract_metadata, load_identity_registry, record_identity_problem,
+                       register_validated_identity, resolve_identity, save_identity_registry)
 
 NS = {
     "m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
@@ -153,6 +154,7 @@ class XlsxWorkbook:
         self.fingerprint = sha256_file(self.path)
         self.z = zipfile.ZipFile(self.path)
         self.shared_strings = self._shared_strings()
+        self.number_formats = self._number_formats()
         self.sheets = self._sheet_infos()
 
     def close(self) -> None:
@@ -190,6 +192,25 @@ class XlsxWorkbook:
                 path=_resolve("xl/workbook.xml", target),
                 rel_id=rid,
             ))
+        return out
+
+    def _number_formats(self) -> dict[int, tuple[str, bool]]:
+        root = _xml(self.z, "xl/styles.xml")
+        if root is None:
+            return {}
+        builtins = {
+            14: "mm-dd-yy", 15: "d-mmm-yy", 16: "d-mmm", 17: "mmm-yy",
+            18: "h:mm AM/PM", 19: "h:mm:ss AM/PM", 20: "h:mm", 21: "h:mm:ss", 22: "m/d/yy h:mm",
+            45: "mm:ss", 46: "[h]:mm:ss", 47: "mmss.0",
+        }
+        custom = {int(n.attrib["numFmtId"]): n.attrib.get("formatCode", "") for n in root.findall("m:numFmts/m:numFmt", NS)}
+        out: dict[int, tuple[str, bool]] = {}
+        for idx, xf in enumerate(root.findall("m:cellXfs/m:xf", NS)):
+            num_id = int(xf.attrib.get("numFmtId", "0"))
+            fmt = custom.get(num_id, builtins.get(num_id, ""))
+            stripped = re.sub(r'"[^"]*"|\\.|\[[^\]]*\]', "", fmt).lower()
+            is_date = num_id in builtins or bool(re.search(r"(^|[^a-z])[dmyhs]+([^a-z]|$)", stripped))
+            out[idx] = (fmt, is_date)
         return out
 
     def read_sheet(self, info: SheetInfo) -> dict[str, Any]:
@@ -230,6 +251,8 @@ class XlsxWorkbook:
                 elif tag == cell_tag:
                     ref = elem.attrib.get("r", "")
                     typ = elem.attrib.get("t", "n")
+                    style_id = int(elem.attrib.get("s", "0"))
+                    number_format, is_date_format = self.number_formats.get(style_id, ("", False))
                     formula_el = elem.find(f_tag)
                     formula = formula_el.text if formula_el is not None else None
                     value: Any = None
@@ -258,7 +281,8 @@ class XlsxWorkbook:
                                     value = raw
                     if value is not None or formula is not None:
                         row, col = split_ref(ref)
-                        cells.append({"ref": ref, "row": row, "col": col, "value": value, "formula": formula})
+                        cells.append({"ref": ref, "row": row, "col": col, "value": value, "formula": formula,
+                                      "style_id": style_id, "number_format": number_format, "is_date_format": is_date_format})
                     elem.clear()
         charts = self._charts_for_sheet(info, drawing_rid)
         return {
@@ -338,98 +362,6 @@ class XlsxWorkbook:
 def _matrix(sheet: dict[str, Any]) -> dict[tuple[int, int], Any]:
     return {(c["row"], c["col"]): c["value"] for c in sheet["cells"] if c.get("value") is not None}
 
-
-
-def resolve_project_id(output_root: Path, candidate_name: str, candidate_slug: str) -> str:
-    """Resolve recurring project identity without project-specific code.
-
-    Exact slug wins. Existing names may be reused only at very high similarity; when uncertain,
-    a new namespace is safer than cross-project contamination. Optional aliases can be supplied
-    in config/project-aliases.json by local operators without changing parser source.
-    """
-    if (output_root / "projects" / candidate_slug).exists():
-        return candidate_slug
-    alias_file = output_root.parent.parent / "config" / "project-aliases.json"
-    if alias_file.exists():
-        try:
-            aliases = json.loads(alias_file.read_text(encoding="utf-8"))
-            key = clean_text(candidate_name).lower()
-            mapped = aliases.get(key) or aliases.get(candidate_slug)
-            if mapped:
-                return slugify(str(mapped))
-        except Exception:
-            pass
-    best: tuple[float, str] | None = None
-    projects_root = output_root / "projects"
-    if projects_root.exists():
-        for latest in projects_root.glob("*/latest.json"):
-            try:
-                d = json.loads(latest.read_text(encoding="utf-8"))
-                existing_name = clean_text(d.get("project_name", ""))
-                ratio = difflib.SequenceMatcher(None, slugify(existing_name), candidate_slug).ratio()
-                if best is None or ratio > best[0]:
-                    best = (ratio, d.get("project_id", latest.parent.name))
-            except Exception:
-                continue
-    if best and best[0] >= 0.94:
-        return best[1]
-    return candidate_slug
-
-def detect_identity(workbook: XlsxWorkbook, parsed_sheets: list[dict[str, Any]]) -> tuple[str, str, str, list[str]]:
-    evidence: list[str] = []
-    candidate_name = ""
-    period = ""
-    early: list[tuple[str, str, int, int]] = []
-    for sh in parsed_sheets[: min(5, len(parsed_sheets))]:
-        for c in sh["cells"]:
-            if c["row"] <= 60 and c["col"] <= 25 and isinstance(c.get("value"), str):
-                txt = clean_text(c["value"])
-                if txt:
-                    early.append((sh["name"], txt, c["row"], c["col"]))
-    month_re = re.compile(r"\b(" + "|".join(sorted(MONTHS, key=len, reverse=True)) + r")\s*[-/., ]*\s*(20\d{2}|\d{2})\b", re.I)
-    for sh, txt, row, col in early:
-        m = month_re.search(txt)
-        if m and not period:
-            year = int(m.group(2))
-            if year < 100:
-                year += 2000
-            period = f"{year:04d}-{MONTHS[m.group(1).lower()]:02d}"
-            evidence.append(f"period:{sh}!{num_to_col(col)}{row}={txt}")
-    # Find a meaningful text near a Cost Report title.
-    for idx, (sh, txt, row, col) in enumerate(early):
-        if "cost report" in txt.lower():
-            near = [x for x in early if x[0] == sh and abs(x[2] - row) <= 5 and x[2] <= row and x[1] != txt]
-            scored: list[tuple[int, str]] = []
-            for _, ntext, nr, nc in near:
-                low = ntext.lower()
-                if any(bad in low for bad in ["date", "prepared", "reporting", "contents", "samco", "technical director"]):
-                    continue
-                score = len(ntext)
-                if "project" in low or "hospital" in low or "compound" in low:
-                    score += 40
-                if 4 <= len(ntext) <= 100:
-                    scored.append((score, ntext.strip("() -")))
-            if scored:
-                candidate_name = max(scored)[1]
-                evidence.append(f"project-near-cost-report:{sh}={candidate_name}")
-                break
-    if not candidate_name:
-        # Generic fallback from filename, never project-specific.
-        stem = workbook.path.stem
-        stem = re.sub(r"(?i)\bcost\s*report\b.*$", "", stem)
-        stem = re.sub(r"\b(?:19|20)\d{2}\b|\b\d{1,2}[.-]\d{4}\b", "", stem)
-        candidate_name = clean_text(re.sub(r"[_-]+", " ", stem)).strip(" -") or "Unresolved Project"
-        evidence.append("project:fallback-filename")
-    if not period:
-        # filename period fallback
-        txt = workbook.path.stem
-        m = re.search(r"\b(0?[1-9]|1[0-2])[._-](20\d{2})\b", txt)
-        if m:
-            period = f"{int(m.group(2)):04d}-{int(m.group(1)):02d}"
-            evidence.append("period:fallback-filename")
-    if not period:
-        period = "unknown"
-    return candidate_name, slugify(candidate_name), period, evidence
 
 
 def detect_metrics(sheets: list[dict[str, Any]]) -> dict[str, Any]:
@@ -595,8 +527,20 @@ def parse_workbook(source: Path, output_root: Path) -> dict[str, Any]:
     wb = XlsxWorkbook(source)
     try:
         parsed_sheets = [wb.read_sheet(info) for info in wb.sheets]
-        project_name, project_id, period, identity_evidence = detect_identity(wb, parsed_sheets)
-        project_id = resolve_project_id(output_root, project_name, project_id)
+        metadata = extract_metadata(parsed_sheets)
+        outcome = resolve_identity(output_root, metadata)
+        if outcome["status"] not in {"existing", "new"}:
+            problem = record_identity_problem(output_root, metadata, source, wb.fingerprint, outcome)
+            return {
+                "status": f"identity_{outcome['status']}", "project_id": None,
+                "project_name": metadata.get("project_name") or "Unresolved Project",
+                "reporting_period": metadata.get("reporting_period"), "source_fingerprint": wb.fingerprint,
+                "quality": [problem], "published_project": False,
+            }
+        project_name = outcome["project_name"]
+        project_id = outcome["project_id"]
+        period = metadata["reporting_period"]
+        identity_evidence = metadata["evidence"]
         metrics = detect_metrics(parsed_sheets)
         capabilities = detect_capabilities(parsed_sheets)
         generated_at = datetime.now(timezone.utc).isoformat()
@@ -619,6 +563,10 @@ def parse_workbook(source: Path, output_root: Path) -> dict[str, Any]:
                 "project_name": project_name,
                 "reporting_period": period,
                 "source_fingerprint": wb.fingerprint,
+                "identity": {
+                    "project_sap_id": metadata.get("project_sap_id"),
+                    "project_code": metadata.get("project_code"),
+                },
                 "sheet": sh,
                 "detected_tables": tables,
             }
@@ -659,10 +607,20 @@ def parse_workbook(source: Path, output_root: Path) -> dict[str, Any]:
                 })
 
         summary = {
-            "schema_version": 2,
+            "schema_version": 3,
             "project_id": project_id,
             "project_name": project_name,
             "reporting_period": period,
+            "identity": {
+                "status": outcome["status"],
+                "project_sap_id": metadata.get("project_sap_id"),
+                "project_code": metadata.get("project_code"),
+                "project_name": metadata.get("project_name"),
+                "report_start": metadata.get("report_start"),
+                "report_finish": metadata.get("report_finish"),
+                "metadata_sheet_state": metadata.get("sheet_state"),
+                "identity_source": "metadata_sheet",
+            },
             "source": {
                 "filename": source.name,
                 "sha256": wb.fingerprint,
@@ -689,8 +647,12 @@ def parse_workbook(source: Path, output_root: Path) -> dict[str, Any]:
                 "charts": all_charts,
                 "unaccounted_sheets": 0,
             },
-            "quality": build_quality(parsed_sheets, metrics, project_id, period) + parity_quality,
+            "quality": metadata.get("quality", []) + build_quality(parsed_sheets, metrics, project_id, period) + parity_quality,
         }
+        if summary["manifest"]["sheet_count"] != len(summary["manifest"]["sheets"]) or summary["manifest"]["unaccounted_sheets"] != 0:
+            raise ValueError("Workbook completeness validation failed before history/latest update")
+        if not summary["identity"]["project_sap_id"] and not summary["identity"]["project_code"]:
+            raise ValueError("Project identity validation failed before history/latest update")
         period_dir = project_dir / "history" / period
         period_dir.mkdir(parents=True, exist_ok=True)
         revision_file = period_dir / f"{wb.fingerprint}.json"
@@ -708,6 +670,9 @@ def parse_workbook(source: Path, output_root: Path) -> dict[str, Any]:
                 pass
         if should_update:
             project_latest.write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
+        register_validated_identity(output_root, outcome, metadata, wb.fingerprint)
+        summary["status"] = "parsed"
+        summary["published_project"] = True
         return summary
     finally:
         wb.close()
@@ -754,6 +719,9 @@ def _registry_metrics(data: dict[str, Any]) -> dict[str, float]:
 
 
 def regenerate_portfolio(output_root: Path) -> dict[str, Any]:
+    identity_registry = load_identity_registry(output_root)
+    save_identity_registry(output_root, identity_registry)
+    identity_by_project = {p.get("internal_project_id"): p for p in identity_registry.get("projects", [])}
     projects_root = output_root / "projects"
     projects = []
     if projects_root.exists():
@@ -777,6 +745,11 @@ def regenerate_portfolio(output_root: Path) -> dict[str, Any]:
             projects.append({
                 "project_id": data["project_id"],
                 "project_name": data["project_name"],
+                "identity": data.get("identity") or {
+                    "status": "legacy_migration_required",
+                    "project_sap_id": identity_by_project.get(data["project_id"], {}).get("project_sap_id"),
+                    "project_code": identity_by_project.get(data["project_id"], {}).get("project_code"),
+                },
                 "reporting_period": data["reporting_period"],
                 "source_fingerprint": data["source"]["sha256"],
                 "normalized_path": data.get("normalized_path"),
@@ -800,4 +773,3 @@ def regenerate_portfolio(output_root: Path) -> dict[str, Any]:
     (port / "latest.json").write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     (output_root / "projects.json").write_text(json.dumps(projects, ensure_ascii=False, indent=2), encoding="utf-8")
     return payload
-

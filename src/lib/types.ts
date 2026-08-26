@@ -9,6 +9,7 @@ export type ProjectHistoryItem = {
 export type ProjectRegistryItem = {
   project_id: string;
   project_name: string;
+  identity?: { status?: string; project_sap_id?: string | null; project_code?: string | null; report_start?: string | null; report_finish?: string | null };
   reporting_period: string;
   source_fingerprint: string;
   normalized_path?: string | null;
@@ -30,6 +31,7 @@ export type ExcelChart = {
 };
 export type ProjectData = {
   schema_version: number; project_id: string; project_name: string; reporting_period: string;
+  identity?: { status?: string; project_sap_id?: string | null; project_code?: string | null; project_name?: string | null; report_start?: string | null; report_finish?: string | null; metadata_sheet_state?: string | null; identity_source?: string };
   source: { filename: string; sha256: string; bytes: number; identity_evidence: string[] };
   generated_at: string;
   normalized_path?: string | null;
@@ -38,6 +40,10 @@ export type ProjectData = {
   capabilities: Record<string, boolean>;
   manifest: { sheet_count: number; visible_sheet_count: number; hidden_sheet_count: number; cell_count: number; detected_table_count: number; excel_chart_count: number; sheets: SheetManifest[]; charts: ExcelChart[]; unaccounted_sheets: number };
   quality: { severity: string; code: string; message: string; sheet?: string; cell?: string }[];
+};
+export type IdentityConflict = {
+  status: string; severity: "critical" | string; code: string; title: string; message: string;
+  evidence: Record<string, string | null>; metadata_quality?: { severity: string; code: string; message: string }[];
 };
 export type NormalizedData = Record<string, any>;
 export type PortfolioModel = {
