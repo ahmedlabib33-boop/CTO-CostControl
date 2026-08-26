@@ -35,6 +35,20 @@ class RestoreHistoryTests(unittest.TestCase):
         self.assertNotIn("git push", bat.lower())
         self.assertIn("Old workbooks/", ignore)
 
+    def test_empty_source_does_not_rewrite_existing_generated_json(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            old = root / "Old workbooks"
+            old.mkdir()
+            generated = root / "public" / "generated"
+            portfolio = generated / "portfolio" / "latest.json"
+            portfolio.parent.mkdir(parents=True)
+            original = b'{"project_count":2,"registry_fingerprint":"unchanged"}'
+            portfolio.write_bytes(original)
+            result = restore(root, old)
+            self.assertEqual(result["workbook_count"], 0)
+            self.assertEqual(portfolio.read_bytes(), original)
+
 
 if __name__ == "__main__":
     unittest.main()

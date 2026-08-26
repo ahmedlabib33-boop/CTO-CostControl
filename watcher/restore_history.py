@@ -48,7 +48,11 @@ def restore(root: Path, source_dir: Path) -> dict:
         except Exception as exc:
             result["failed"].append({"workbook": source.name, "error": str(exc)})
             print(f"FAILED {source.name} -> {exc}")
-    portfolio = regenerate_portfolio(output_root)
+    portfolio_path = output_root / "portfolio" / "latest.json"
+    if result["restored"] or not portfolio_path.exists():
+        portfolio = regenerate_portfolio(output_root)
+    else:
+        portfolio = json.loads(portfolio_path.read_text(encoding="utf-8"))
     result["portfolio_project_count"] = portfolio["project_count"]
     result["registry_fingerprint"] = portfolio["registry_fingerprint"]
     result["finished_at"] = datetime.now(timezone.utc).isoformat()
