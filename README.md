@@ -108,6 +108,22 @@ Project Name is used only for display. It never overrides identifier conflicts. 
 WATCH_ONCE_NO_PUBLISH.bat
 ```
 
+### Restore historical workbooks from the beginning
+
+Place old `.xlsx`/`.xlsm` files in:
+
+```text
+CTO-CostControl\Old workbooks\
+```
+
+Then run:
+
+```bat
+RESTORE_OLD_WORKBOOKS.bat
+```
+
+The restoration processes each workbook through the same metadata identity rules, skips fingerprints already present in history, adds missing historical periods/revisions, regenerates project/portfolio JSON, and runs tests, isolation/completeness validation, TypeScript and the production build. Newer project `latest.json` files remain newer; importing an older period does not roll the project backward. The script is local-only and does not push to GitHub/Vercel. Its audit report is written to ignored `.runtime\restore-old-workbooks-report.json`.
+
 ### Continuous automatic parse + Git/Vercel publishing
 
 ```bat

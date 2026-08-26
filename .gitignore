@@ -2,6 +2,7 @@ node_modules/
 .next/
 .runtime/
 INPUT/
+Old workbooks/
 logs/*.log
 .env*
 *.xlsx
