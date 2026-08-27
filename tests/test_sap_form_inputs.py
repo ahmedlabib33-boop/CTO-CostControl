@@ -94,6 +94,29 @@ class SapFormInputTests(unittest.TestCase):
             self.assertEqual(summary["manifest"]["sheets"][1]["name"], "Dashboard")
             self.assertEqual(summary["metrics"]["budget"]["preferred"]["value"], 1500)
 
+    def test_large_xdf_sheet_is_preserved_in_publishable_audit_chunks(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            source = root / "large.xml"
+            rows = "".join(f'<ROW index="{i}"><A ref="A{i}">Value {i}</A></ROW>' for i in range(1, 6002))
+            source.write_text(
+                '<?xml version="1.0"?><XDF><METADATA>'
+                '<PROJECT_SAP_ID>SAP-LARGE</PROJECT_SAP_ID><PROJECT_CODE>LARGE01</PROJECT_CODE>'
+                '<PROJECT_NAME>Large XDF</PROJECT_NAME><REPORT_START>01-Jun-26</REPORT_START>'
+                '<REPORT_FINISH>30-Jun-26</REPORT_FINISH></METADATA>'
+                f'<WORKBOOK><SHEET name="Large Sheet">{rows}</SHEET></WORKBOOK></XDF>',
+                encoding="utf-8",
+            )
+            summary = parse_workbook(source, root / "public" / "generated")
+            manifest = next(item for item in summary["manifest"]["sheets"] if item["name"] == "Large Sheet")
+            primary = json.loads((root / "public" / manifest["raw_path"].lstrip("/")).read_text(encoding="utf-8"))
+            self.assertTrue(primary["sheet"]["cells_chunked"])
+            self.assertEqual(primary["sheet"]["cell_count"], 6001)
+            self.assertEqual(len(primary["sheet"]["cells"]), 5000)
+            self.assertEqual(len(primary["cell_chunks"]), 1)
+            chunk = json.loads((root / "public" / primary["cell_chunks"][0].lstrip("/")).read_text(encoding="utf-8"))
+            self.assertEqual(len(chunk["cells"]), 6001)
+
     def test_source_without_embedded_metadata_is_blocked_without_project_json(self):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

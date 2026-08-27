@@ -77,6 +77,8 @@ Drop any `.xlsx`, `.xlsm`, SAP `.otf`, `.xsf`, `.xdf`, `.xml` (with an `XSF` or 
 
 SAP form inputs are read as embedded source evidence. XSF symbol names, XDF element names, HTML table/meta/input fields, and printable OTF label/value records are mapped into the same isolated JSON contract. Required identity and reporting labels must be embedded using the same metadata names listed below. Missing financial fields remain unavailable; the importer does not manufacture values. Raw binary OTF that does not expose readable metadata must first be exported from SAP as ASCII, XSF, XDF, or HTML.
 
+Large embedded SAP sheets are retained without creating an oversized single web file: the primary raw-sheet JSON contains a browser-sized cell window and `cell_chunks` points to numbered audit JSON files containing every source cell in order.
+
 ## Required metadata
 
 Each Excel workbook must contain a worksheet named `metadata` (visible or hidden), with labels in Column A and values in Column B. SAP form sources must embed the same label/value fields as XSF symbols, XDF elements, HTML fields/table rows, or printable OTF records. Labels are read case-insensitively:

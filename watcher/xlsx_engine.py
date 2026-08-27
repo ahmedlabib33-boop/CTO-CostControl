@@ -65,6 +65,8 @@ CAPABILITY_KEYWORDS = {
 
 SUPPORTED_SOURCE_EXTENSIONS = {".xlsx", ".xlsm", ".otf", ".xsf", ".xdf", ".xml", ".html", ".htm"}
 SAP_FORM_EXTENSIONS = SUPPORTED_SOURCE_EXTENSIONS - {".xlsx", ".xlsm"}
+RAW_PRIMARY_CELL_LIMIT = 5000
+RAW_CELL_CHUNK_SIZE = 25000
 
 _METADATA_DISPLAY_LABELS = {
     "project sap id": "project sap id",
@@ -975,11 +977,37 @@ def parse_workbook(source: Path, output_root: Path) -> dict[str, Any]:
             total_tables += len(tables)
             total_charts += len(sh["charts"])
             slug = f"{idx:03d}-{slugify(sh['name'])}.json"
+            raw_sheet = sh
+            cell_chunk_paths: list[str] = []
+            if len(sh["cells"]) > RAW_PRIMARY_CELL_LIMIT:
+                raw_sheet = dict(sh)
+                raw_sheet["cells"] = sh["cells"][:RAW_PRIMARY_CELL_LIMIT]
+                raw_sheet["cells_in_primary"] = len(raw_sheet["cells"])
+                raw_sheet["cells_chunked"] = True
+                chunk_stem = slug[:-5]
+                for chunk_number, start in enumerate(range(0, len(sh["cells"]), RAW_CELL_CHUNK_SIZE), 1):
+                    chunk_name = f"{chunk_stem}-cells-{chunk_number:03d}.json"
+                    chunk_path = f"/generated/projects/{project_id}/raw/{period}/{wb.fingerprint[:16]}/{chunk_name}"
+                    chunk_payload = {
+                        "project_id": project_id,
+                        "project_name": project_name,
+                        "reporting_period": period,
+                        "source_fingerprint": wb.fingerprint,
+                        "source_format": wb.source_format,
+                        "sheet_name": sh["name"],
+                        "chunk_index": chunk_number,
+                        "start_cell_index": start,
+                        "cells": sh["cells"][start:start + RAW_CELL_CHUNK_SIZE],
+                    }
+                    (raw_dir / chunk_name).write_text(json.dumps(chunk_payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+                    cell_chunk_paths.append(chunk_path)
+                raw_sheet["cell_chunks"] = cell_chunk_paths
             raw_payload = {
                 "project_id": project_id,
                 "project_name": project_name,
                 "reporting_period": period,
                 "source_fingerprint": wb.fingerprint,
+                "source_format": wb.source_format,
                 "identity": {
                     "project_sap_id": metadata.get("project_sap_id"),
                     "project_code": metadata.get("project_code"),
@@ -988,8 +1016,9 @@ def parse_workbook(source: Path, output_root: Path) -> dict[str, Any]:
                     "project_finish_eot": metadata.get("project_finish_eot"),
                     "effective_project_finish": metadata.get("effective_project_finish"),
                 },
-                "sheet": sh,
+                "sheet": raw_sheet,
                 "detected_tables": tables,
+                "cell_chunks": cell_chunk_paths,
             }
             (raw_dir / slug).write_text(json.dumps(raw_payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
             sheet_manifest.append({
