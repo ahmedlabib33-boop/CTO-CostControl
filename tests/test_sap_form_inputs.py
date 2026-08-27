@@ -29,6 +29,20 @@ def _xdf() -> str:
     return f'<?xml version="1.0" encoding="UTF-8"?><XDF><PROJECT>{fields}<TOTAL_ACTUAL_COST>900</TOTAL_ACTUAL_COST></PROJECT></XDF>'
 
 
+def _xdf_workbook() -> str:
+    return '''<?xml version="1.0" encoding="UTF-8"?>
+<XDF><METADATA>
+<PROJECT_SAP_ID>SAP-WB-002</PROJECT_SAP_ID><PROJECT_CODE>WB02</PROJECT_CODE>
+<PROJECT_NAME>XDF Workbook Project</PROJECT_NAME><REPORT_START>01-Jun-26</REPORT_START>
+<REPORT_FINISH>30-Jun-26</REPORT_FINISH><PROJECT_START>11-Sep-26</PROJECT_START>
+<PROJECT_FINISH>10-Apr-27</PROJECT_FINISH><PROJECT_FINISH_EOT></PROJECT_FINISH_EOT>
+</METADATA><WORKBOOK><SHEET name="Dashboard" state="visible">
+<ROW index="1"><A ref="A1">Total Budget Cost</A><B ref="B1">1500</B></ROW>
+<ROW index="2"><A ref="A2">Earned Value</A><B ref="B2">1100</B></ROW>
+<ROW index="3"><A ref="A3">Actual Cost</A><B ref="B3">900</B></ROW>
+</SHEET></WORKBOOK></XDF>'''
+
+
 def _html() -> str:
     rows = "".join(f"<tr><td>{key}</td><td>{value}</td></tr>" for key, value in METADATA.items())
     return f"<html><body><table>{rows}<tr><td>Earned Value</td><td>1000</td></tr></table></body></html>"
@@ -65,6 +79,20 @@ class SapFormInputTests(unittest.TestCase):
             source.write_text("<ROOT><PROJECT_CODE>X</PROJECT_CODE></ROOT>", encoding="utf-8")
             with self.assertRaisesRegex(ValueError, "expected an SAP XSF or XDF"):
                 open_source_document(source)
+
+    def test_streamed_xdf_workbook_preserves_sheets_cells_and_sap_dates(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            source = root / "workbook.xml"
+            source.write_text(_xdf_workbook(), encoding="utf-8")
+            summary = parse_workbook(source, root / "public" / "generated")
+            self.assertTrue(summary["published_project"])
+            self.assertEqual(summary["reporting_period"], "2026-06-01_to_2026-06-30")
+            self.assertEqual(summary["identity"]["project_start"], "2026-09-11")
+            self.assertEqual(summary["identity"]["project_finish"], "2027-04-10")
+            self.assertEqual(summary["manifest"]["sheet_count"], 2)
+            self.assertEqual(summary["manifest"]["sheets"][1]["name"], "Dashboard")
+            self.assertEqual(summary["metrics"]["budget"]["preferred"]["value"], 1500)
 
     def test_source_without_embedded_metadata_is_blocked_without_project_json(self):
         with tempfile.TemporaryDirectory() as td:

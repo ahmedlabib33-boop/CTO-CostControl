@@ -501,6 +501,59 @@ def _xml_rows(text: str) -> tuple[list[list[Any]], list[tuple[str, Any]], str]:
     return rows, pairs, root.tag.rsplit("}", 1)[-1].upper()
 
 
+def _xdf_workbook_sheets(path: Path) -> tuple[list[dict[str, Any]], list[tuple[str, Any]], str]:
+    """Stream an XDF workbook envelope without flattening or duplicating its cells."""
+    parsed_sheets: list[dict[str, Any]] = []
+    metadata_pairs: list[tuple[str, Any]] = []
+    current_name: str | None = None
+    current_state = "visible"
+    current_cells: list[dict[str, Any]] = []
+    in_metadata = False
+    root_name = ""
+    for event, element in ET.iterparse(path, events=("start", "end")):
+        tag = element.tag.rsplit("}", 1)[-1]
+        upper = tag.upper()
+        if event == "start":
+            if not root_name:
+                root_name = upper
+            if upper == "METADATA":
+                in_metadata = True
+            elif upper == "SHEET":
+                current_name = element.attrib.get("name") or element.attrib.get("NAME") or f"Sheet {len(parsed_sheets) + 1}"
+                current_state = element.attrib.get("state") or element.attrib.get("STATE") or "visible"
+                current_cells = []
+            continue
+
+        value = clean_text(" ".join(element.itertext()))
+        if in_metadata and upper != "METADATA" and value and not list(element):
+            metadata_pairs.append((tag, value))
+        if current_name is not None:
+            ref = element.attrib.get("ref") or element.attrib.get("REF")
+            if ref and value:
+                row, col = split_ref(ref)
+                if row and col:
+                    number = as_number(value)
+                    current_cells.append(_cell(ref.upper(), row, col, number if number is not None else value))
+        if upper == "SHEET" and current_name is not None:
+            max_row = max((cell["row"] for cell in current_cells), default=0)
+            max_col = max((cell["col"] for cell in current_cells), default=0)
+            parsed_sheets.append({
+                "name": current_name,
+                "state": current_state,
+                "dimension": f"A1:{num_to_col(max_col)}{max_row}" if max_row and max_col else None,
+                "merges": [],
+                "cell_count": len(current_cells),
+                "cells": current_cells,
+                "charts": [],
+            })
+            current_name = None
+            current_cells = []
+        if upper == "METADATA":
+            in_metadata = False
+        element.clear()
+    return parsed_sheets, metadata_pairs, root_name
+
+
 def _text_rows(text: str) -> tuple[list[list[Any]], list[tuple[str, Any]]]:
     rows: list[list[Any]] = []
     pairs: list[tuple[str, Any]] = []
@@ -525,12 +578,18 @@ class SapFormDocument:
         self.path = Path(path)
         self.fingerprint = sha256_file(self.path)
         self.source_format = self.path.suffix.lower().lstrip(".")
-        text = _decode_source_bytes(self.path.read_bytes())
         suffix = self.path.suffix.lower()
         pairs: list[tuple[str, Any]] = []
         rows: list[list[Any]] = []
+        parsed_content_sheets: list[dict[str, Any]] = []
         if suffix in {".xsf", ".xdf", ".xml"}:
-            rows, pairs, root_name = _xml_rows(text)
+            with self.path.open("rb") as source_file:
+                prefix = _decode_source_bytes(source_file.read(65536))
+            if re.search(r"<WORKBOOK\b", prefix, re.I) and re.search(r"<SHEET\b", prefix, re.I):
+                parsed_content_sheets, pairs, root_name = _xdf_workbook_sheets(self.path)
+            else:
+                text = _decode_source_bytes(self.path.read_bytes())
+                rows, pairs, root_name = _xml_rows(text)
             if suffix == ".xml" and root_name not in {"XSF", "XDF"}:
                 raise ValueError("Unsupported XML input: expected an SAP XSF or XDF document")
             if suffix == ".xsf" and root_name != "XSF":
@@ -538,6 +597,7 @@ class SapFormDocument:
             if suffix == ".xdf" and root_name != "XDF":
                 raise ValueError("Invalid XDF input: root element must be XDF")
         elif suffix in {".html", ".htm"}:
+            text = _decode_source_bytes(self.path.read_bytes())
             parser = _SapHtmlParser()
             parser.feed(text)
             rows, pairs = parser.rows, parser.fields
@@ -545,12 +605,16 @@ class SapFormDocument:
                 rows, text_pairs = _text_rows(re.sub(r"<[^>]+>", " ", text))
                 pairs.extend(text_pairs)
         else:
+            text = _decode_source_bytes(self.path.read_bytes())
             rows, pairs = _text_rows(text)
         metadata = _metadata_rows(pairs)
         self._parsed_sheets = []
         if metadata:
             self._parsed_sheets.append(_sheet_from_rows("metadata", metadata))
-        self._parsed_sheets.append(_sheet_from_rows(f"SAP {self.source_format.upper()} Content", rows))
+        if parsed_content_sheets:
+            self._parsed_sheets.extend(parsed_content_sheets)
+        else:
+            self._parsed_sheets.append(_sheet_from_rows(f"SAP {self.source_format.upper()} Content", rows))
         self.sheets = list(range(len(self._parsed_sheets)))
 
     def read_sheet(self, info: int) -> dict[str, Any]:

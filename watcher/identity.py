@@ -87,7 +87,7 @@ def parse_date_cell(cell: dict[str, Any] | None) -> tuple[str | None, str | None
     if not raw:
         return None, "missing"
     formats = [
-        "%Y-%m-%d", "%d-%b-%Y", "%d-%B-%Y", "%d %b %Y", "%d %B %Y",
+        "%Y-%m-%d", "%d-%b-%Y", "%d-%B-%Y", "%d-%b-%y", "%d-%B-%y", "%d %b %Y", "%d %B %Y",
         "%d.%m.%Y", "%d-%m-%Y", "%m-%d-%Y", "%d.%m.%y", "%d-%m-%y", "%m-%d-%y",
     ]
     for fmt in formats:
