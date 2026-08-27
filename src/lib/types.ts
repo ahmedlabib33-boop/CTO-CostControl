@@ -9,7 +9,7 @@ export type ProjectHistoryItem = {
 export type ProjectRegistryItem = {
   project_id: string;
   project_name: string;
-  identity?: { status?: string; project_sap_id?: string | null; project_code?: string | null; report_start?: string | null; report_finish?: string | null };
+  identity?: { status?: string; project_sap_id?: string | null; project_code?: string | null; report_start?: string | null; report_finish?: string | null; project_start?: string | null; project_finish?: string | null; project_finish_eot?: string | null; effective_project_finish?: string | null };
   reporting_period: string;
   source_fingerprint: string;
   normalized_path?: string | null;
@@ -31,7 +31,7 @@ export type ExcelChart = {
 };
 export type ProjectData = {
   schema_version: number; project_id: string; project_name: string; reporting_period: string;
-  identity?: { status?: string; project_sap_id?: string | null; project_code?: string | null; project_name?: string | null; report_start?: string | null; report_finish?: string | null; metadata_sheet_state?: string | null; identity_source?: string };
+  identity?: { status?: string; project_sap_id?: string | null; project_code?: string | null; project_name?: string | null; report_start?: string | null; report_finish?: string | null; project_start?: string | null; project_finish?: string | null; project_finish_eot?: string | null; effective_project_finish?: string | null; metadata_sheet_state?: string | null; identity_source?: string };
   source: { filename: string; sha256: string; bytes: number; identity_evidence: string[] };
   generated_at: string;
   normalized_path?: string | null;

@@ -17,7 +17,12 @@ LABELS = {
     "project name": "project_name",
     "report start": "report_start",
     "report finish": "report_finish",
+    "project start": "project_start",
+    "project finish": "project_finish",
+    "project finish-eot": "project_finish_eot",
 }
+
+OPTIONAL_PROJECT_DATE_KEYS = {"project_start", "project_finish", "project_finish_eot"}
 
 
 def _text(value: Any) -> str:
@@ -110,6 +115,8 @@ def extract_metadata(sheets: list[dict[str, Any]]) -> dict[str, Any]:
         "sheet_found": bool(metadata_sheet), "sheet_state": metadata_sheet.get("state") if metadata_sheet else None,
         "project_sap_id": None, "project_code": None, "project_name": None,
         "report_start": None, "report_finish": None, "reporting_period": None,
+        "project_start": None, "project_finish": None, "project_finish_eot": None,
+        "effective_project_finish": None,
         "source_values": {}, "evidence": [], "quality": [],
     }
     if not metadata_sheet:
@@ -131,11 +138,12 @@ def extract_metadata(sheets: list[dict[str, Any]]) -> dict[str, Any]:
         else:
             parsed, error = parse_date_cell(value_cell)
             result[key] = parsed
-            if error:
+            if error and not (key in OPTIONAL_PROJECT_DATE_KEYS and error == "missing"):
                 result["quality"].append({
                     "severity": "critical", "code": f"{key.upper()}_UNRESOLVED",
                     "message": f"Metadata {key.replace('_', ' ')} could not be parsed safely: {error}.",
                 })
+    result["effective_project_finish"] = result["project_finish_eot"] or result["project_finish"]
     if result["report_start"] and result["report_finish"]:
         result["reporting_period"] = f"{result['report_start']}_to_{result['report_finish']}"
     elif not any(q["code"].endswith("_UNRESOLVED") for q in result["quality"]):
@@ -286,7 +294,10 @@ def record_identity_problem(output_root: Path, metadata: dict[str, Any], source:
     evidence = {
         "incoming_project_sap_id": metadata.get("project_sap_id"), "incoming_project_code": metadata.get("project_code"),
         "incoming_project_name": metadata.get("project_name"), "report_start": metadata.get("report_start"),
-        "report_finish": metadata.get("report_finish"), "matched_existing_identifier": outcome.get("matched_existing_identifier"),
+        "report_finish": metadata.get("report_finish"), "project_start": metadata.get("project_start"),
+        "project_finish": metadata.get("project_finish"), "project_finish_eot": metadata.get("project_finish_eot"),
+        "effective_project_finish": metadata.get("effective_project_finish"),
+        "matched_existing_identifier": outcome.get("matched_existing_identifier"),
         "conflicting_existing_project": outcome.get("conflicting_existing_project"), "source_workbook_filename": source.name,
         "matched_sap_project": outcome.get("matched_sap_project"), "matched_code_project": outcome.get("matched_code_project"),
         "sha256_fingerprint": fingerprint, "detection_timestamp": now, "conflict_reason": outcome.get("reason"),
@@ -327,6 +338,11 @@ def register_validated_identity(output_root: Path, outcome: dict[str, Any], meta
     if previous != current and any(previous.values()):
         project.setdefault("identity_history", []).append({"changed_at": now, **previous})
     project.update(current)
+    for key in ("project_start", "project_finish", "project_finish_eot"):
+        if key in metadata.get("source_values", {}):
+            project[key] = metadata.get(key)
+    if any(key in metadata.get("source_values", {}) for key in ("project_finish", "project_finish_eot")):
+        project["effective_project_finish"] = metadata.get("effective_project_finish")
     project["latest_processed_reporting_period"] = metadata.get("reporting_period")
     project["latest_validated_source_fingerprint"] = fingerprint
     save_identity_registry(output_root, registry)

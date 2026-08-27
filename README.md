@@ -86,8 +86,13 @@ Each incoming workbook must contain a worksheet named `metadata` (visible or hid
 | Project Name | Descriptive display name |
 | Report Start | Excel date or supported unambiguous text date |
 | Report Finish | Excel date or supported unambiguous text date |
+| Project Start | Original project start date; optional for legacy workbooks |
+| Project Finish | Original project finish date; optional for legacy workbooks |
+| Project Finish-EOT | Revised finish date after EOT; optional |
 
 Identifiers may contain leading zeros, letters, spaces, slashes, hyphens, underscores and ordinary symbols. Numeric-looking cells with a zero-padding number format retain their displayed leading zeros. Dates are normalized to `YYYY-MM-DD`; the history period key is `<report-start>_to_<report-finish>`. Ambiguous or invalid dates are blocked and recorded in Data Quality rather than guessed.
+
+When `Project Finish-EOT` contains a valid date, it becomes `effective_project_finish`. When it is blank or absent, `Project Finish` is used. The original Project Finish and Project Finish-EOT values remain separate in generated JSON. Legacy workbooks without the three project-date rows continue through the existing identity and reporting-period process unchanged.
 
 ### Identity decision table
 
