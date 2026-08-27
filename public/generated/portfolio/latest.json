@@ -1,8 +1,80 @@
 {
-  "generated_at": "2026-08-27T08:55:27.207594+00:00",
-  "registry_fingerprint": "222f0a4a2453dc470656b6b22c7d79fb4f3109d20d829898ea38699eaf6be954",
-  "project_count": 2,
+  "generated_at": "2026-08-27T11:16:23.289179+00:00",
+  "registry_fingerprint": "bd9a184c922299f1dff0a043e862d91e20b5fb0dcddee6b7d644266cce94387f",
+  "project_count": 3,
   "projects": [
+    {
+      "project_id": "bridge",
+      "project_name": "Bridge",
+      "identity": {
+        "status": "new",
+        "project_sap_id": "SAP_010",
+        "project_code": "LMD01",
+        "project_name": "Bridge",
+        "report_start": "2026-06-01",
+        "report_finish": "2026-06-30",
+        "project_start": "2025-09-12",
+        "project_finish": "2027-10-12",
+        "project_finish_eot": null,
+        "effective_project_finish": "2027-10-12",
+        "metadata_sheet_state": "visible",
+        "identity_source": "metadata_sheet"
+      },
+      "reporting_period": "2026-06-01_to_2026-06-30",
+      "source_fingerprint": "f08174a4190e49c086b2ca2e85f9f374284912c2b38e2a7912efb57b062a27ee",
+      "normalized_path": "/generated/projects/bridge/enriched/2026-06-01_to_2026-06-30/f08174a4190e49c0/normalized.json",
+      "approved_parity": false,
+      "metrics": {
+        "contract_value": 281671550.1270822,
+        "budget": 24828703.144480266,
+        "earned_value": 11459617.820446912,
+        "actual_cost": 10206140.919006897,
+        "cost_variance": 1253476.901440015,
+        "revenue": 109784425.36027858,
+        "gross_profit": 82638547.6081807,
+        "direct_cost": 0.0,
+        "indirect_cost": 10206140.919006897,
+        "cpi": 1.1228159508463835
+      },
+      "capabilities": {
+        "overview": true,
+        "project_summary": true,
+        "cashflow": true,
+        "direct_cost": true,
+        "indirect_cost": true,
+        "boq": true,
+        "forecast": true,
+        "ledger": true,
+        "cost_codes": true,
+        "waste": true,
+        "wages": true,
+        "reallocation": true,
+        "assets": true,
+        "balance": true
+      },
+      "quality_count": 8108,
+      "sheet_count": 52,
+      "chart_count": 6,
+      "history": [
+        {
+          "reporting_period": "2026-06-01_to_2026-06-30",
+          "source_fingerprint": "f08174a4190e49c086b2ca2e85f9f374284912c2b38e2a7912efb57b062a27ee",
+          "metrics": {
+            "contract_value": 281671550.1270822,
+            "budget": 24828703.144480266,
+            "earned_value": 11459617.820446912,
+            "actual_cost": 10206140.919006897,
+            "cost_variance": 1253476.901440015,
+            "revenue": 109784425.36027858,
+            "gross_profit": 82638547.6081807,
+            "direct_cost": 0.0,
+            "indirect_cost": 10206140.919006897,
+            "cpi": 1.1228159508463835
+          },
+          "normalized_path": "/generated/projects/bridge/enriched/2026-06-01_to_2026-06-30/f08174a4190e49c0/normalized.json"
+        }
+      ]
+    },
     {
       "project_id": "gloria-hospital",
       "project_name": "Gloria Hospital",
@@ -56,6 +128,23 @@
       "sheet_count": 52,
       "chart_count": 6,
       "history": [
+        {
+          "reporting_period": "2026-05-01_to_2026-05-30",
+          "source_fingerprint": "0be97c46ef711a7aabc31d05ce4b6ec9e5c9a8447d35aa658c2190de295ca73d",
+          "metrics": {
+            "contract_value": 362529615.825,
+            "budget": 270557110.2458437,
+            "earned_value": 105469155.67820269,
+            "actual_cost": 111807477.21246585,
+            "cost_variance": -6338321.534263164,
+            "revenue": 139582446.567375,
+            "gross_profit": 6237397.849563193,
+            "direct_cost": 84085909.31881888,
+            "indirect_cost": 27721567.893646974,
+            "cpi": 0.9433103966542545
+          },
+          "normalized_path": "/generated/projects/gloria-hospital/enriched/2026-05-01_to_2026-05-30/0be97c46ef711a7a/normalized.json"
+        },
         {
           "reporting_period": "2026-06-01_to_2026-06-30",
           "source_fingerprint": "c40526867b2629a06bb4320321fae6df43a26d47f34542bb869bdbcc535e200d",
