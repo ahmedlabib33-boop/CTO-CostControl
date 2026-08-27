@@ -2,6 +2,7 @@
   {
     "source_file": "Gloria Cost Report 06.2026.xlsx",
     "source_sha256": "e62a8bfd545c78c5cbcf73a0675f2283b685d5f0de16a2e4033e662e588f89f8",
+    "content_sha256": "cc7be3b3338c7cd502664d50f2af40d8b02f698de6a6edf238bfd35f2b3e9611",
     "data_file": "docs/parity/data/GLORIA.json",
     "project_name": "Gloria Hospital",
     "report_period": "June 2026"
@@ -9,6 +10,7 @@
   {
     "source_file": "THE BIG cost Report 06.2026.xlsx",
     "source_sha256": "45bc474cb6799b3088892d23b60f7bcd829bb4a200a483860f9db9d2d1376221",
+    "content_sha256": "6ac09b5ce09077e95c5d5585294682bc92fe3e87a094c5a4166dbc0822f11bfd",
     "data_file": "docs/parity/data/THE_BIG.json",
     "project_name": "The Big Compund New Cairo",
     "report_period": "June 2026"

@@ -494,8 +494,35 @@ def sheet_preview(sheet: dict[str, Any], max_rows: int = 30, max_cols: int = 16)
 
 
 
-def load_parity_reference(repo_root: Path, source: Path, fingerprint: str) -> dict[str, Any] | None:
-    """Load an optional approved normalized reference by source SHA-256.
+def semantic_workbook_fingerprint(parsed_sheets: list[dict[str, Any]]) -> str:
+    """Hash workbook values/formulas while intentionally excluding metadata and formatting.
+
+    Adding or hiding the authoritative metadata sheet must not invalidate an otherwise
+    byte-for-byte equivalent approved cost workbook. Styles are also excluded because
+    Excel may renumber style records when a sheet is inserted without changing data.
+    """
+    semantic = []
+    for sheet in parsed_sheets:
+        if clean_text(sheet.get("name", "")).casefold() == "metadata":
+            continue
+        semantic.append({
+            "name": sheet.get("name"),
+            "cells": [
+                {"ref": cell.get("ref"), "value": cell.get("value"), "formula": cell.get("formula")}
+                for cell in sheet.get("cells", [])
+            ],
+        })
+    payload = json.dumps(semantic, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def load_parity_reference(
+    repo_root: Path,
+    source: Path,
+    fingerprint: str,
+    parsed_sheets: list[dict[str, Any]] | None = None,
+) -> dict[str, Any] | None:
+    """Load an approved normalized reference by exact file or semantic workbook SHA-256.
 
     This is data-driven acceptance enrichment, not project-specific runtime branching.
     New workbooks without a matching approved fixture continue through the generic adaptive path.
@@ -507,8 +534,11 @@ def load_parity_reference(repo_root: Path, source: Path, fingerprint: str) -> di
         entries = json.loads(index_path.read_text(encoding="utf-8"))
     except Exception:
         return None
+    content_fingerprint = semantic_workbook_fingerprint(parsed_sheets) if parsed_sheets is not None else None
     for entry in entries if isinstance(entries, list) else []:
-        if entry.get("source_sha256") != fingerprint:
+        exact_match = entry.get("source_sha256") == fingerprint
+        semantic_match = bool(content_fingerprint and entry.get("content_sha256") == content_fingerprint)
+        if not exact_match and not semantic_match:
             continue
         rel = entry.get("data_file")
         if not rel:
@@ -520,8 +550,122 @@ def load_parity_reference(repo_root: Path, source: Path, fingerprint: str) -> di
             data = json.loads(path.read_text(encoding="utf-8"))
         except Exception:
             continue
-        return {"entry": entry, "data": data}
+        return {
+            "entry": entry,
+            "data": data,
+            "match_mode": "exact_file_sha256" if exact_match else "semantic_workbook_sha256",
+            "content_sha256": content_fingerprint,
+        }
     return None
+
+
+def _preferred_metric_value(metrics: dict[str, Any], key: str) -> float | None:
+    block = metrics.get(key)
+    if not isinstance(block, dict):
+        return None
+    preferred = block.get("preferred")
+    if not isinstance(preferred, dict):
+        return None
+    value = preferred.get("value")
+    return float(value) if isinstance(value, (int, float)) else None
+
+
+def build_adaptive_normalized(
+    metadata: dict[str, Any],
+    metrics: dict[str, Any],
+    parsed_sheets: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Create the complete standard dashboard contract for every valid workbook.
+
+    Reliably detected values populate the contract. Unknown structures remain empty,
+    while their complete raw cells, detected tables and chart definitions stay available
+    through the source-audit pages. Missing business data is never fabricated.
+    """
+    contract = _preferred_metric_value(metrics, "contract_value")
+    budget = _preferred_metric_value(metrics, "budget")
+    ev = _preferred_metric_value(metrics, "earned_value")
+    actual = _preferred_metric_value(metrics, "actual_cost")
+    revenue = _preferred_metric_value(metrics, "revenue")
+    profit = _preferred_metric_value(metrics, "gross_profit")
+    direct = _preferred_metric_value(metrics, "direct_cost")
+    indirect = _preferred_metric_value(metrics, "indirect_cost")
+    kpis = {
+        "contract_price_dashboard": contract,
+        "total_price_project_summary": contract,
+        "total_budget_cost": budget,
+        "ev_dashboard_scope": ev,
+        "actual_cost_dashboard_scope": actual,
+        "direct_actual": direct,
+        "indirect_actual": indirect,
+        "revenue_gross_profit": revenue,
+        "derived_cpi": metrics.get("derived_cpi"),
+        "derived_cv": metrics.get("derived_cv"),
+    }
+    profitability = []
+    if profit is not None:
+        profitability.append({
+            "method": "Detected Gross Profit",
+            "source": metrics.get("gross_profit", {}).get("preferred", {}).get("source_sheet", "Adaptive workbook"),
+            "base_label": "Revenue",
+            "base": revenue,
+            "direct": direct,
+            "indirect": indirect,
+            "deductions": None,
+            "deductions_pct": None,
+            "head_office": None,
+            "profit": profit,
+            "profit_pct": (profit / revenue) if revenue else None,
+        })
+    source_charts = [chart for sheet in parsed_sheets for chart in sheet.get("charts", [])]
+    source_inventory = [{
+        "name": sheet.get("name"),
+        "state": sheet.get("state"),
+        "dimension": sheet.get("dimension"),
+        "cell_count": sheet.get("cell_count", 0),
+        "chart_count": len(sheet.get("charts", [])),
+    } for sheet in parsed_sheets]
+    source_snapshots = {sheet.get("name", f"Sheet {index}"): sheet_preview(sheet) for index, sheet in enumerate(parsed_sheets, 1)}
+    return {
+        "normalization_mode": "adaptive_universal",
+        "meta": {
+            "project_title": metadata.get("project_name"),
+            "project_name": metadata.get("project_name"),
+            "scope": "Cost Control",
+            "report_period": metadata.get("reporting_period"),
+            "project_start": metadata.get("project_start"),
+            "project_finish": metadata.get("effective_project_finish"),
+        },
+        "kpis": kpis,
+        "profitability": profitability,
+        "project_items": [],
+        "project_totals": [],
+        "direct_details": [],
+        "boq_resources": [],
+        "boq_forecasts": [],
+        "indirect_details": [],
+        "direct_alloc": [],
+        "indirect_granular": [],
+        "indirect_official": [],
+        "reallocation": {},
+        "cashflow": [],
+        "waste": [],
+        "waste_detail": [],
+        "cost_codes": [],
+        "ledger_months": [],
+        "ledger_aggregates": {"by_code": [], "by_source": []},
+        "source_inventory": source_inventory,
+        "data_quality": [],
+        "source_snapshots": source_snapshots,
+        "source_charts": source_charts,
+        "expense_months": [],
+        "expenses_packed": [],
+        "source_media": {},
+        "counts": {
+            "workbook_sheets": len(parsed_sheets),
+            "meaningful_sheets": sum(1 for sheet in parsed_sheets if sheet.get("cell_count", 0) > 0),
+            "source_charts": len(source_charts),
+        },
+    }
 
 def parse_workbook(source: Path, output_root: Path) -> dict[str, Any]:
     wb = XlsxWorkbook(source)
@@ -545,7 +689,7 @@ def parse_workbook(source: Path, output_root: Path) -> dict[str, Any]:
         capabilities = detect_capabilities(parsed_sheets)
         generated_at = datetime.now(timezone.utc).isoformat()
         repo_root = output_root.parent.parent
-        parity = load_parity_reference(repo_root, source, wb.fingerprint)
+        parity = load_parity_reference(repo_root, source, wb.fingerprint, parsed_sheets)
         project_dir = output_root / "projects" / project_id
         raw_dir = project_dir / "raw" / period / wb.fingerprint[:16]
         raw_dir.mkdir(parents=True, exist_ok=True)
@@ -594,12 +738,13 @@ def parse_workbook(source: Path, output_root: Path) -> dict[str, Any]:
 
         normalized_path = None
         parity_quality: list[dict[str, Any]] = []
+        normalized_data = parity["data"] if parity else build_adaptive_normalized(metadata, metrics, parsed_sheets)
+        enriched_dir = project_dir / "enriched" / period / wb.fingerprint[:16]
+        enriched_dir.mkdir(parents=True, exist_ok=True)
+        normalized_file = enriched_dir / "normalized.json"
+        normalized_file.write_text(json.dumps(normalized_data, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        normalized_path = f"/generated/projects/{project_id}/enriched/{period}/{wb.fingerprint[:16]}/normalized.json"
         if parity:
-            enriched_dir = project_dir / "enriched" / period / wb.fingerprint[:16]
-            enriched_dir.mkdir(parents=True, exist_ok=True)
-            normalized_file = enriched_dir / "normalized.json"
-            normalized_file.write_text(json.dumps(parity["data"], ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-            normalized_path = f"/generated/projects/{project_id}/enriched/{period}/{wb.fingerprint[:16]}/normalized.json"
             for i, q in enumerate(parity["data"].get("data_quality", []), 1):
                 parity_quality.append({
                     "severity": q.get("severity", "info"),
@@ -641,6 +786,8 @@ def parse_workbook(source: Path, output_root: Path) -> dict[str, Any]:
                 "matched": bool(parity),
                 "reference_file": parity["entry"].get("data_file") if parity else None,
                 "source_sha256": parity["entry"].get("source_sha256") if parity else None,
+                "match_mode": parity.get("match_mode") if parity else None,
+                "content_sha256": parity.get("content_sha256") if parity else semantic_workbook_fingerprint(parsed_sheets),
             },
             "metrics": metrics,
             "capabilities": capabilities,

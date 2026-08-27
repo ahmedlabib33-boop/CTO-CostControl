@@ -219,6 +219,25 @@ class PersistenceAndIsolationTests(unittest.TestCase):
             raw = json.loads((Path(td) / "public" / summary["manifest"]["sheets"][0]["raw_path"].lstrip("/")).read_text())
             self.assertEqual(raw["identity"]["project_sap_id"], "P#001-A")
 
+    def test_every_valid_workbook_gets_universal_normalized_contract(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td); out = root / "public" / "generated"; src = root / "unrecognized-layout.xlsx"
+            _write_xlsx(src, sap="ANY-SAP", code="ANY-CODE", name="Any Valid Project", amount=125)
+            summary = parse_workbook(src, out)
+            self.assertTrue(summary["published_project"])
+            self.assertFalse(summary["approved_parity"]["matched"])
+            self.assertTrue(summary["normalized_path"])
+            normalized = json.loads((root / "public" / summary["normalized_path"].lstrip("/")).read_text(encoding="utf-8"))
+            self.assertEqual(normalized["normalization_mode"], "adaptive_universal")
+            self.assertEqual(normalized["kpis"]["total_budget_cost"], 125)
+            self.assertEqual(normalized["kpis"]["ev_dashboard_scope"], 100)
+            self.assertEqual(normalized["kpis"]["actual_cost_dashboard_scope"], 87.5)
+            for key in ("project_items", "cashflow", "indirect_details", "cost_codes", "source_charts"):
+                self.assertIn(key, normalized)
+                self.assertIsInstance(normalized[key], list)
+            self.assertEqual(len(normalized["source_inventory"]), 2)
+            self.assertIn("Dashboard", normalized["source_snapshots"])
+
 
 if __name__ == "__main__":
     unittest.main()
