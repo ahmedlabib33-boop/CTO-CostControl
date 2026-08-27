@@ -5,8 +5,8 @@ from .xlsx_engine import parse_workbook, regenerate_portfolio
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="Parse one or more cost-control XLSX workbooks into isolated web datasets.")
-    ap.add_argument("sources", nargs="+", help="XLSX workbook(s)")
+    ap = argparse.ArgumentParser(description="Parse Excel or SAP Smart Forms cost-control sources into isolated web datasets.")
+    ap.add_argument("sources", nargs="+", help="XLSX/XLSM/OTF/XSF/XDF/XML/HTML source file(s)")
     ap.add_argument("--output", default="public/generated", help="Generated web-data root")
     args = ap.parse_args()
     out = Path(args.output).resolve()

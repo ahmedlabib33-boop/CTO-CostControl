@@ -73,11 +73,13 @@ Create/use:
 CTO-CostControl\INPUT\
 ```
 
-Drop any `.xlsx` or `.xlsm` cost report there. The watcher ignores temporary Excel files beginning `~$`. `INPUT` is a transient inbox, not the history database. Removing a processed workbook never removes generated periods or revisions.
+Drop any `.xlsx`, `.xlsm`, SAP `.otf`, `.xsf`, `.xdf`, `.xml` (with an `XSF` or `XDF` root), `.html`, or `.htm` cost report there. The watcher ignores temporary Excel files beginning `~$`. `INPUT` is a transient inbox, not the history database. Removing a processed source never removes generated periods or revisions.
 
-## Required metadata worksheet
+SAP form inputs are read as embedded source evidence. XSF symbol names, XDF element names, HTML table/meta/input fields, and printable OTF label/value records are mapped into the same isolated JSON contract. Required identity and reporting labels must be embedded using the same metadata names listed below. Missing financial fields remain unavailable; the importer does not manufacture values. Raw binary OTF that does not expose readable metadata must first be exported from SAP as ASCII, XSF, XDF, or HTML.
 
-Each incoming workbook must contain a worksheet named `metadata` (visible or hidden). Labels are read case-insensitively from Column A and values from Column B:
+## Required metadata
+
+Each Excel workbook must contain a worksheet named `metadata` (visible or hidden), with labels in Column A and values in Column B. SAP form sources must embed the same label/value fields as XSF symbols, XDF elements, HTML fields/table rows, or printable OTF records. Labels are read case-insensitively:
 
 | Column A label | Column B value |
 |---|---|

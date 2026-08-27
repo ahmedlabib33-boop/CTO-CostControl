@@ -8,6 +8,7 @@ import shutil
 import tempfile
 import unicodedata
 import zipfile
+from html.parser import HTMLParser
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -60,6 +61,21 @@ CAPABILITY_KEYWORDS = {
     "reallocation": ["reallocation", "realloc"],
     "assets": ["asset"],
     "balance": ["balance", "reconciliation"],
+}
+
+SUPPORTED_SOURCE_EXTENSIONS = {".xlsx", ".xlsm", ".otf", ".xsf", ".xdf", ".xml", ".html", ".htm"}
+SAP_FORM_EXTENSIONS = SUPPORTED_SOURCE_EXTENSIONS - {".xlsx", ".xlsm"}
+
+_METADATA_DISPLAY_LABELS = {
+    "project sap id": "project sap id",
+    "sap project id": "project sap id",
+    "project code": "project code",
+    "project name": "project name",
+    "report start": "report start",
+    "report finish": "report finish",
+    "project start": "project start",
+    "project finish": "project finish",
+    "project finish eot": "project finish-EOT",
 }
 
 
@@ -152,6 +168,7 @@ class XlsxWorkbook:
     def __init__(self, path: Path):
         self.path = Path(path)
         self.fingerprint = sha256_file(self.path)
+        self.source_format = self.path.suffix.lower().lstrip(".")
         self.z = zipfile.ZipFile(self.path)
         self.shared_strings = self._shared_strings()
         self.number_formats = self._number_formats()
@@ -357,6 +374,198 @@ class XlsxWorkbook:
                     cached.append(n if n is not None else v.text)
             series.append({"title": stitle, "references": refs, "cached_values": cached})
         return {"title": title or "Untitled Excel chart", "type": chart_type, "series": series}
+
+
+def _decode_source_bytes(payload: bytes) -> str:
+    if payload.startswith((b"\xff\xfe", b"\xfe\xff")):
+        return payload.decode("utf-16")
+    for encoding in ("utf-8-sig", "cp1252"):
+        try:
+            return payload.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return payload.decode("latin-1", errors="replace")
+
+
+def _field_label(value: Any) -> str:
+    text = clean_text(value)
+    text = re.sub(r"([a-z0-9])([A-Z])", r"\1 \2", text)
+    text = re.sub(r"[._/\\:-]+", " ", text)
+    return clean_text(text).casefold()
+
+
+def _metadata_label(value: Any) -> str | None:
+    label = _field_label(value)
+    if label in _METADATA_DISPLAY_LABELS:
+        return _METADATA_DISPLAY_LABELS[label]
+    for known, display in _METADATA_DISPLAY_LABELS.items():
+        if label.endswith(" " + known):
+            return display
+    return None
+
+
+def _cell(ref: str, row: int, col: int, value: Any) -> dict[str, Any]:
+    return {
+        "ref": ref, "row": row, "col": col, "value": value, "formula": None,
+        "style_id": 0, "number_format": "", "is_date_format": False,
+    }
+
+
+def _sheet_from_rows(name: str, rows: list[list[Any]], state: str = "visible") -> dict[str, Any]:
+    cells: list[dict[str, Any]] = []
+    width = 0
+    for row_number, values in enumerate(rows, 1):
+        width = max(width, len(values))
+        for col_number, value in enumerate(values, 1):
+            if value not in (None, ""):
+                cells.append(_cell(f"{num_to_col(col_number)}{row_number}", row_number, col_number, value))
+    dimension = f"A1:{num_to_col(width)}{len(rows)}" if rows and width else None
+    return {
+        "name": name, "state": state, "dimension": dimension, "merges": [],
+        "cell_count": len(cells), "cells": cells, "charts": [],
+    }
+
+
+def _metadata_rows(pairs: Iterable[tuple[Any, Any]]) -> list[list[Any]]:
+    found: dict[str, Any] = {}
+    for label, value in pairs:
+        display = _metadata_label(label)
+        if display and clean_text(value) and display not in found:
+            found[display] = value
+    order = [
+        "project sap id", "project code", "project name", "report start", "report finish",
+        "project start", "project finish", "project finish-EOT",
+    ]
+    return [[label, found[label]] for label in order if label in found]
+
+
+class _SapHtmlParser(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.rows: list[list[str]] = []
+        self.fields: list[tuple[str, str]] = []
+        self._row: list[str] | None = None
+        self._cell_parts: list[str] | None = None
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = {k.casefold(): v or "" for k, v in attrs}
+        if tag == "tr":
+            self._row = []
+        elif tag in {"td", "th"} and self._row is not None:
+            self._cell_parts = []
+        elif tag in {"input", "meta"}:
+            name = values.get("name") or values.get("id") or values.get("property")
+            value = values.get("value") or values.get("content")
+            if name and value:
+                self.fields.append((name, value))
+        if values.get("data-field") and values.get("data-value"):
+            self.fields.append((values["data-field"], values["data-value"]))
+
+    def handle_data(self, data: str) -> None:
+        if self._cell_parts is not None:
+            self._cell_parts.append(data)
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in {"td", "th"} and self._cell_parts is not None and self._row is not None:
+            self._row.append(clean_text(" ".join(self._cell_parts)))
+            self._cell_parts = None
+        elif tag == "tr" and self._row is not None:
+            if any(self._row):
+                self.rows.append(self._row)
+                if len(self._row) >= 2:
+                    self.fields.append((self._row[0], self._row[1]))
+            self._row = None
+
+
+def _xml_rows(text: str) -> tuple[list[list[Any]], list[tuple[str, Any]], str]:
+    root = ET.fromstring(text.lstrip("\ufeff\x00 \t\r\n"))
+    rows: list[list[Any]] = []
+    pairs: list[tuple[str, Any]] = []
+    for element in root.iter():
+        children = list(element)
+        tag = element.tag.rsplit("}", 1)[-1]
+        value = clean_text(" ".join(element.itertext()))
+        name = element.attrib.get("name") or element.attrib.get("NAME") or tag
+        if not children and value:
+            pairs.append((name, value))
+            rows.append([name, value])
+        elif children and all(not list(child) for child in children):
+            record = []
+            for child in children:
+                child_tag = child.tag.rsplit("}", 1)[-1]
+                child_value = clean_text(" ".join(child.itertext()))
+                if child_value:
+                    record.extend([child_tag, child_value])
+            if record:
+                rows.append(record)
+    return rows, pairs, root.tag.rsplit("}", 1)[-1].upper()
+
+
+def _text_rows(text: str) -> tuple[list[list[Any]], list[tuple[str, Any]]]:
+    rows: list[list[Any]] = []
+    pairs: list[tuple[str, Any]] = []
+    for raw_line in text.replace("\x00", "").splitlines():
+        line = clean_text("".join(ch if ch.isprintable() or ch == "\t" else " " for ch in raw_line))
+        if not line:
+            continue
+        match = re.match(r"^(.{2,80}?)(?:\s*[:=|\t]\s*|\s{2,})(.+)$", line)
+        if match:
+            label, value = clean_text(match.group(1)), clean_text(match.group(2))
+            pairs.append((label, value))
+            rows.append([label, value])
+        else:
+            rows.append([line])
+    return rows, pairs
+
+
+class SapFormDocument:
+    """Read SAP Smart Forms exports as auditable, sheet-shaped source data."""
+
+    def __init__(self, path: Path):
+        self.path = Path(path)
+        self.fingerprint = sha256_file(self.path)
+        self.source_format = self.path.suffix.lower().lstrip(".")
+        text = _decode_source_bytes(self.path.read_bytes())
+        suffix = self.path.suffix.lower()
+        pairs: list[tuple[str, Any]] = []
+        rows: list[list[Any]] = []
+        if suffix in {".xsf", ".xdf", ".xml"}:
+            rows, pairs, root_name = _xml_rows(text)
+            if suffix == ".xml" and root_name not in {"XSF", "XDF"}:
+                raise ValueError("Unsupported XML input: expected an SAP XSF or XDF document")
+            if suffix == ".xsf" and root_name != "XSF":
+                raise ValueError("Invalid XSF input: root element must be XSF")
+            if suffix == ".xdf" and root_name != "XDF":
+                raise ValueError("Invalid XDF input: root element must be XDF")
+        elif suffix in {".html", ".htm"}:
+            parser = _SapHtmlParser()
+            parser.feed(text)
+            rows, pairs = parser.rows, parser.fields
+            if not rows:
+                rows, text_pairs = _text_rows(re.sub(r"<[^>]+>", " ", text))
+                pairs.extend(text_pairs)
+        else:
+            rows, pairs = _text_rows(text)
+        metadata = _metadata_rows(pairs)
+        self._parsed_sheets = []
+        if metadata:
+            self._parsed_sheets.append(_sheet_from_rows("metadata", metadata))
+        self._parsed_sheets.append(_sheet_from_rows(f"SAP {self.source_format.upper()} Content", rows))
+        self.sheets = list(range(len(self._parsed_sheets)))
+
+    def read_sheet(self, info: int) -> dict[str, Any]:
+        return self._parsed_sheets[info]
+
+    def close(self) -> None:
+        return None
+
+
+def open_source_document(path: Path) -> XlsxWorkbook | SapFormDocument:
+    suffix = Path(path).suffix.lower()
+    if suffix not in SUPPORTED_SOURCE_EXTENSIONS:
+        supported = ", ".join(sorted(SUPPORTED_SOURCE_EXTENSIONS))
+        raise ValueError(f"Unsupported input format {suffix or '(none)'}; supported: {supported}")
+    return XlsxWorkbook(path) if suffix in {".xlsx", ".xlsm"} else SapFormDocument(path)
 
 
 def _matrix(sheet: dict[str, Any]) -> dict[tuple[int, int], Any]:
@@ -668,7 +877,7 @@ def build_adaptive_normalized(
     }
 
 def parse_workbook(source: Path, output_root: Path) -> dict[str, Any]:
-    wb = XlsxWorkbook(source)
+    wb = open_source_document(source)
     try:
         parsed_sheets = [wb.read_sheet(info) for info in wb.sheets]
         metadata = extract_metadata(parsed_sheets)
@@ -772,10 +981,11 @@ def parse_workbook(source: Path, output_root: Path) -> dict[str, Any]:
                 "project_finish_eot": metadata.get("project_finish_eot"),
                 "effective_project_finish": metadata.get("effective_project_finish"),
                 "metadata_sheet_state": metadata.get("sheet_state"),
-                "identity_source": "metadata_sheet",
+                "identity_source": "metadata_sheet" if wb.source_format in {"xlsx", "xlsm"} else "embedded_sap_form_metadata",
             },
             "source": {
                 "filename": source.name,
+                "format": wb.source_format,
                 "sha256": wb.fingerprint,
                 "bytes": source.stat().st_size,
                 "identity_evidence": identity_evidence,

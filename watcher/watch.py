@@ -5,7 +5,7 @@ import json
 import os
 import time
 from pathlib import Path
-from .xlsx_engine import parse_workbook, regenerate_portfolio, sha256_file
+from .xlsx_engine import SUPPORTED_SOURCE_EXTENSIONS, parse_workbook, regenerate_portfolio, sha256_file
 from .publisher import publish
 
 
@@ -45,7 +45,7 @@ def save_state(path: Path, state: dict) -> None:
 
 
 def scan(input_dir: Path) -> list[Path]:
-    return sorted(p for p in input_dir.rglob("*") if p.is_file() and p.suffix.lower() in {".xlsx", ".xlsm"} and not p.name.startswith("~$"))
+    return sorted(p for p in input_dir.rglob("*") if p.is_file() and p.suffix.lower() in SUPPORTED_SOURCE_EXTENSIONS and not p.name.startswith("~$"))
 
 
 def main() -> int:

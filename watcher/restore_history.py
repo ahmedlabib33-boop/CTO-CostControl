@@ -64,7 +64,7 @@ def restore(root: Path, source_dir: Path) -> dict:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Restore historical project periods from metadata-controlled Excel workbooks.")
+    parser = argparse.ArgumentParser(description="Restore historical project periods from metadata-controlled Excel or SAP form sources.")
     parser.add_argument("--root", default=".")
     parser.add_argument("--source", default=None)
     args = parser.parse_args()
@@ -72,7 +72,7 @@ def main() -> int:
     source_dir = Path(args.source).resolve() if args.source else root / "Old workbooks"
     result = restore(root, source_dir)
     if result["workbook_count"] == 0:
-        print("NO WORKBOOKS FOUND: add .xlsx/.xlsm files to the Old workbooks folder.")
+        print("NO SOURCES FOUND: add .xlsx/.xlsm/.otf/.xsf/.xdf/.xml/.html files to the Old workbooks folder.")
         return 3
     if result["blocked"] or result["failed"]:
         print(f"RESTORE COMPLETED WITH BLOCKS/FAILURES: blocked={len(result['blocked'])} failed={len(result['failed'])}")
