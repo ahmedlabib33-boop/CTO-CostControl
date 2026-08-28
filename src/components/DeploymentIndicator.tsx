@@ -14,8 +14,31 @@ type DeploymentStatus = {
 
 const PAGE_DEPLOYMENT_SHA = process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA || "";
 const DEFAULT_POLL_MS = 60_000;
+const ACTIVE_POLL_MS = 10_000;
 const RELOAD_DELAY_MS = 2_500;
 const RELOAD_THROTTLE_MS = 15_000;
+export const DEPLOYMENT_STORAGE_KEY = "cto-deployment-in-progress-v1";
+
+type PersistedDeployment = { sha: string; started_at: number };
+
+function readPersistedDeployment(): PersistedDeployment | null {
+  try {
+    const value = JSON.parse(localStorage.getItem(DEPLOYMENT_STORAGE_KEY) || "null") as Partial<PersistedDeployment> | null;
+    return value && typeof value.sha === "string" && value.sha ? { sha: value.sha, started_at: Number(value.started_at) || Date.now() } : null;
+  } catch { return null; }
+}
+
+function persistDeployment(sha: string) {
+  if (!sha) return;
+  const existing = readPersistedDeployment();
+  localStorage.setItem(DEPLOYMENT_STORAGE_KEY, JSON.stringify({ sha, started_at: existing?.sha === sha ? existing.started_at : Date.now() }));
+  document.documentElement.classList.add("deployment-in-progress");
+}
+
+function clearPersistedDeployment() {
+  localStorage.removeItem(DEPLOYMENT_STORAGE_KEY);
+  document.documentElement.classList.remove("deployment-in-progress");
+}
 
 export default function DeploymentIndicator() {
   const [uploading, setUploading] = useState(false);
@@ -25,6 +48,11 @@ export default function DeploymentIndicator() {
     let stopped = false;
     let checking = false;
     let pollTimer: number | null = null;
+    const setVisible = (value: boolean) => {
+      setUploading(value);
+      document.documentElement.classList.toggle("deployment-in-progress", value);
+    };
+    if (readPersistedDeployment()) setVisible(true);
 
     const scheduleReload = (sha: string) => {
       if (!sha || reloadTimer.current !== null) return;
@@ -49,10 +77,7 @@ export default function DeploymentIndicator() {
         if (!response.ok) return;
         const status = await response.json() as DeploymentStatus;
         if (Number.isFinite(status.poll_after_ms) && status.poll_after_ms >= 10_000) nextPoll = status.poll_after_ms;
-        if (stopped || !status.ok) {
-          if (!stopped && status.state !== "pending") setUploading(false);
-          return;
-        }
+        if (stopped || !status.ok) return;
         const pageIsOld = Boolean(
           PAGE_DEPLOYMENT_SHA
           && status.latest_sha
@@ -60,7 +85,21 @@ export default function DeploymentIndicator() {
           && status.state === "success",
         );
         const shouldReload = Boolean(status.ready_to_reload || pageIsOld);
-        setUploading(Boolean(status.show_uploading || shouldReload));
+        if (status.state === "pending" && status.latest_sha) {
+          persistDeployment(status.latest_sha);
+          setVisible(true);
+          nextPoll = Math.min(nextPoll, ACTIVE_POLL_MS);
+        } else if (shouldReload && status.latest_sha) {
+          persistDeployment(status.latest_sha);
+          setVisible(true);
+          nextPoll = Math.min(nextPoll, ACTIVE_POLL_MS);
+        } else if (status.state === "success" && status.latest_sha && status.deployed_sha === status.latest_sha) {
+          clearPersistedDeployment();
+          setVisible(false);
+        } else if (status.state === "failure" || status.state === "error") {
+          clearPersistedDeployment();
+          setVisible(false);
+        }
         if (shouldReload && status.latest_sha) scheduleReload(status.latest_sha);
       } catch {
         // A network/API failure must never create a false uploading state.
@@ -76,19 +115,24 @@ export default function DeploymentIndicator() {
       pollTimer = null;
       void check();
     };
+    const storageChanged = (event: StorageEvent) => {
+      if (event.key !== DEPLOYMENT_STORAGE_KEY) return;
+      setVisible(Boolean(readPersistedDeployment()));
+    };
     void check();
     document.addEventListener("visibilitychange", visible);
+    window.addEventListener("storage", storageChanged);
     return () => {
       stopped = true;
       if (pollTimer !== null) window.clearTimeout(pollTimer);
       document.removeEventListener("visibilitychange", visible);
+      window.removeEventListener("storage", storageChanged);
       if (reloadTimer.current !== null) window.clearTimeout(reloadTimer.current);
     };
   }, []);
 
-  if (!uploading) return null;
   return (
-    <div className="deploymentUploading" role="status" aria-live="polite" aria-label="Application update uploading">
+    <div className={`deploymentUploading ${uploading ? "active" : ""}`} role="status" aria-live="polite" aria-label="Application update uploading">
       <span className="deploymentSpinner" aria-hidden="true" />
       <span>↑ uploading</span>
     </div>

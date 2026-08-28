@@ -6,6 +6,8 @@ export const metadata: Metadata = {
   description: "Adaptive SAP cost-control intelligence with project isolation and automatic workbook detection.",
 };
 
+const deploymentPersistenceBoot = `try{var d=JSON.parse(localStorage.getItem("cto-deployment-in-progress-v1")||"null");if(d&&d.sha)document.documentElement.classList.add("deployment-in-progress")}catch(e){}`;
+
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{children}</body></html>;
+  return <html lang="en" suppressHydrationWarning><head><script dangerouslySetInnerHTML={{__html:deploymentPersistenceBoot}}/></head><body>{children}</body></html>;
 }
