@@ -9,10 +9,11 @@ type DeploymentStatus = {
   deployed_sha: string | null;
   show_uploading: boolean;
   ready_to_reload: boolean;
+  poll_after_ms: number;
 };
 
 const PAGE_DEPLOYMENT_SHA = process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA || "";
-const POLL_MS = 10_000;
+const DEFAULT_POLL_MS = 60_000;
 const RELOAD_DELAY_MS = 2_500;
 const RELOAD_THROTTLE_MS = 15_000;
 
@@ -22,6 +23,8 @@ export default function DeploymentIndicator() {
 
   useEffect(() => {
     let stopped = false;
+    let checking = false;
+    let pollTimer: number | null = null;
 
     const scheduleReload = (sha: string) => {
       if (!sha || reloadTimer.current !== null) return;
@@ -33,11 +36,19 @@ export default function DeploymentIndicator() {
     };
 
     const check = async () => {
-      if (document.visibilityState !== "visible") return;
+      if (stopped || checking) return;
+      pollTimer = null;
+      if (document.visibilityState !== "visible") {
+        pollTimer = window.setTimeout(() => void check(), DEFAULT_POLL_MS);
+        return;
+      }
+      checking = true;
+      let nextPoll = DEFAULT_POLL_MS;
       try {
         const response = await fetch(`/api/deployment-status?t=${Date.now()}`, { cache: "no-store" });
         if (!response.ok) return;
         const status = await response.json() as DeploymentStatus;
+        if (Number.isFinite(status.poll_after_ms) && status.poll_after_ms >= 10_000) nextPoll = status.poll_after_ms;
         if (stopped || !status.ok) {
           if (!stopped && status.state !== "pending") setUploading(false);
           return;
@@ -53,16 +64,23 @@ export default function DeploymentIndicator() {
         if (shouldReload && status.latest_sha) scheduleReload(status.latest_sha);
       } catch {
         // A network/API failure must never create a false uploading state.
+      } finally {
+        checking = false;
+        if (!stopped) pollTimer = window.setTimeout(() => void check(), nextPoll);
       }
     };
 
-    const visible = () => { if (document.visibilityState === "visible") void check(); };
+    const visible = () => {
+      if (document.visibilityState !== "visible") return;
+      if (pollTimer !== null) window.clearTimeout(pollTimer);
+      pollTimer = null;
+      void check();
+    };
     void check();
-    const interval = window.setInterval(() => void check(), POLL_MS);
     document.addEventListener("visibilitychange", visible);
     return () => {
       stopped = true;
-      window.clearInterval(interval);
+      if (pollTimer !== null) window.clearTimeout(pollTimer);
       document.removeEventListener("visibilitychange", visible);
       if (reloadTimer.current !== null) window.clearTimeout(reloadTimer.current);
     };
@@ -76,4 +94,3 @@ export default function DeploymentIndicator() {
     </div>
   );
 }
-

@@ -11,6 +11,8 @@ type CommitStatus = {
 };
 
 const allowedStates = new Set<VercelState>(["pending", "success", "failure", "error"]);
+const FAST_POLL_MS = 10_000;
+const PUBLIC_POLL_MS = 60_000;
 
 function unknownResponse(error?: string) {
   return NextResponse.json(
@@ -21,6 +23,7 @@ function unknownResponse(error?: string) {
       deployed_sha: process.env.VERCEL_GIT_COMMIT_SHA || null,
       show_uploading: false,
       ready_to_reload: false,
+      poll_after_ms: PUBLIC_POLL_MS,
       checked_at: new Date().toISOString(),
       ...(error ? { error } : {}),
     },
@@ -66,6 +69,7 @@ export async function GET() {
         deployed_sha: deployedSha || null,
         show_uploading: state === "pending",
         ready_to_reload: state === "success" && isNewerCommit,
+        poll_after_ms: token ? FAST_POLL_MS : PUBLIC_POLL_MS,
         checked_at: new Date().toISOString(),
       },
       { headers: { "Cache-Control": "private, no-store, max-age=0" } },
@@ -74,4 +78,3 @@ export async function GET() {
     return unknownResponse("github_status_unavailable");
   }
 }
-

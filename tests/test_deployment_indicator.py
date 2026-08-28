@@ -19,6 +19,8 @@ class DeploymentIndicatorTests(unittest.TestCase):
         self.assertIn("process.env.GITHUB_STATUS_TOKEN", route)
         self.assertNotIn("GITHUB_STATUS_TOKEN", component)
         self.assertIn("revalidate: 8", route)
+        self.assertIn("token ? FAST_POLL_MS : PUBLIC_POLL_MS", route)
+        self.assertIn("poll_after_ms", component)
         self.assertIn("show_uploading: false", route)
         self.assertIn("A network/API failure must never create a false uploading state.", component)
 
@@ -36,4 +38,3 @@ class DeploymentIndicatorTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
