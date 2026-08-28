@@ -111,4 +111,7 @@ test("local ML assets are self hosted and remote loading is disabled", () => {
   const model = path.resolve("public/models/all-MiniLM-L6-v2/onnx/model_quantized.onnx");
   assert.ok(fs.statSync(model).size > 20_000_000);
   assert.ok(fs.existsSync(path.resolve("public/models/wasm/ort-wasm-simd-threaded.wasm")));
+  assert.ok(fs.existsSync(path.resolve("public/models/wasm/ort-wasm-simd-threaded.mjs")));
+  assert.ok(fs.existsSync(path.resolve("public/models/wasm/ort-wasm-simd-threaded.jsep.wasm")));
+  assert.ok(fs.existsSync(path.resolve("public/models/wasm/ort-wasm-simd-threaded.jsep.mjs")));
 });

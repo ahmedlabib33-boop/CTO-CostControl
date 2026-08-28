@@ -35,6 +35,8 @@ class LiveIntelligenceIntegrationTests(unittest.TestCase):
     def test_ml_is_local_only_and_has_fallback(self):
         self.assertIn('env.allowRemoteModels = false', WORKER)
         self.assertIn('env.allowLocalModels = true', WORKER)
+        self.assertTrue((ROOT / "public/models/wasm/ort-wasm-simd-threaded.jsep.mjs").exists())
+        self.assertTrue((ROOT / "public/models/wasm/ort-wasm-simd-threaded.mjs").exists())
         self.assertIn('WASM fallback', WORKER)
         self.assertIn('type: "fallback"', WORKER)
         self.assertIn('extractor.dispose()', WORKER)
