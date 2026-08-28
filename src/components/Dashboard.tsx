@@ -9,6 +9,7 @@ import { money } from "@/lib/normalized";
 import OutputStudio from "@/components/OutputStudio";
 import EngOllaMastery from "@/components/EngOllaMastery";
 import DeploymentIndicator from "@/components/DeploymentIndicator";
+import { INTELLIGENCE_CONTEXT_EVENT, publishIntelligenceContext, type DashboardIntelligenceContext } from "@/lib/liveIntelligence";
 
 type Tab="portfolio"|"projects"|"intelligence"|"output";
 const NAV:{id:Tab;label:string}[]=[{id:"portfolio",label:"Portfolio Command Center"},{id:"projects",label:"Projects"},{id:"intelligence",label:"Monthly Intelligence & Data Quality"},{id:"output",label:"Output Studio"}];
@@ -17,17 +18,19 @@ function SourceRegistry({projects,onOpen}:{projects:ProjectRegistryItem[];onOpen
 
 function OlaOverlay(){
  const [show,setShow]=useState(false);
+ const [context,setContext]=useState<DashboardIntelligenceContext|null>(null);
  const seq=useRef(0),taps=useRef<number[]>([]),showing=useRef(false);
  useEffect(()=>{
   const reveal=()=>{if(showing.current)return;showing.current=true;setShow(true);document.documentElement.classList.add("trick-open")};
   const key=(e:KeyboardEvent)=>{const expected=String(seq.current+1);if(e.key===expected){seq.current++;if(seq.current===5){seq.current=0;reveal()}}else seq.current=e.key==="1"?1:0};
   const touch=(e:PointerEvent)=>{if(e.pointerType!=="touch"||showing.current)return;const now=Date.now();taps.current=[...taps.current.filter(t=>now-t<850),now];if(taps.current.length>=3){taps.current=[];reveal()}};
-  window.addEventListener("keydown",key);window.addEventListener("pointerup",touch,{passive:true});
-  return()=>{window.removeEventListener("keydown",key);window.removeEventListener("pointerup",touch);document.documentElement.classList.remove("trick-open")}
+  const intelligence=(event:Event)=>setContext((event as CustomEvent<DashboardIntelligenceContext>).detail);
+  window.addEventListener("keydown",key);window.addEventListener("pointerup",touch,{passive:true});window.addEventListener(INTELLIGENCE_CONTEXT_EVENT,intelligence);
+  return()=>{window.removeEventListener("keydown",key);window.removeEventListener("pointerup",touch);window.removeEventListener(INTELLIGENCE_CONTEXT_EVENT,intelligence);document.documentElement.classList.remove("trick-open")}
  },[]);
  const dismiss=()=>{setShow(false);showing.current=false;document.documentElement.classList.remove("trick-open")};
  if(!show)return null;
- return <EngOllaMastery onExit={dismiss}/>;
+ return <EngOllaMastery onExit={dismiss} intelligenceContext={context}/>;
 }
 
 export default function Dashboard({initialProjectId,initialProjectView=DEFAULT_PROJECT_VIEW}:{initialProjectId?:string;initialProjectView?:ProjectView}){
@@ -35,6 +38,7 @@ export default function Dashboard({initialProjectId,initialProjectView=DEFAULT_P
  useEffect(()=>{Promise.all([fetch("/generated/projects.json").then(r=>r.json()),fetch("/generated/portfolio/latest.json").then(r=>r.json()),fetch("/generated/identity-conflicts.json").then(r=>r.ok?r.json():[]).catch(()=>[])]).then(([p,po,c])=>{setProjects(p);setPortfolio(po);setConflicts(Array.isArray(c)?c:[])}).catch(()=>{})},[]);
  useEffect(()=>{const t=()=>setClock(new Intl.DateTimeFormat("en-GB",{timeZone:"Africa/Cairo",hour:"2-digit",minute:"2-digit",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date()));t();const id=setInterval(t,30000);return()=>clearInterval(id)},[]);
  useEffect(()=>{const pop=()=>{const m=location.pathname.match(/^\/project\/([^/]+)(?:\/([^/]+))?/);setProjectId(m?decodeURIComponent(m[1]):"");setProjectView(normalizeProjectView(m?.[2]))};window.addEventListener("popstate",pop);return()=>window.removeEventListener("popstate",pop)},[]);
+ useEffect(()=>{if(!projectId&&tab!=="portfolio")publishIntelligenceContext({kind:"portfolio",view:tab,scope:"dashboard",projects,active:[],conflicts})},[projectId,tab,projects,conflicts]);
  const open=(id:string)=>{setProjectId(id);setProjectView(DEFAULT_PROJECT_VIEW);history.pushState({},"",`/project/${encodeURIComponent(id)}/${DEFAULT_PROJECT_VIEW}`);window.scrollTo({top:0,behavior:"smooth"})};
  const navigateProject=(view:ProjectView)=>{setProjectView(view);history.pushState({},"",`/project/${encodeURIComponent(projectId)}/${view}`);window.scrollTo({top:0,behavior:"smooth"})};
  const back=()=>{setProjectId("");history.pushState({},"","/");setTab("portfolio");window.scrollTo({top:0,behavior:"smooth"})};

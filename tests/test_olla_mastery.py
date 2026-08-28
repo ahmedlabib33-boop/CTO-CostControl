@@ -58,11 +58,12 @@ class EngOllaMasteryTests(unittest.TestCase):
         self.assertIn('if(event.key==="Escape")return', MASTERY)
         self.assertIn("You are not reviewing numbers.", MASTERY)
 
-    def test_overlay_is_decoupled_from_dashboard_data(self):
+    def test_static_mastery_remains_decoupled_while_live_module_receives_controlled_context(self):
         self.assertNotIn("/generated/", MASTERY)
         self.assertNotIn("fetch(", MASTERY)
         self.assertNotIn("ProjectWorkspace", MASTERY)
-        self.assertIn("<EngOllaMastery onExit={dismiss}/>", DASHBOARD)
+        self.assertIn("<EngOllaMastery onExit={dismiss} intelligenceContext={context}/>", DASHBOARD)
+        self.assertIn("LiveProjectIntelligence", MASTERY)
 
     def test_responsive_and_motion_accessibility_rules_exist(self):
         self.assertIn("@media(max-width:760px)", CSS)

@@ -6,6 +6,7 @@ import { aggregate, firstNum, money, moneyFull, num, pct, text, unpackExpenses }
 import { BubbleChart, ChartShell, DonutChart, ExcelSourceChart, GroupedBarChart, LineChart, SimpleWaterfall } from "@/components/Charts";
 import { DataTable, PlainMatrix, SourceSnapshot, type Col } from "@/components/Tables";
 import { PROJECT_FAMILIES, familyForView, type ProjectView } from "@/lib/projectViews";
+import { publishIntelligenceContext } from "@/lib/liveIntelligence";
 
 export type { ProjectView } from "@/lib/projectViews";
 
@@ -138,6 +139,7 @@ function AssuranceQuality({data,norm}:{data:ProjectData;norm:any}){
 export default function ProjectWorkspace({projectId,view,onNavigate,onBack}:{projectId:string;view:ProjectView;onNavigate:(view:ProjectView)=>void;onBack:()=>void}){
  const [data,setData]=useState<ProjectData|null>(null),[norm,setNorm]=useState<any>(null),[error,setError]=useState("");const [wbsDivision,setWbsDivision]=useState(""),[ledgerCode,setLedgerCode]=useState("");
  useEffect(()=>{setData(null);setNorm(null);setError("");fetch(`/generated/projects/${projectId}/latest.json`).then(r=>{if(!r.ok)throw new Error(`Project ${projectId} not found`);return r.json()}).then(async(d:ProjectData)=>{setData(d);if(d.normalized_path){try{const r=await fetch(d.normalized_path);if(r.ok)setNorm(await r.json())}catch{}}}).catch(e=>setError(String(e?.message||e)))},[projectId]);
+ useEffect(()=>{if(data)publishIntelligenceContext({kind:"project",view,data,normalized:norm||{}})},[data,norm,view]);
  if(error)return <div className="card"><h3>Project unavailable</h3><p className="sub">{error}</p><button className="ctrl" onClick={onBack}>← Portfolio</button></div>; if(!data)return <div className="card"><p className="sub">Loading isolated project intelligence…</p></div>;
  const k=norm?.kpis||{},p=(key:string)=>{const b=data.metrics[key] as any;return b?.preferred?.value as number|undefined}; const ev=firstNum(k.ev_dashboard_scope,p("earned_value")),ac=firstNum(k.actual_cost_dashboard_scope,p("actual_cost")),cpi=ac?ev!/ac:undefined,cv=ev!=null&&ac!=null?ev-ac:undefined;
  const jumpDivision=(d:string)=>{setWbsDivision(d);onNavigate("forecast-performance")};
