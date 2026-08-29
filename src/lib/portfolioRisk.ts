@@ -63,6 +63,23 @@ export type PortfolioRiskReport = {
   scenario: IntelligenceResult | null;
 };
 
+export type PortfolioRiskCluster = {
+  id: string;
+  family: string;
+  severity: "critical" | "caution" | "unavailable";
+  criticalCount: number;
+  cautionCount: number;
+  unavailableCount: number;
+  assessmentCount: number;
+  affectedProjectIds: string[];
+  affectedProjects: string[];
+  periods: string[];
+  confidenceFloor: number;
+  decisions: string[];
+  mitigations: string[];
+  assessments: PortfolioRiskAssessment[];
+};
+
 export const DEFAULT_RISK_SETTINGS_ANSWERS: RiskSettingsAnswers = {
   cpiCritical: DEFAULT_INTELLIGENCE_POLICY.cpiCaution,
   adverseVarianceCriticalPct: Math.abs(DEFAULT_INTELLIGENCE_POLICY.cvCautionPct),
@@ -270,4 +287,36 @@ export function buildPortfolioRiskReport(context: PortfolioIntelligenceContext, 
     highestPriority: risks.find(item => item.severity !== "unavailable") || null,
     scenario,
   };
+}
+
+export function buildPortfolioRiskClusters(report: PortfolioRiskReport): PortfolioRiskCluster[] {
+  const groups = new Map<string, PortfolioRiskAssessment[]>();
+  for (const risk of report.risks) groups.set(risk.family, [...(groups.get(risk.family) || []), risk]);
+  const rank = { critical: 0, caution: 1, unavailable: 2 } as const;
+  return [...groups.entries()].map(([family, assessments]) => {
+    const criticalCount = assessments.filter(item => item.severity === "critical").length;
+    const cautionCount = assessments.filter(item => item.severity === "caution").length;
+    const unavailableCount = assessments.filter(item => item.severity === "unavailable").length;
+    const severity: PortfolioRiskCluster["severity"] = criticalCount ? "critical" : cautionCount ? "caution" : "unavailable";
+    return {
+      id: `portfolio-cluster:${family}`,
+      family,
+      severity,
+      criticalCount,
+      cautionCount,
+      unavailableCount,
+      assessmentCount: assessments.length,
+      affectedProjectIds: [...new Set(assessments.flatMap(item => item.affectedProjectIds))],
+      affectedProjects: [...new Set(assessments.flatMap(item => item.affectedProjects))],
+      periods: [...new Set(assessments.map(item => item.period).filter(Boolean))].sort(),
+      confidenceFloor: (() => {
+        const assessable = assessments.filter(item => item.severity !== "unavailable");
+        const basis = assessable.length ? assessable : assessments;
+        return basis.length ? Math.min(...basis.map(item => item.confidence)) : 0;
+      })(),
+      decisions: [...new Set(assessments.filter(item => item.severity !== "unavailable").map(item => item.decision).filter(Boolean))],
+      mitigations: [...new Set(assessments.flatMap(item => item.mitigation).filter(Boolean))],
+      assessments,
+    };
+  }).sort((a, b) => rank[a.severity] - rank[b.severity] || b.criticalCount - a.criticalCount || b.cautionCount - a.cautionCount || a.family.localeCompare(b.family));
 }
