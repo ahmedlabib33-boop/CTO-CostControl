@@ -378,6 +378,8 @@ async function ensureLiveProjects() {
 }
 
 let state = normalizeGameState({});
+let gameFinished = false,
+  gameOutcome = null;
 function save() {
   localStorage.setItem(stateStorageKey, JSON.stringify(state));
 }
@@ -406,6 +408,15 @@ function updateHUD() {
     ola.userData.plumbob.material.color.setHex(color);
     ola.userData.plumbob.material.emissive.setHex(color);
   }
+  const missionTotal = PROJECTS.reduce((count, project) => count + project.missions.length, 0),
+    missionControlled = PROJECTS.reduce(
+      (count, project) => count + project.missions.filter((_mission, index) => Boolean((state.resolved[project.id] || {})[index])).length,
+      0,
+    ),
+    campaignProgress = $("#campaignProgress"),
+    campaignProgressBar = $("#campaignProgressBar");
+  if (campaignProgress) campaignProgress.textContent = `${missionControlled} / ${missionTotal}`;
+  if (campaignProgressBar) campaignProgressBar.style.width = `${missionTotal ? (missionControlled / missionTotal) * 100 : 0}%`;
   renderStageRail();
   renderTrophyShelf();
 }
@@ -940,7 +951,10 @@ function ambientActor(x, z, color) {
   ambientActors.push(actor);
 }
 function environment() {
-  ground = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), mat(0x33463d));
+  ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(160, 160),
+    new THREE.MeshStandardMaterial({ color: 0x3f684f, roughness: 0.94, metalness: 0.02 }),
+  );
   ground.rotation.x = -Math.PI / 2;
   ground.receiveShadow = true;
   scene.add(ground);
@@ -1026,6 +1040,15 @@ function environment() {
   for (let i = -4; i <= 4; i++) {
     streetLight(i * 4.2, -4.6);
     if (i % 2 === 0) streetLight(i * 4.2, 5.2);
+  }
+  for (let i = 0; i < 64; i++) {
+    const angle = (i / 64) * Math.PI * 2,
+      radius = 11 + (i % 5) * 3.1,
+      flower = sphere(0.1 + (i % 3) * 0.025, i % 3 === 0 ? 0xffd45c : i % 3 === 1 ? 0xff7799 : 0x7edcff, 10, 8),
+      stem = cylinder(0.025, 0.035, 0.34, 0x3f985c, 7);
+    flower.position.set(Math.cos(angle) * radius, 0.37, Math.sin(angle) * radius);
+    stem.position.set(flower.position.x, 0.18, flower.position.z);
+    scene.add(stem, flower);
   }
   stars();
   cloud(-22, 20, -18, 2.4, 0.42);
@@ -1190,7 +1213,7 @@ function init3D() {
   running = true;
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x84b7c7);
-  scene.fog = new THREE.Fog(0x84b7c7, 48, 105);
+  scene.fog = new THREE.Fog(0x84b7c7, 62, 125);
   camera = new THREE.PerspectiveCamera(48, innerWidth / innerHeight, 0.1, 220);
   renderer = new THREE.WebGLRenderer({
     canvas: $("#world3d"),
@@ -1207,7 +1230,7 @@ function init3D() {
   renderer.setSize(innerWidth, innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.12;
+  renderer.toneMappingExposure = 1.28;
   renderer.shadowMap.enabled = matchMedia("(min-width:700px)").matches;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   skyLight = new THREE.HemisphereLight(0xd6f1ff, 0x62523d, 2.4);
@@ -1221,6 +1244,7 @@ function init3D() {
   sunLight.shadow.camera.top = 35;
   sunLight.shadow.camera.bottom = -35;
   scene.add(sunLight);
+  scene.add(new THREE.AmbientLight(0x9fcfff, 0.42));
   environment();
   PROJECTS.forEach(building);
   ola = createOla();
@@ -1380,11 +1404,16 @@ function updateDayLight() {
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock3d.getDelta(), 0.04);
-  if (state.speed > 0) {
+  if (!gameFinished && state.speed > 0) {
     state.hour += dt * state.speed * 0.2;
     if (state.hour >= 24) {
-      state.hour -= 24;
-      state.day = Math.min(30, state.day + 1);
+      if (state.day >= 30) {
+        state.hour = 23.99;
+        finishGame(false);
+      } else {
+        state.hour -= 24;
+        state.day += 1;
+      }
     }
     state.energy = Math.max(0, state.energy - dt * state.speed * 0.03);
     state.focus = Math.max(0, state.focus - dt * state.speed * 0.025);
@@ -1557,13 +1586,18 @@ function openProject(p) {
     .map(([k, v]) => `<div class="metric"><small>${escapeHtml(k)}</small><b>${escapeHtml(v)}</b></div>`)
     .join("");
   const done = state.resolved[p.id] || {};
+  const controlledCount = p.missions.filter((_mission, index) => Boolean(done[index])).length;
+  $("#projectProgress").innerHTML = `<b>${controlledCount}/${p.missions.length}</b> live management decisions controlled for this stage`;
   $("#missionList").innerHTML = p.missions
     .map(
       (m, i) =>
         `<div class="mission ${done[i] ? "controlled" : ""}"><div class="dot ${escapeHtml(m[0])}"></div><div><b>${escapeHtml(m[1])}</b><br><small>${escapeHtml(m[0])} · ${done[i] ? "Controlled from this snapshot" : `Live question · ${escapeHtml(p.period)}`}</small></div><button data-mission="${i}">${done[i] ? "REVIEW ✓" : "GO TO →"}</button></div>`,
     )
     .join("");
+  $("#projectSheet").classList.remove("compact");
   $("#projectSheet").classList.add("open");
+  $("#collapseProject").textContent = "MINIMIZE −";
+  $("#collapseProject").setAttribute("aria-expanded", "true");
   $$("[data-mission]").forEach(
     (b) => (b.onclick = () => openDecision(p, +b.dataset.mission)),
   );
@@ -1685,6 +1719,13 @@ $("#closeDecision").onclick = () => {
   hideThought();
 };
 $("#closeProject").onclick = () => $("#projectSheet").classList.remove("open");
+$("#collapseProject").onclick = () => {
+  const sheet = $("#projectSheet"),
+    compact = sheet.classList.toggle("compact"),
+    button = $("#collapseProject");
+  button.textContent = compact ? "MISSIONS +" : "MINIMIZE −";
+  button.setAttribute("aria-expanded", String(!compact));
+};
 $("#interactBtn").onclick = () =>
   nearest
     ? openProject(nearest)
@@ -1846,8 +1887,24 @@ function checkWin() {
   if (allControlled && allTrophies) {
     const total = PROJECTS.reduce((count, project) => count + project.missions.length, 0);
     $("#objective b").textContent = `Controlled ${total} live questions and earned ${PROJECTS.length} stage trophies`;
-    setTimeout(() => show("success"), 700);
+    finishGame(true);
   } else updateGoToPrompt();
+}
+function finishGame(won) {
+  if (gameFinished) return;
+  gameFinished = true;
+  gameOutcome = won ? "success" : "failure";
+  state.speed = 0;
+  $("#labibResult").textContent = won ? "Congrats from Labib" : "Hard Luck from Labib";
+  save();
+  if (won) {
+    setTimeout(() => show("success"), 700);
+    return;
+  }
+  show("blackout");
+  $("#blackLine").textContent =
+    "The 30-day management window closed before every live decision and checkpoint was controlled. Review the evidence, recover the exposed stages, and rise again.";
+  $("#restartStory").classList.remove("hidden");
 }
 $("#successNext").onclick = () => {
   show("ending");
@@ -1883,6 +1940,7 @@ $("#endingNext").onclick = () => {
   if (endingStep < ending.length) renderEnding();
   else {
     show("blackout");
+    $("#labibResult").textContent = gameOutcome === "success" ? "Congrats from Labib" : "Hard Luck from Labib";
     $("#blackLine").textContent =
       "وخليها معاكي… عشان لو احتجناكي تاني.\n\nبس المرة الجاية مفيش الست مساعدات دول… يمكن اتنين. عشان خاطرك.";
     setTimeout(() => $("#restartStory").classList.remove("hidden"), 2500);
@@ -1890,6 +1948,7 @@ $("#endingNext").onclick = () => {
 };
 $("#restartStory").onclick = () => {
   localStorage.removeItem("ola3d-v3");
+  localStorage.removeItem(stateStorageKey);
   location.reload();
 };
 

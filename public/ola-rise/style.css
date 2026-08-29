@@ -2,10 +2,10 @@
   --bg: #07101e;
   --glass: linear-gradient(
     145deg,
-    rgba(10, 23, 39, 0.91),
-    rgba(5, 13, 25, 0.82)
+    rgba(17, 41, 64, 0.86),
+    rgba(8, 25, 43, 0.76)
   );
-  --line: rgba(205, 228, 242, 0.18);
+  --line: rgba(160, 218, 244, 0.25);
   --gold: #f0c96f;
   --text: #f7f3ea;
   --muted: #aab6c7;
@@ -169,6 +169,16 @@ button:active {
 #game {
   background: #081321;
 }
+#game::before {
+  content: "";
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 44%, transparent 35%, rgba(4, 12, 23, 0.22) 100%),
+    linear-gradient(180deg, rgba(90, 191, 224, 0.08), transparent 28%, rgba(7, 18, 32, 0.14));
+}
 #world3d {
   position: absolute;
   inset: 0;
@@ -230,6 +240,35 @@ button:active {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.campaign-progress {
+  width: clamp(130px, 19vw, 220px);
+  display: grid;
+  grid-template-columns: auto minmax(58px, 1fr);
+  align-items: center;
+  gap: 9px;
+  padding: 7px 10px;
+  border: 1px solid rgba(103, 236, 166, 0.26);
+  border-radius: 13px;
+  background: rgba(5, 22, 35, 0.42);
+}
+.campaign-progress div { display: flex; flex-direction: column; }
+.campaign-progress small { color: #76e9aa; font-size: 8px; letter-spacing: .1em; }
+.campaign-progress b { font-size: 12px; }
+.campaign-progress i {
+  height: 7px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: rgba(255,255,255,.12);
+}
+.campaign-progress i span {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #4fe498, #f1ce73);
+  box-shadow: 0 0 12px rgba(79, 228, 152, .52);
+  transition: width .35s ease;
 }
 .plumbob {
   color: #68ef9c;
@@ -595,7 +634,7 @@ button:active {
   z-index: 50;
   top: 0;
   right: 0;
-  width: min(390px, 88vw);
+  width: min(350px, 88vw);
   height: 100%;
   padding: max(16px, env(safe-area-inset-top)) 15px
     max(18px, env(safe-area-inset-bottom));
@@ -603,6 +642,7 @@ button:active {
   transition: 0.3s ease;
   border-radius: 24px 0 0 24px;
   overflow: auto;
+  background: linear-gradient(160deg, rgba(18, 48, 73, .96), rgba(8, 28, 49, .94));
 }
 .drawer.open {
   transform: translateX(0);
@@ -697,6 +737,7 @@ button:active {
   transform: translateY(105%);
   transition: 0.28s ease;
   overflow: auto;
+  background: linear-gradient(155deg, rgba(20, 49, 73, .92), rgba(8, 25, 44, .88));
 }
 .bottom-sheet.open {
   transform: translateY(0);
@@ -716,6 +757,36 @@ button:active {
   background: transparent;
   font-size: 24px;
 }
+.sheet-collapse {
+  position: absolute;
+  right: 54px;
+  top: 13px;
+  min-height: 32px;
+  padding: 6px 10px;
+  color: #f3d27c;
+  font-size: 9px;
+  letter-spacing: .08em;
+}
+.project-progress {
+  margin: 8px 0 4px;
+  padding: 9px 11px;
+  border: 1px solid rgba(95, 228, 155, .25);
+  border-radius: 12px;
+  color: #aeeac8;
+  background: rgba(14, 72, 54, .2);
+  font-size: 11px;
+}
+.project-progress b { color: #67ed9f; font-size: 14px; }
+.bottom-sheet.compact {
+  max-height: 112px;
+  overflow: hidden;
+}
+.bottom-sheet.compact .muted,
+.bottom-sheet.compact .metrics,
+.bottom-sheet.compact .project-progress,
+.bottom-sheet.compact h3,
+.bottom-sheet.compact #missionList { display: none; }
+.bottom-sheet.compact .sheet-handle { opacity: .35; }
 .bottom-sheet h2 {
   margin: 4px 36px 2px 0;
 }
@@ -971,6 +1042,21 @@ button:active {
   font-size: 22px;
   line-height: 1.8;
 }
+.final-result-card {
+  width: min(620px, calc(100vw - 32px));
+  padding: 34px;
+  border: 1px solid rgba(240, 201, 111, .55);
+  border-radius: 28px;
+  background: radial-gradient(circle at 50% 0, rgba(230, 180, 75, .2), rgba(5, 11, 20, .96) 58%);
+  box-shadow: 0 30px 100px rgba(0,0,0,.7), 0 0 70px rgba(225, 177, 75, .14);
+}
+.final-mark { color: #68ef9c; font-size: 38px; filter: drop-shadow(0 0 15px #43d986); }
+.labib-result {
+  margin: 8px 0 12px;
+  color: var(--gold);
+  font-size: clamp(34px, 7vw, 64px);
+  line-height: 1.04;
+}
 .ending-copy {
   max-height: 35vh;
 }
@@ -990,10 +1076,10 @@ button:active {
   .bottom-sheet {
     left: auto;
     right: 18px;
-    width: 500px;
+    width: min(430px, 38vw);
     bottom: 18px;
     border-radius: 24px;
-    max-height: 72%;
+    max-height: 64%;
   }
   .camera-hint {
     font-size: 10px;
@@ -1013,6 +1099,7 @@ button:active {
   }
 }
 @media (max-width: 620px) {
+  .campaign-progress { display: none; }
   .mood-chip {
     display: none;
   }

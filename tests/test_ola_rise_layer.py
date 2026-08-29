@@ -80,7 +80,7 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn("LIVE MANAGEMENT OBJECTIVE", html)
         self.assertIn("objective-marker", html)
         self.assertIn("goToPulse", css)
-        self.assertIn("ola-rise-v14-live-sims-academy", service_worker)
+        self.assertIn("ola-rise-v15-live-sims-academy", service_worker)
         self.assertIn("self.skipWaiting()", service_worker)
         self.assertIn("self.clients.claim()", service_worker)
 
@@ -120,6 +120,21 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn('assets/track-3.mp3', script)
         self.assertIn('AudioVolumeDown', script)
         self.assertIn('AudioVolumeUp', script)
+
+    def test_game_hud_and_final_labib_result_are_interactive(self):
+        game_root = ROOT / "public/ola-rise"
+        html = (game_root / "index.html").read_text(encoding="utf-8")
+        script = (game_root / "game.js").read_text(encoding="utf-8")
+        css = (game_root / "style.css").read_text(encoding="utf-8")
+        for element_id in ["campaignProgress", "campaignProgressBar", "collapseProject", "projectProgress", "labibResult"]:
+            self.assertIn(f'id="{element_id}"', html)
+        self.assertIn("function finishGame", script)
+        self.assertIn('"Congrats from Labib"', script)
+        self.assertIn('"Hard Luck from Labib"', script)
+        self.assertIn("state.day >= 30", script)
+        self.assertIn(".bottom-sheet.compact", css)
+        self.assertIn(".campaign-progress", css)
+        self.assertIn(".labib-result", css)
 
 
 if __name__ == "__main__":

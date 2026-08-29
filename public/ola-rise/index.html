@@ -56,6 +56,10 @@
               >
             </div>
           </div>
+          <div class="campaign-progress" aria-label="Live management progress">
+            <div><small>CONTROLLED</small><b id="campaignProgress">0 / 0</b></div>
+            <i><span id="campaignProgressBar"></span></i>
+          </div>
           <div class="clock">
             <b id="dayLabel">Day 1/30</b><span id="timeLabel">08:00</span>
           </div>
@@ -173,11 +177,13 @@
 
         <section id="projectSheet" class="bottom-sheet glass">
           <div class="sheet-handle"></div>
+          <button id="collapseProject" class="sheet-collapse" type="button" aria-expanded="true">MINIMIZE −</button>
           <button id="closeProject" class="sheet-close">×</button>
           <div id="projectAlias" class="kicker"></div>
           <h2 id="projectName"></h2>
           <p id="projectSource" class="muted"></p>
           <div id="projectMetrics" class="metrics"></div>
+          <div id="projectProgress" class="project-progress"></div>
           <h3>Management Missions — choose GO TO for every step</h3>
           <div id="missionList"></div>
         </section>
@@ -268,7 +274,9 @@
         </div>
       </section>
       <section id="blackout" class="screen blackout">
-        <div>
+        <div class="final-result-card">
+          <div class="final-mark">◆</div>
+          <h1 id="labibResult" class="labib-result"></h1>
           <p id="blackLine" class="arabic"></p>
           <button id="restartStory" class="primary hidden">Play again</button>
         </div>
