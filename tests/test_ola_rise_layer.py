@@ -35,6 +35,40 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn("Memory. Decisions. Projects. Destiny.", html)
         self.assertIn('"short_name":"OLA: RISE"', manifest)
 
+    def test_3d_game_has_direct_go_to_guidance_for_every_mission(self):
+        game_root = ROOT / "public/ola-rise"
+        html = (game_root / "index.html").read_text(encoding="utf-8")
+        script = (game_root / "game.js").read_text(encoding="utf-8")
+        css = (game_root / "style.css").read_text(encoding="utf-8")
+        self.assertIn('id="goToBtn"', html)
+        self.assertIn("function goToProject", script)
+        self.assertIn("function nextOpenProject", script)
+        self.assertIn("TRAVELLING IN 3D", script)
+        self.assertIn("GO TO →", script)
+        self.assertIn("openProject(arrived)", script)
+        self.assertIn(".go-to", css)
+
+    def test_3d_redesign_has_a_life_simulation_world_and_animated_navigation(self):
+        game_root = ROOT / "public/ola-rise"
+        html = (game_root / "index.html").read_text(encoding="utf-8")
+        script = (game_root / "game.js").read_text(encoding="utf-8")
+        css = (game_root / "style.css").read_text(encoding="utf-8")
+        service_worker = (game_root / "sw.js").read_text(encoding="utf-8")
+        for feature in [
+            "hospitalBuilding",
+            "gatewayBuilding",
+            "projectBeacon",
+            "drawNavigationLine",
+            "animateOla",
+            "updateDayLight",
+            "streetLight",
+        ]:
+            self.assertIn(f"function {feature}", script)
+        self.assertIn("LIVE MANAGEMENT OBJECTIVE", html)
+        self.assertIn("objective-marker", html)
+        self.assertIn("goToPulse", css)
+        self.assertIn("ola-rise-v5-sims-3d", service_worker)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,1 +1,42 @@
-const CACHE='ola-turnaround-v3'; const CORE=['./','./index.html','./style.css','./game.js','./manifest.webmanifest','./assets/layer_1.jpg','./assets/layer_2.jpg','./assets/layer_3.jpg','./assets/layer_4.jpg','./assets/layer_5.jpg']; self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)))); self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(k=>Promise.all(k.filter(x=>x!==CACHE).map(x=>caches.delete(x)))))); self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).then(resp=>{if(e.request.method==='GET'){const cp=resp.clone();caches.open(CACHE).then(c=>c.put(e.request,cp));}return resp;}).catch(()=>r))));
+const CACHE = "ola-rise-v5-sims-3d";
+const CORE = [
+  "./",
+  "./index.html",
+  "./style.css",
+  "./game.js",
+  "./manifest.webmanifest",
+  "./assets/layer_1.jpg",
+  "./assets/layer_2.jpg",
+  "./assets/layer_3.jpg",
+  "./assets/layer_4.jpg",
+  "./assets/layer_5.jpg",
+];
+self.addEventListener("install", (e) =>
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE))),
+);
+self.addEventListener("activate", (e) =>
+  e.waitUntil(
+    caches
+      .keys()
+      .then((k) =>
+        Promise.all(k.filter((x) => x !== CACHE).map((x) => caches.delete(x))),
+      ),
+  ),
+);
+self.addEventListener("fetch", (e) =>
+  e.respondWith(
+    caches.match(e.request).then(
+      (r) =>
+        r ||
+        fetch(e.request)
+          .then((resp) => {
+            if (e.request.method === "GET") {
+              const cp = resp.clone();
+              caches.open(CACHE).then((c) => c.put(e.request, cp));
+            }
+            return resp;
+          })
+          .catch(() => r),
+    ),
+  ),
+);
