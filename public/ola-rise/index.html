@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0b1220">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="OLA: RISE">
+<title>OLA: RISE — Memory. Decisions. Projects. Destiny.</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <section id="story" class="screen active story-screen">
+    <img id="storyImage" class="story-image" src="assets/layer_1.jpg" alt="Story">
+    <div class="vignette"></div>
+    <div class="rise-brand"><b>OLA: RISE</b><span>Memory. Decisions. Projects. Destiny.</span></div>
+    <div class="story-copy glass">
+      <div id="storyKicker" class="kicker">LAYER 1 · BAHRAIN</div>
+      <h1 id="storyTitle">Childhood</h1>
+      <p id="storyBody"></p>
+      <p id="storyDialogue" class="arabic dialogue"></p>
+      <button id="storyNext" class="primary big">Continue</button>
+    </div>
+  </section>
+
+  <section id="game" class="screen">
+    <canvas id="world3d"></canvas>
+    <div id="loading" class="loading"><div class="spinner"></div><b>Building Ola's world…</b><small>Optimizing for this device</small></div>
+
+    <header class="mobile-top glass">
+      <div class="identity"><span class="plumbob">◆</span><div><b>OLA: RISE</b><small id="phaseLabel">Memory · Decisions · Projects · Destiny</small></div></div>
+      <div class="clock"><b id="dayLabel">Day 1/30</b><span id="timeLabel">08:00</span></div>
+      <button id="menuBtn" class="icon-btn">☰</button>
+    </header>
+
+    <div class="status-strip glass">
+      <div><span>⚡</span><i><b id="energyBar"></b></i><em id="energyValue">100</em></div>
+      <div><span>◎</span><i><b id="focusBar"></b></i><em id="focusValue">100</em></div>
+      <div><span>♡</span><i><b id="patienceBar"></b></i><em id="patienceValue">100</em></div>
+    </div>
+
+    <div id="objective" class="objective glass"><small>CURRENT OBJECTIVE</small><b>Walk to a project and inspect it</b></div>
+
+    <div id="worldLabels"></div>
+    <div id="toast" class="toast"></div>
+
+    <div id="joystick" class="joystick"><div class="joy-ring"><div id="joyKnob" class="joy-knob"></div></div><span>MOVE</span></div>
+    <div class="touch-actions">
+      <button id="interactBtn" class="round primary">◎<small>ACT</small></button>
+      <button id="guideBtn" class="round gold">✦<small>HELP <b id="helpCount">4</b></small></button>
+    </div>
+
+    <div class="camera-hint">Drag world to rotate · Pinch to zoom · Tap ground to walk</div>
+
+    <aside id="drawer" class="drawer glass">
+      <div class="drawer-head"><b>OLA CONTROL</b><button id="closeDrawer" class="icon-btn">×</button></div>
+      <div class="grid2">
+        <button data-speed="0">❚❚ Pause</button><button data-speed="1" class="selected">▶ 1×</button>
+        <button data-speed="2">▶▶ 2×</button><button data-speed="4">▶▶▶ 4×</button>
+      </div>
+      <h3>SIM ACTIONS</h3>
+      <div class="grid2">
+        <button id="teaBtn">☕ Egyptian tea</button><button id="restBtn">🛋 Rest 6h</button>
+        <button id="teamBtn">👥 Team huddle</button><button id="siteBtn">🏗 Site walk</button>
+      </div>
+      <h3>VIEW</h3>
+      <div class="grid2"><button id="centerBtn">⌖ Center Ola</button><button id="qualityBtn">✨ Quality: Auto</button><button id="fullBtn">⛶ Fullscreen</button><button id="saveBtn">💾 Save</button></div>
+      <button id="resetBtn" class="danger full">Reset game</button>
+    </aside>
+
+    <section id="projectSheet" class="bottom-sheet glass">
+      <div class="sheet-handle"></div>
+      <button id="closeProject" class="sheet-close">×</button>
+      <div id="projectAlias" class="kicker"></div><h2 id="projectName"></h2><p id="projectSource" class="muted"></p>
+      <div id="projectMetrics" class="metrics"></div>
+      <h3>Management Missions</h3><div id="missionList"></div>
+    </section>
+
+    <section id="decisionSheet" class="modal hidden"><div class="decision glass">
+      <button id="closeDecision" class="sheet-close">×</button><span id="decisionStatus" class="status">CRITICAL</span>
+      <h2 id="decisionTitle"></h2><p id="decisionReading"></p>
+      <div class="evidence"><b>Evidence</b><p id="decisionEvidence"></p></div>
+      <div id="decisionOptions" class="decision-options"></div>
+      <button id="decisionGuide" class="gold full">✦ Ask the Guide for the answer</button>
+    </div></section>
+
+    <section id="guideModal" class="modal hidden"><div class="guide-box glass"><div class="guide-star">✦</div><div><div class="kicker">THE OLD GUIDE</div><p id="guideText" class="arabic"></p><button id="guideClose" class="primary full">تمام</button></div></div></section>
+  </section>
+
+  <section id="success" class="screen story-screen"><img class="story-image" src="assets/layer_4.jpg"><div class="vignette"></div><div class="story-copy glass"><div class="kicker">LAYER 4 · THE RISE</div><h1>عُلا</h1><p>المشاريع رجعت لمسارها. والاسم اللي كان مخفي في الخلفية بقى ظاهر في النتيجة: العلو، الرفعة، والوقوف بثبات.</p><button id="successNext" class="primary big">Continue</button></div></section>
+
+  <section id="ending" class="screen story-screen"><img class="story-image" src="assets/layer_5.jpg"><div class="vignette"></div><div class="story-copy glass ending-copy"><div id="endingSpeaker" class="kicker">THE OLD GUIDE</div><p id="endingLine" class="arabic dialogue"></p><button id="endingNext" class="primary big">Next</button></div><div id="gift" class="gift hidden"><div class="eye">𓂀</div><b class="arabic">للّي يعرف يرجّع الدنيا لمسارها.</b></div></section>
+  <section id="blackout" class="screen blackout"><div><p id="blackLine" class="arabic"></p><button id="restartStory" class="primary hidden">Play again</button></div></section>
+</div>
+<script type="module" src="game.js"></script>
+</body>
+</html>

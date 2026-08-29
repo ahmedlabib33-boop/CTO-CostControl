@@ -9,6 +9,7 @@ import { PortfolioDataMapping } from "@/components/DataMapping";
 import { money } from "@/lib/normalized";
 import OutputStudio from "@/components/OutputStudio";
 import EngOllaMastery from "@/components/EngOllaMastery";
+import OlaRiseLayer, { advanceOlaRiseKnock, initialOlaRiseKnockState, OLA_RISE_KEY_SEQUENCE, type OlaRiseKnockState } from "@/components/OlaRiseLayer";
 import DeploymentIndicator from "@/components/DeploymentIndicator";
 import RepoLastModified from "@/components/RepoLastModified";
 import { INTELLIGENCE_CONTEXT_EVENT, publishIntelligenceContext, type DashboardIntelligenceContext } from "@/lib/liveIntelligence";
@@ -19,20 +20,37 @@ const NAV:{id:Tab;label:string}[]=[{id:"portfolio",label:"Portfolio Command Cent
 function SourceRegistry({projects,onOpen}:{projects:ProjectRegistryItem[];onOpen:(id:string)=>void}){return <div className="card"><h3>Source Registry</h3><p className="sub">Every project source is isolated by permanent project ID, reporting period and source SHA-256.</p><div className="tablewrap"><table><thead><tr><th>Project</th><th>Period</th><th>Fingerprint</th><th>Sheets</th><th>Excel Charts</th><th>Capabilities</th><th>Current AC</th></tr></thead><tbody>{projects.map(p=><tr key={p.project_id} className="clickable-row" onClick={()=>onOpen(p.project_id)}><td className="pname">{p.project_name}</td><td>{p.reporting_period}</td><td className="mono">{p.source_fingerprint}</td><td>{p.sheet_count}</td><td>{p.chart_count}</td><td>{Object.entries(p.capabilities||{}).filter(([,v])=>v).map(([k])=>k.replaceAll("_"," ")).join(" · ")}</td><td>{money(p.metrics?.actual_cost)}</td></tr>)}</tbody></table></div></div>}
 
 function OlaOverlay(){
- const [show,setShow]=useState(false);
+ const [show,setShow]=useState<"mastery"|"rise"|null>(null);
  const [context,setContext]=useState<DashboardIntelligenceContext|null>(null);
- const seq=useRef(0),taps=useRef<number[]>([]),showing=useRef(false);
+ const masterySeq=useRef(0),riseSeq=useRef(0),taps=useRef<number[]>([]),riseKnock=useRef<OlaRiseKnockState>(initialOlaRiseKnockState()),showing=useRef(false);
  useEffect(()=>{
-  const reveal=()=>{if(showing.current)return;showing.current=true;setShow(true);document.documentElement.classList.add("trick-open")};
-  const key=(e:KeyboardEvent)=>{const expected=String(seq.current+1);if(e.key===expected){seq.current++;if(seq.current===5){seq.current=0;reveal()}}else seq.current=e.key==="1"?1:0};
-  const touch=(e:PointerEvent)=>{if(e.pointerType!=="touch"||showing.current)return;const now=Date.now();taps.current=[...taps.current.filter(t=>now-t<850),now];if(taps.current.length>=3){taps.current=[];reveal()}};
+  const reveal=(layer:"mastery"|"rise")=>{if(showing.current)return;showing.current=true;setShow(layer);document.documentElement.classList.add("trick-open")};
+  const key=(e:KeyboardEvent)=>{
+   if(showing.current||e.repeat)return;
+   const mastery="12345";
+   const masteryExpected=mastery[masterySeq.current];
+   masterySeq.current=e.key===masteryExpected?masterySeq.current+1:e.key===mastery[0]?1:0;
+   if(masterySeq.current===mastery.length){masterySeq.current=0;riseSeq.current=0;reveal("mastery");return}
+   const riseExpected=OLA_RISE_KEY_SEQUENCE[riseSeq.current];
+   riseSeq.current=e.key===riseExpected?riseSeq.current+1:e.key===OLA_RISE_KEY_SEQUENCE[0]?1:0;
+   if(riseSeq.current===OLA_RISE_KEY_SEQUENCE.length){riseSeq.current=0;masterySeq.current=0;reveal("rise")}
+  };
+  const touch=(e:PointerEvent)=>{
+   if(e.pointerType!=="touch"||showing.current)return;
+   const now=Date.now();
+   const riseProgress=advanceOlaRiseKnock(riseKnock.current,now);
+   riseKnock.current=riseProgress.state;
+   if(riseProgress.complete){taps.current=[];reveal("rise");return}
+   taps.current=[...taps.current.filter(t=>now-t<850),now];
+   if(taps.current.length>=3){taps.current=[];riseKnock.current=initialOlaRiseKnockState();reveal("mastery")}
+  };
   const intelligence=(event:Event)=>setContext((event as CustomEvent<DashboardIntelligenceContext>).detail);
   window.addEventListener("keydown",key);window.addEventListener("pointerup",touch,{passive:true});window.addEventListener(INTELLIGENCE_CONTEXT_EVENT,intelligence);
   return()=>{window.removeEventListener("keydown",key);window.removeEventListener("pointerup",touch);window.removeEventListener(INTELLIGENCE_CONTEXT_EVENT,intelligence);document.documentElement.classList.remove("trick-open")}
  },[]);
- const dismiss=()=>{setShow(false);showing.current=false;document.documentElement.classList.remove("trick-open")};
+ const dismiss=()=>{setShow(null);showing.current=false;masterySeq.current=0;riseSeq.current=0;taps.current=[];riseKnock.current=initialOlaRiseKnockState();document.documentElement.classList.remove("trick-open")};
  if(!show)return null;
- return <EngOllaMastery onExit={dismiss} intelligenceContext={context}/>;
+ return show==="rise"?<OlaRiseLayer onExit={dismiss}/>:<EngOllaMastery onExit={dismiss} intelligenceContext={context}/>;
 }
 
 export default function Dashboard({initialProjectId,initialProjectView=DEFAULT_PROJECT_VIEW}:{initialProjectId?:string;initialProjectView?:ProjectView}){
