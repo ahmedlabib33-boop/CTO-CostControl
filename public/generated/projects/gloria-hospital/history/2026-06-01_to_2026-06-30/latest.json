@@ -4,7 +4,7 @@
   "project_name": "Gloria Hospital",
   "reporting_period": "2026-06-01_to_2026-06-30",
   "identity": {
-    "status": "new",
+    "status": "existing",
     "project_sap_id": "SAP_001",
     "project_code": "GLR01",
     "project_name": "Gloria Hospital",
@@ -20,8 +20,8 @@
   "source": {
     "filename": "Gloria Cost Report 06.2026.xlsx",
     "format": "xlsx",
-    "sha256": "c40526867b2629a06bb4320321fae6df43a26d47f34542bb869bdbcc535e200d",
-    "bytes": 3759010,
+    "sha256": "6ea29fbea49e95029210192c7c78aeffcfa504875b5dc2aecd4de63a2814b9fc",
+    "bytes": 3758996,
     "identity_evidence": [
       "metadata:metadata!A1:B1",
       "metadata:metadata!A2:B2",
@@ -33,14 +33,14 @@
       "metadata:metadata!A8:B8"
     ]
   },
-  "generated_at": "2026-08-28T16:07:37.399466+00:00",
-  "normalized_path": "/generated/projects/gloria-hospital/enriched/2026-06-01_to_2026-06-30/c40526867b2629a0/normalized.json",
+  "generated_at": "2026-08-29T11:55:21.099123+00:00",
+  "normalized_path": "/generated/projects/gloria-hospital/enriched/2026-06-01_to_2026-06-30/6ea29fbea49e9502/normalized.json",
   "approved_parity": {
-    "matched": true,
-    "reference_file": "docs/parity/data/GLORIA.json",
-    "source_sha256": "e62a8bfd545c78c5cbcf73a0675f2283b685d5f0de16a2e4033e662e588f89f8",
-    "match_mode": "semantic_workbook_sha256",
-    "content_sha256": "cc7be3b3338c7cd502664d50f2af40d8b02f698de6a6edf238bfd35f2b3e9611"
+    "matched": false,
+    "reference_file": null,
+    "source_sha256": null,
+    "match_mode": null,
+    "content_sha256": "2042481347aea28ed5f654556baf678c855c90325da4a48226c2b4c7c11aa587"
   },
   "metrics": {
     "contract_value": {
@@ -841,7 +841,7 @@
     "sheet_count": 52,
     "visible_sheet_count": 45,
     "hidden_sheet_count": 7,
-    "cell_count": 142630,
+    "cell_count": 142631,
     "detected_table_count": 53,
     "excel_chart_count": 6,
     "sheets": [
@@ -853,7 +853,7 @@
         "cell_count": 16,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/001-0-cover-sheet.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/001-0-cover-sheet.json",
         "preview": [
           [
             "( Gloria Hospital ) \nCOST REPORT June 2026",
@@ -901,7 +901,7 @@
         "cell_count": 16,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/002-metadata.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/002-metadata.json",
         "preview": [
           [
             "project sap id",
@@ -941,26 +941,35 @@
         "index": 3,
         "name": "Dashboard",
         "state": "visible",
-        "dimension": "A3:AN9",
-        "cell_count": 5,
+        "dimension": "A3:AN16",
+        "cell_count": 6,
         "chart_count": 4,
         "table_count": 0,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/003-dashboard.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/003-dashboard.json",
         "preview": [
           [
             null,
             null,
-            "Gloria Hospital Project"
+            "Gloria Hospital Project",
+            null
           ],
           [
             "Start Date",
             45547,
+            null,
             null
           ],
           [
             "Finish Date",
             46218,
+            null,
             null
+          ],
+          [
+            null,
+            null,
+            null,
+            341923909
           ]
         ]
       },
@@ -972,7 +981,7 @@
         "cell_count": 178,
         "chart_count": 0,
         "table_count": 3,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/004-dashboard.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/004-dashboard.json",
         "preview": [
           [
             null,
@@ -1314,7 +1323,7 @@
         "cell_count": 31,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/005-gross-profit.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/005-gross-profit.json",
         "preview": [
           [
             null,
@@ -1443,7 +1452,7 @@
         "cell_count": 615,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/006-1-project-summary.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/006-1-project-summary.json",
         "preview": [
           [
             "Summary Sheet ",
@@ -1995,7 +2004,7 @@
         "cell_count": 101,
         "chart_count": 2,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/007-cashflow.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/007-cashflow.json",
         "preview": [
           [
             "Gloria Hospital - Cash Flow",
@@ -2133,7 +2142,7 @@
         "cell_count": 156,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/008-indirect-breakdown.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/008-indirect-breakdown.json",
         "preview": [
           [
             null,
@@ -2355,7 +2364,7 @@
         "cell_count": 392,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/009-final-direct-breakdown.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/009-final-direct-breakdown.json",
         "preview": [
           [
             null,
@@ -2577,7 +2586,7 @@
         "cell_count": 204,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/010-wastage.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/010-wastage.json",
         "preview": [
           [
             "Gloria Hospital Project\nWaste Report- May-26",
@@ -2859,7 +2868,7 @@
         "cell_count": 552,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/011-direct-reallocation.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/011-direct-reallocation.json",
         "preview": [
           [
             null,
@@ -3411,7 +3420,7 @@
         "cell_count": 42,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/012-gp.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/012-gp.json",
         "preview": [
           [
             null,
@@ -3567,7 +3576,7 @@
         "cell_count": 599,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/013-balance.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/013-balance.json",
         "preview": [
           [
             "Main Code",
@@ -4119,7 +4128,7 @@
         "cell_count": 885,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/014-cost-codes.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/014-cost-codes.json",
         "preview": [
           [
             "الكود",
@@ -4431,7 +4440,7 @@
         "cell_count": 1151,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/015-direct-details.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/015-direct-details.json",
         "preview": [
           [
             null,
@@ -4983,7 +4992,7 @@
         "cell_count": 128135,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/016-expenses-actual-cost.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/016-expenses-actual-cost.json",
         "preview": [
           [
             "Expenses",
@@ -5535,7 +5544,7 @@
         "cell_count": 992,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/017-indirect-details.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/017-indirect-details.json",
         "preview": [
           [
             null,
@@ -6087,7 +6096,7 @@
         "cell_count": 1431,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/018-wages.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/018-wages.json",
         "preview": [
           [
             null,
@@ -6639,7 +6648,7 @@
         "cell_count": 231,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/019-copy-from-it.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/019-copy-from-it.json",
         "preview": [
           [
             null,
@@ -7083,7 +7092,7 @@
         "cell_count": 186,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/020-project.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/020-project.json",
         "preview": [
           [
             null,
@@ -7437,7 +7446,7 @@
         "cell_count": 159,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/021-project.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/021-project.json",
         "preview": [
           [
             null,
@@ -7755,7 +7764,7 @@
         "cell_count": 185,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/022-project.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/022-project.json",
         "preview": [
           [
             null,
@@ -8109,7 +8118,7 @@
         "cell_count": 240,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/023-project.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/023-project.json",
         "preview": [
           [
             null,
@@ -8535,7 +8544,7 @@
         "cell_count": 240,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/024-80.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/024-80.json",
         "preview": [
           [
             null,
@@ -8961,7 +8970,7 @@
         "cell_count": 186,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/025-soil-nailing.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/025-soil-nailing.json",
         "preview": [
           [
             null,
@@ -9315,7 +9324,7 @@
         "cell_count": 186,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/026-project.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/026-project.json",
         "preview": [
           [
             null,
@@ -9669,7 +9678,7 @@
         "cell_count": 170,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/027-project.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/027-project.json",
         "preview": [
           [
             null,
@@ -10023,7 +10032,7 @@
         "cell_count": 186,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/028-50-4.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/028-50-4.json",
         "preview": [
           [
             null,
@@ -10377,7 +10386,7 @@
         "cell_count": 186,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/029-56-5.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/029-56-5.json",
         "preview": [
           [
             null,
@@ -10731,7 +10740,7 @@
         "cell_count": 186,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/030-50-5.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/030-50-5.json",
         "preview": [
           [
             null,
@@ -11085,7 +11094,7 @@
         "cell_count": 186,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/031-40-4.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/031-40-4.json",
         "preview": [
           [
             null,
@@ -11439,7 +11448,7 @@
         "cell_count": 213,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/032-10.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/032-10.json",
         "preview": [
           [
             null,
@@ -11829,7 +11838,7 @@
         "cell_count": 240,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/033-project.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/033-project.json",
         "preview": [
           [
             null,
@@ -12255,7 +12264,7 @@
         "cell_count": 240,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/034-20.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/034-20.json",
         "preview": [
           [
             null,
@@ -12681,7 +12690,7 @@
         "cell_count": 240,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/035-project.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/035-project.json",
         "preview": [
           [
             null,
@@ -13107,7 +13116,7 @@
         "cell_count": 240,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/036-project.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/036-project.json",
         "preview": [
           [
             null,
@@ -13533,7 +13542,7 @@
         "cell_count": 240,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/037-project.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/037-project.json",
         "preview": [
           [
             null,
@@ -13959,7 +13968,7 @@
         "cell_count": 240,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/038-project.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/038-project.json",
         "preview": [
           [
             null,
@@ -14385,7 +14394,7 @@
         "cell_count": 240,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/039-project.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/039-project.json",
         "preview": [
           [
             null,
@@ -14811,7 +14820,7 @@
         "cell_count": 240,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/040-project.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/040-project.json",
         "preview": [
           [
             null,
@@ -15237,7 +15246,7 @@
         "cell_count": 240,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/041-project.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/041-project.json",
         "preview": [
           [
             null,
@@ -15663,7 +15672,7 @@
         "cell_count": 240,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/042-project.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/042-project.json",
         "preview": [
           [
             null,
@@ -16089,7 +16098,7 @@
         "cell_count": 267,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/043-project.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/043-project.json",
         "preview": [
           [
             null,
@@ -16551,7 +16560,7 @@
         "cell_count": 186,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/044-project.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/044-project.json",
         "preview": [
           [
             null,
@@ -16905,7 +16914,7 @@
         "cell_count": 185,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/045-1-2.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/045-1-2.json",
         "preview": [
           [
             null,
@@ -17259,7 +17268,7 @@
         "cell_count": 185,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/046-4-6.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/046-4-6.json",
         "preview": [
           [
             null,
@@ -17613,7 +17622,7 @@
         "cell_count": 170,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/047-project.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/047-project.json",
         "preview": [
           [
             null,
@@ -17967,7 +17976,7 @@
         "cell_count": 266,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/048-project.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/048-project.json",
         "preview": [
           [
             null,
@@ -18429,7 +18438,7 @@
         "cell_count": 182,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/049-struts.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/049-struts.json",
         "preview": [
           [
             null,
@@ -18783,7 +18792,7 @@
         "cell_count": 186,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/050-project.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/050-project.json",
         "preview": [
           [
             null,
@@ -19137,7 +19146,7 @@
         "cell_count": 181,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/051-22.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/051-22.json",
         "preview": [
           [
             null,
@@ -19491,7 +19500,7 @@
         "cell_count": 181,
         "chart_count": 0,
         "table_count": 1,
-        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/c40526867b2629a0/052-16.json",
+        "raw_path": "/generated/projects/gloria-hospital/raw/2026-06-01_to_2026-06-30/6ea29fbea49e9502/052-16.json",
         "preview": [
           [
             null,
@@ -20346,46 +20355,5 @@
     ],
     "unaccounted_sheets": 0
   },
-  "quality": [
-    {
-      "severity": "info",
-      "code": "APPROVED_SOURCE_OBSERVATION_01",
-      "project_id": "gloria-hospital",
-      "period": "2026-06-01_to_2026-06-30",
-      "message": "Earned Value has different workbook scopes: Dashboard EV = EGP 114,020,708.84; Project Summary total EV = EGP 133,291,772.70. They remain separate.",
-      "source": "approved-parity-reference"
-    },
-    {
-      "severity": "info",
-      "code": "APPROVED_SOURCE_OBSERVATION_02",
-      "project_id": "gloria-hospital",
-      "period": "2026-06-01_to_2026-06-30",
-      "message": "Actual Cost has different workbook scopes: Dashboard Actual Cost = EGP 120,872,948.34; Project Summary total Actual Cost = EGP 121,987,724.66. They remain separate.",
-      "source": "approved-parity-reference"
-    },
-    {
-      "severity": "warning",
-      "code": "APPROVED_SOURCE_OBSERVATION_03",
-      "project_id": "gloria-hospital",
-      "period": "2026-06-01_to_2026-06-30",
-      "message": "Direct / indirect cost classification differs between profit sheets: Gross Profit uses Direct EGP 90,903,685.75 and Indirect EGP 29,969,262.59; GP uses Direct EGP 84,381,776.95 and Indirect EGP 36,491,484.39.",
-      "source": "approved-parity-reference"
-    },
-    {
-      "severity": "warning",
-      "code": "APPROVED_SOURCE_OBSERVATION_04",
-      "project_id": "gloria-hospital",
-      "period": "2026-06-01_to_2026-06-30",
-      "message": "Indirect actual cost is above indirect budget: Indirect budget = EGP 13,928,293.96; dashboard indirect actual = EGP 29,969,262.59.",
-      "source": "approved-parity-reference"
-    },
-    {
-      "severity": "info",
-      "code": "APPROVED_SOURCE_OBSERVATION_05",
-      "project_id": "gloria-hospital",
-      "period": "2026-06-01_to_2026-06-30",
-      "message": "Profitability methods use different source bases: Gross Profit, GP, and Planned Gross Profit are preserved as separate source methods and are not averaged.",
-      "source": "approved-parity-reference"
-    }
-  ]
+  "quality": []
 }

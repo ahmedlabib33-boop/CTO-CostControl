@@ -1,6 +1,6 @@
 {
-  "generated_at": "2026-08-28T16:08:42.934497+00:00",
-  "registry_fingerprint": "75f18d4f380c0cf0b9cbae7c3b3385cd439f21e577e2d36c4862d5d0e176c8dd",
+  "generated_at": "2026-08-29T11:55:26.946077+00:00",
+  "registry_fingerprint": "e6d6136dc88d620207fe7817af666b157b79c35a28e4a362920947c8c567a326",
   "project_count": 3,
   "projects": [
     {
@@ -79,7 +79,7 @@
       "project_id": "gloria-hospital",
       "project_name": "Gloria Hospital",
       "identity": {
-        "status": "new",
+        "status": "existing",
         "project_sap_id": "SAP_001",
         "project_code": "GLR01",
         "project_name": "Gloria Hospital",
@@ -93,9 +93,9 @@
         "identity_source": "metadata_sheet"
       },
       "reporting_period": "2026-06-01_to_2026-06-30",
-      "source_fingerprint": "c40526867b2629a06bb4320321fae6df43a26d47f34542bb869bdbcc535e200d",
-      "normalized_path": "/generated/projects/gloria-hospital/enriched/2026-06-01_to_2026-06-30/c40526867b2629a0/normalized.json",
-      "approved_parity": true,
+      "source_fingerprint": "6ea29fbea49e95029210192c7c78aeffcfa504875b5dc2aecd4de63a2814b9fc",
+      "normalized_path": "/generated/projects/gloria-hospital/enriched/2026-06-01_to_2026-06-30/6ea29fbea49e9502/normalized.json",
+      "approved_parity": false,
       "metrics": {
         "contract_value": 391923909.0,
         "budget": 292494173.23875,
@@ -124,13 +124,13 @@
         "assets": true,
         "balance": true
       },
-      "quality_count": 5,
+      "quality_count": 0,
       "sheet_count": 52,
       "chart_count": 6,
       "history": [
         {
           "reporting_period": "2026-06-01_to_2026-06-30",
-          "source_fingerprint": "c40526867b2629a06bb4320321fae6df43a26d47f34542bb869bdbcc535e200d",
+          "source_fingerprint": "6ea29fbea49e95029210192c7c78aeffcfa504875b5dc2aecd4de63a2814b9fc",
           "metrics": {
             "contract_value": 391923909.0,
             "budget": 292494173.23875,
@@ -143,7 +143,7 @@
             "indirect_cost": 29969262.58772646,
             "cpi": 0.9433103966542545
           },
-          "normalized_path": "/generated/projects/gloria-hospital/enriched/2026-06-01_to_2026-06-30/c40526867b2629a0/normalized.json"
+          "normalized_path": "/generated/projects/gloria-hospital/enriched/2026-06-01_to_2026-06-30/6ea29fbea49e9502/normalized.json"
         }
       ]
     },
