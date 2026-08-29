@@ -6,7 +6,8 @@ export type InsightStatus = "critical" | "caution" | "favorable" | "mixed" | "in
 export type InsightKind = "kpi" | "chart" | "table" | "scenario" | "assurance";
 export type SemanticType =
   | "cost_performance" | "profitability" | "cashflow" | "cumulative_cashflow"
-  | "cost_mix" | "concentration" | "waste" | "reconciliation" | "forecast"
+  | "cashflow_trend"
+  | "cost_mix" | "concentration" | "waste" | "reconciliation" | "forecast" | "indirect_variance"
   | "cost_table" | "ledger_trend" | "data_quality" | "scenario" | "inventory";
 
 export type IntelligencePolicy = {
@@ -25,6 +26,9 @@ export type IntelligencePolicy = {
   concentrationCautionPct: number;
   concentrationCriticalPct: number;
   minimumTrendPeriods: number;
+  trendRSquaredCautionFloor: number;
+  trendAnomalyCautionZ: number;
+  trendAnomalyCriticalZ: number;
 };
 
 export const DEFAULT_INTELLIGENCE_POLICY: IntelligencePolicy = {
@@ -43,6 +47,9 @@ export const DEFAULT_INTELLIGENCE_POLICY: IntelligencePolicy = {
   concentrationCautionPct: 25,
   concentrationCriticalPct: 40,
   minimumTrendPeriods: 3,
+  trendRSquaredCautionFloor: .5,
+  trendAnomalyCautionZ: 2,
+  trendAnomalyCriticalZ: 3,
 };
 
 export type IntelligenceDescriptor = {
@@ -104,7 +111,7 @@ export type ProjectIntelligenceContext = {
 export type PortfolioScenario = { who: string; costStress: number; revenueRealization: number; indirectStress: number; currentAc: number; eac: number; revenue: number; profit: number; margin: number };
 export type PortfolioIntelligenceContext = {
   kind: "portfolio";
-  view: "charts" | "analysis" | "projects" | "intelligence" | "output";
+  view: "charts" | "analysis" | "risk" | "projects" | "intelligence" | "output";
   scope: "dashboard" | "total";
   projects: ProjectRegistryItem[];
   active: any[];
@@ -131,6 +138,39 @@ const descriptor = (data: ProjectData, view: ProjectView, componentId: string, c
   assessmentBasis: "derived", ...extra,
 });
 
+export function cashflowTrendMetrics(items: Record<string, any>[]) {
+  const points = items.map(item => {
+    const cashIn = finite(item.cash_in_cum), cashOut = finite(item.cash_out_cum);
+    return cashIn != null && cashOut != null ? { cashIn, cashOut, net: cashIn - cashOut } : null;
+  }).filter((item): item is { cashIn: number; cashOut: number; net: number } => item != null);
+  const periods = points.length, last = points.at(-1);
+  if (periods < 2) return { periods, slope: null, intercept: null, rSquared: null, forecastNextNet: null, maxResidualZ: null, lastNet: last?.net ?? null, latestCashIn: last?.cashIn ?? null, latestCashOut: last?.cashOut ?? null };
+  const meanX = (periods - 1) / 2, meanY = points.reduce((sum, point) => sum + point.net, 0) / periods;
+  const ssXX = points.reduce((sum, _point, index) => sum + (index - meanX) ** 2, 0);
+  const ssXY = points.reduce((sum, point, index) => sum + (index - meanX) * (point.net - meanY), 0);
+  const slope = ssXX ? ssXY / ssXX : 0, intercept = meanY - slope * meanX;
+  const residuals = points.map((point, index) => point.net - (slope * index + intercept));
+  const ssTotal = points.reduce((sum, point) => sum + (point.net - meanY) ** 2, 0);
+  const ssResidual = residuals.reduce((sum, residual) => sum + residual ** 2, 0);
+  const rSquared = ssTotal ? Math.max(0, Math.min(1, 1 - ssResidual / ssTotal)) : 1;
+  const residualMean = residuals.reduce((sum, residual) => sum + residual, 0) / periods;
+  const residualStd = Math.sqrt(residuals.reduce((sum, residual) => sum + (residual - residualMean) ** 2, 0) / periods);
+  const maxResidualZ = residualStd ? Math.max(...residuals.map(residual => Math.abs((residual - residualMean) / residualStd))) : 0;
+  return { periods, slope, intercept, rSquared, forecastNextNet: slope * periods + intercept, maxResidualZ, lastNet: last?.net ?? null, latestCashIn: last?.cashIn ?? null, latestCashOut: last?.cashOut ?? null };
+}
+
+function positiveConcentration(items: Record<string, any>[], label: (item: Record<string, any>) => string, value: (item: Record<string, any>) => number | null) {
+  const grouped = new Map<string, number>();
+  for (const item of items) {
+    const amount = value(item);
+    if (amount == null || amount <= 0) continue;
+    const key = label(item).trim().toLowerCase() || "other";
+    grouped.set(key, (grouped.get(key) || 0) + amount);
+  }
+  const values = [...grouped.values()].sort((a, b) => b - a);
+  return { rowCount: grouped.size, total: values.reduce((sum, amount) => sum + amount, 0), top: values[0] ?? null };
+}
+
 function projectCostMetrics(data: ProjectData, norm: Record<string, any>) {
   const preferred = (key: string) => finite((data.metrics?.[key] as any)?.preferred?.value);
   const k = norm?.kpis || {};
@@ -155,9 +195,10 @@ export function buildProjectDescriptors(context: ProjectIntelligenceContext, req
     const cash = rows(norm?.cashflow), last = cash.at(-1) || {}, neg = cash.filter(x => number(x.cash_in) - number(x.cash_out) < 0).length;
     add("monthly-cashflow", "Monthly Cashflow — Cash In vs Cash Out", "chart", "cashflow", { periods: cash.length, negativePeriods: neg, latestCashIn: finite(last.cash_in), latestCashOut: finite(last.cash_out), latestNet: finite(last.cash_in) != null && finite(last.cash_out) != null ? number(last.cash_in) - number(last.cash_out) : null }, { rows: cash });
     add("cumulative-cashflow", "Cumulative Cashflow / S-Curve", "chart", "cumulative_cashflow", { periods: cash.length, cumulativeCashIn: finite(last.cash_in_cum), cumulativeCashOut: finite(last.cash_out_cum), cumulativeNet: finite(last.cash_in_cum) != null && finite(last.cash_out_cum) != null ? number(last.cash_in_cum) - number(last.cash_out_cum) : null }, { rows: cash });
+    add("cashflow-trend", "Cashflow Trend Forecast", "chart", "cashflow_trend", cashflowTrendMetrics(cash), { rows: cash });
   } else if (requestedView === "executive-resources") {
-    const resources = aggregate(rows(norm?.boq_resources), r => String(r.resource || r.resource_code || "Other"), r => number(r.actual_cost));
-    add("resource-pareto", "Direct Resource Cost Pareto", "chart", "concentration", { rowCount: resources.length, total: resources.reduce((s, x) => s + x.value, 0), top: resources[0]?.value ?? null }, { labels: resources.map(x => x.name), series: [{ label: "Actual Cost", values: resources.map(x => x.value) }] });
+    const resourceRows = rows(norm?.boq_resources), resources = aggregate(resourceRows, r => String(r.resource || r.resource_code || "Other"), r => number(r.actual_cost));
+    add("resource-pareto", "Direct Resource Cost Pareto", "chart", "concentration", positiveConcentration(resourceRows, r => String(r.resource || r.resource_code || "Other"), r => finite(r.actual_cost)), { labels: resources.map(x => x.name), series: [{ label: "Actual Cost", values: resources.map(x => x.value) }] });
     const waste = rows(norm?.waste), actual = waste.find(x => String(x.label).toLowerCase().includes("% actual waste")) || {}, budget = waste.find(x => String(x.label).toLowerCase().includes("% budget waste")) || {};
     add("waste-efficiency", "Waste Efficiency", "chart", "waste", { steelActual: finite(actual.steel), steelBudget: finite(budget.steel), concreteActual: finite(actual.concrete), concreteBudget: finite(budget.concrete) });
     const raw = finite(k.ledger_raw_direct), equipment = finite(norm?.reallocation?.equipment), other = finite(norm?.reallocation?.other_costs), reported = finite(k.direct_actual);
@@ -166,8 +207,7 @@ export function buildProjectDescriptors(context: ProjectIntelligenceContext, req
     add("wbs-performance", "Project Summary / WBS table", "table", "cost_table", { ...base, rowCount: itemRows.length, adverseRows: itemRows.filter(r => finite(r.cpi_to_date) != null && number(r.cpi_to_date) < 1).length }, { rows: itemRows });
     add("project-total-rows", "Project Summary group / total rows", "table", "inventory", { rowCount: rows(norm?.project_totals).length }, { rows: rows(norm?.project_totals), assessmentBasis: "evidence" });
   } else if (requestedView === "forecast-boq-actual") {
-    const boq = rows(norm?.boq_resources), resources = aggregate(boq, r => String(r.resource || r.resource_code || "Other"), r => number(r.actual_cost));
-    const common = { rowCount: boq.length, total: total(boq, "actual_cost"), top: resources[0]?.value ?? null };
+    const boq = rows(norm?.boq_resources), common = positiveConcentration(boq, r => String(r.resource || r.resource_code || "Other"), r => finite(r.actual_cost));
     add("boq-resource-chart", "BOQ Resource Actual Cost chart", "chart", "concentration", common, { rows: boq });
     add("boq-resource-table", "Detailed BOQ Resource Explorer table", "table", "concentration", common, { rows: boq });
   } else if (requestedView === "forecast-boq-outlook") {
@@ -188,7 +228,7 @@ export function buildProjectDescriptors(context: ProjectIntelligenceContext, req
     const trend = rows(norm?.ledger_months), last = trend.at(-1) || {}, bySource = rows(norm?.ledger_aggregates?.by_source), byCode = rows(norm?.ledger_aggregates?.by_code);
     add("ledger-trend", "Actual Expense Trend — source ledger", "chart", "ledger_trend", { periods: trend.length, latest: finite(last.total), total: total(trend, "total") }, { rows: trend });
     add("expense-source-mix", "Expense Source Mix", "chart", "cost_mix", { categoryCount: bySource.length, total: total(bySource, "value") }, { rows: bySource });
-    add("top-cost-codes", "Top Cost Codes by Actual Ledger Cost", "chart", "concentration", { rowCount: byCode.length, total: total(byCode, "value"), top: finite(byCode[0]?.value) }, { rows: byCode });
+    add("top-cost-codes", "Top Cost Codes by Actual Ledger Cost", "chart", "concentration", positiveConcentration(byCode, r => String(r.code || r.name || r.label || "Other"), r => finite(r.value)), { rows: byCode });
     add("ledger-reconciliation", "Ledger Reconciliation", "chart", "reconciliation", { accounting: finite(k.ledger_accounting_cost), reported: finite(k.actual_cost_dashboard_scope), rawDirect: finite(k.ledger_raw_direct), rawIndirect: finite(k.ledger_raw_indirect) });
   } else if (requestedView === "ledger-transactions") {
     const expenseRows = unpackExpenses(norm);
@@ -213,6 +253,13 @@ export function buildWholeProjectDescriptors(context: ProjectIntelligenceContext
 }
 
 export function buildPortfolioDescriptors(context: PortfolioIntelligenceContext): IntelligenceDescriptor[] {
+  if (context.view === "risk") {
+    const combined = [
+      ...buildPortfolioDescriptors({ ...context, view: "charts" }),
+      ...buildPortfolioDescriptors({ ...context, view: "analysis" }).filter(item => item.semanticType !== "scenario"),
+    ];
+    return combined.filter((item, index) => combined.findIndex(other => other.componentId === item.componentId) === index);
+  }
   const active = context.active || [], projectName = active.length === 1 ? active[0].name : `${active.length} selected projects`;
   const period = [...new Set(active.map(x => x.period))].sort().join(" · ") || "No period";
   const revision = active.map(x => x.registry?.source_fingerprint || "").filter(Boolean).join("|");
@@ -253,13 +300,28 @@ export function buildPortfolioDescriptors(context: PortfolioIntelligenceContext)
     out.push(d("portfolio-margin", "Margin vs Cost Performance", "chart", "profitability", { profit: gp, margin: revenue && gp != null ? gp / revenue : null, cpi: common.cpi }, { rows: active }));
     out.push(d("portfolio-mix", "Direct vs Indirect Actual Cost", "chart", "cost_mix", { direct: active.reduce((s, x) => s + number(x.directAc), 0), indirect: active.reduce((s, x) => s + number(x.indirectAc), 0) }, { rows: active }));
     out.push(d("portfolio-profit", "Revenue, Actual Cost & Gross Profit", "chart", "profitability", { revenue, actualCost: ac, profit: gp, margin: revenue && gp != null ? gp / revenue : null }, { rows: active }));
-    const cash = active.flatMap(x => rows(x.cashflow)), lastIn = active.reduce((s, x) => s + number(rows(x.cashflow).at(-1)?.cash_in_cum), 0), lastOut = active.reduce((s, x) => s + number(rows(x.cashflow).at(-1)?.cash_out_cum), 0);
-    out.push(d("portfolio-cashflow", "Portfolio Cashflow Comparison", "chart", "cumulative_cashflow", { periods: new Set(cash.map(x => x.month)).size, cumulativeCashIn: lastIn, cumulativeCashOut: lastOut, cumulativeNet: lastIn - lastOut }, { rows: cash }));
+    const cash = active.flatMap(x => rows(x.cashflow)), latestCash = active.map(x => rows(x.cashflow).at(-1));
+    const completeCumulativeCash = active.length > 0 && latestCash.every(row => finite(row?.cash_in_cum) != null && finite(row?.cash_out_cum) != null);
+    const lastIn = completeCumulativeCash ? latestCash.reduce((sum, row) => sum + number(row?.cash_in_cum), 0) : null;
+    const lastOut = completeCumulativeCash ? latestCash.reduce((sum, row) => sum + number(row?.cash_out_cum), 0) : null;
+    out.push(d("portfolio-cashflow", "Portfolio Cashflow Comparison", "chart", "cumulative_cashflow", { periods: new Set(cash.map(x => x.month)).size, cumulativeCashIn: lastIn, cumulativeCashOut: lastOut, cumulativeNet: lastIn != null && lastOut != null ? lastIn - lastOut : null }, { rows: cash }));
   } else {
     out.push(d("technical-matrix", "CTO Technical Cost Matrix", "table", "cost_table", { ...common, rowCount: active.length, adverseRows: active.filter(x => x.cpi != null && x.cpi < 1).length }, { rows: active }));
     const cash = active.flatMap(x => rows(x.cashflow));
-    out.push(d("monthly-comparison-chart", "CTO Monthly Cost Comparison chart", "chart", "cashflow", { periods: new Set(cash.map(x => x.month)).size, negativePeriods: cash.filter(x => number(x.cash_in) - number(x.cash_out) < 0).length }, { rows: cash }));
-    out.push(d("monthly-comparison-table", "CTO Monthly Cost Comparison table", "table", "cashflow", { periods: new Set(cash.map(x => x.month)).size, projectCount: active.length }, { rows: cash }));
+    const latestCash = active.map(x => rows(x.cashflow).at(-1));
+    const completeLatestCash = active.length > 0 && latestCash.every(row => finite(row?.cash_in) != null && finite(row?.cash_out) != null);
+    const latestCashIn = completeLatestCash ? latestCash.reduce((sum, row) => sum + number(row?.cash_in), 0) : null;
+    const latestCashOut = completeLatestCash ? latestCash.reduce((sum, row) => sum + number(row?.cash_out), 0) : null;
+    const cashMetrics = {
+      periods: new Set(cash.map(x => x.month)).size,
+      projectCount: active.length,
+      negativePeriods: cash.filter(x => finite(x.cash_in) != null && finite(x.cash_out) != null && number(x.cash_in) - number(x.cash_out) < 0).length,
+      latestCashIn,
+      latestCashOut,
+      latestNet: latestCashIn != null && latestCashOut != null ? latestCashIn - latestCashOut : null,
+    };
+    out.push(d("monthly-comparison-chart", "CTO Monthly Cost Comparison chart", "chart", "cashflow", cashMetrics, { rows: cash }));
+    out.push(d("monthly-comparison-table", "CTO Monthly Cost Comparison table", "table", "cashflow", cashMetrics, { rows: cash }));
     const s = context.scenario;
     out.push(d("scenario-lab", "CTO Cost Scenario Lab", "scenario", "scenario", { currentAc: finite(s?.currentAc), eac: finite(s?.eac), revenue: finite(s?.revenue), profit: finite(s?.profit), margin: finite(s?.margin), costStress: finite(s?.costStress), revenueRealization: finite(s?.revenueRealization), indirectStress: finite(s?.indirectStress) }, { assessmentBasis: "scenario" }));
   }
@@ -275,7 +337,7 @@ export function validateIntelligencePolicy(value: unknown): IntelligencePolicy |
     if (typeof v !== "number" || !Number.isFinite(v)) return null;
     out[key] = v;
   }
-  if (out.cpiCaution > out.cpiFavorable || out.reconciliationCautionPct > out.reconciliationCriticalPct || out.cashDeficitCautionPct > out.cashDeficitCriticalPct || out.concentrationCautionPct > out.concentrationCriticalPct || out.wasteCautionPoints > out.wasteCriticalPoints || out.minimumTrendPeriods < 2) return null;
+  if (out.cpiCaution > out.cpiFavorable || out.reconciliationCautionPct > out.reconciliationCriticalPct || out.cashDeficitCautionPct > out.cashDeficitCriticalPct || out.concentrationCautionPct > out.concentrationCriticalPct || out.wasteCautionPoints > out.wasteCriticalPoints || out.minimumTrendPeriods < 2 || out.trendRSquaredCautionFloor < 0 || out.trendRSquaredCautionFloor > 1 || out.trendAnomalyCautionZ <= 0 || out.trendAnomalyCautionZ > out.trendAnomalyCriticalZ) return null;
   return { ...(out as unknown as IntelligencePolicy), version: 1 };
 }
 
@@ -322,13 +384,39 @@ export function evaluateDescriptor(d: IntelligenceDescriptor, p: IntelligencePol
     const cashIn = m.cumulativeCashIn ?? m.latestCashIn, cashOut = m.cumulativeCashOut ?? m.latestCashOut, net = m.cumulativeNet ?? m.latestNet;
     if (net == null && cashIn == null && cashOut == null) return unavailable(d, "Cash-in and cash-out values are unavailable.");
     if (cashIn === 0 && cashOut === 0 && net === 0) return unavailable(d, "Cash in and cash out are both zero, so no cash-performance conclusion is supported.");
-    const deficitPct = net != null && net < 0 && cashIn ? Math.abs(net) / Math.abs(cashIn) * 100 : 0;
+    const deficitPct = net != null && net < 0 ? (cashIn ? Math.abs(net) / Math.abs(cashIn) * 100 : cashOut != null && cashOut > 0 ? 100 : 0) : 0;
     r.meaning = d.semanticType === "cumulative_cashflow" ? "Compares cumulative cash recovery with cumulative cash expenditure." : "Shows monthly cash movement and deficit frequency.";
     r.thresholds = { cashDeficitCautionPct: p.cashDeficitCautionPct, cashDeficitCriticalPct: p.cashDeficitCriticalPct };
     if (deficitPct >= p.cashDeficitCriticalPct) { r.status = "critical"; r.indication = "Cash out materially exceeds cash in."; r.reason = `The normalized deficit is ${deficitPct.toFixed(1)}% of cash in.`; r.risks = ["Funding pressure and delayed supplier/subcontractor obligations."]; r.decision = "Approve an immediate cash-recovery and payment-prioritization plan."; r.mitigation = ["Accelerate certified billing and collection.", "Sequence discretionary payments against critical-path needs."]; }
     else if ((net != null && net < 0) || number(m.negativePeriods) > 0) { r.status = "caution"; r.indication = "The cash position contains a deficit or adverse months."; r.reason = "Cash out exceeds cash in for part or all of the reviewed period."; r.risks = ["Repeated monthly deficits can become a cumulative funding gap."]; r.decision = "Review collection timing and near-term payment commitments weekly."; }
     else { r.status = "favorable"; r.indication = "Reported cash recovery covers reported cash expenditure."; r.reason = "Net cash is non-negative on the available source timeline."; r.benefits = ["Lower immediate project funding pressure."]; r.decision = "Maintain collection discipline and verify the position against upcoming commitments."; r.keepOnTrack = ["Monitor the next three-month payment and billing forecast."]; }
     r.ruleApplied = "Cash deficit normalized to cash in"; return r;
+  }
+  if (d.semanticType === "cashflow_trend") {
+    const periods = number(m.periods);
+    if (periods < p.minimumTrendPeriods) return unavailable(d, `At least ${p.minimumTrendPeriods} valid cumulative cash periods are required for trend analysis; ${periods} are available.`);
+    const slope = m.slope, rSquared = m.rSquared, forecast = m.forecastNextNet, lastNet = m.lastNet, maxZ = m.maxResidualZ;
+    if ([slope, rSquared, forecast, lastNet, maxZ].some(value => value == null)) return unavailable(d, "The controlled cashflow series could not produce a complete trend model.");
+    const cashIn = m.latestCashIn, cashOut = m.latestCashOut;
+    const deficitPct = lastNet! < 0 ? (cashIn ? Math.abs(lastNet!) / Math.abs(cashIn) * 100 : cashOut != null && cashOut > 0 ? 100 : 0) : 0;
+    r.assessmentBasis = "derived";
+    r.meaning = "Fits a local least-squares line to reported cumulative net cash. It is a diagnostic projection, not a source fact or approved forecast.";
+    r.thresholds = { minimumTrendPeriods: p.minimumTrendPeriods, rSquaredCautionFloor: p.trendRSquaredCautionFloor, anomalyCautionZ: p.trendAnomalyCautionZ, anomalyCriticalZ: p.trendAnomalyCriticalZ, cashDeficitCriticalPct: p.cashDeficitCriticalPct };
+    if (lastNet! < 0) {
+      r.status = deficitPct >= p.cashDeficitCriticalPct ? "critical" : "caution";
+      r.indication = "The modeled series ends in a cash deficit.";
+      r.reason = `Latest cumulative net cash is ${lastNet!.toFixed(2)}; a stable negative position is never classified as favorable.`;
+      r.risks = ["Existing funding pressure remains even when the fitted trend is statistically stable."];
+      r.decision = "Prioritize cash recovery and validate the model against billing and payment schedules.";
+      r.mitigation = ["Reconcile cumulative cash balances to certified billing, collections, and committed payments."];
+    } else if (forecast! < 0) {
+      r.status = "critical"; r.indication = "The diagnostic trend projects a move from non-negative to negative net cash."; r.reason = `The next-point projection is ${forecast!.toFixed(2)}.`; r.risks = ["A near-term funding deficit may emerge if the fitted direction continues."]; r.decision = "Validate the projected reversal against the approved cash forecast before committing funds."; r.mitigation = ["Accelerate near-term collections and sequence non-critical payments."];
+    } else if (slope! < 0 || rSquared! < p.trendRSquaredCautionFloor || maxZ! >= p.trendAnomalyCautionZ) {
+      r.status = "caution"; r.indication = "The cash trend is declining, weakly fitted, or contains an anomalous period."; r.reason = `Slope ${slope!.toFixed(2)}, R² ${rSquared!.toFixed(2)}, maximum residual z-score ${maxZ!.toFixed(2)}.`; r.risks = ["Trend uncertainty can make the next-point projection unreliable."]; r.decision = "Treat the projection as diagnostic only and investigate the underlying periods before action.";
+    } else {
+      r.status = "favorable"; r.indication = "The reported cumulative net-cash trend is non-negative and stable without a material anomaly."; r.reason = `Latest net cash and the next-point projection are non-negative; R² is ${rSquared!.toFixed(2)}.`; r.benefits = ["The controlled history supports a stable near-term cash direction."]; r.decision = "Maintain collection and payment controls; refit when the next period arrives."; r.keepOnTrack = ["Compare the diagnostic projection with the approved cash forecast each month."];
+    }
+    r.ruleApplied = "Guarded least-squares cash trend with current-position and anomaly safeguards"; return r;
   }
   if (d.semanticType === "waste") {
     const gaps = [[m.steelActual, m.steelBudget], [m.concreteActual, m.concreteBudget]].filter(x => x[0] != null && x[1] != null).map(x => (number(x[0]) - number(x[1])) * 100);
@@ -351,7 +439,7 @@ export function evaluateDescriptor(d: IntelligenceDescriptor, p: IntelligencePol
   }
   if (d.semanticType === "concentration") {
     const top = m.top, sum = m.total, share = top != null && sum ? Math.abs(top) / Math.abs(sum) * 100 : null;
-    if (share == null) return unavailable(d, "A valid top-driver value and total are not both available.");
+    if (share == null || top == null || sum == null || top <= 0 || sum <= 0 || top > sum) return unavailable(d, "A valid positive top-driver value and positive exposure total are not both available.");
     r.meaning = "Measures how much cost is concentrated in the leading resource or cost code."; r.thresholds = { concentrationCautionPct: p.concentrationCautionPct, concentrationCriticalPct: p.concentrationCriticalPct };
     if (share > p.concentrationCriticalPct) { r.status = "critical"; r.indication = "Cost exposure is highly concentrated."; r.reason = `The leading driver represents ${share.toFixed(1)}% of the analyzed total.`; r.risks = ["A single resource, vendor, or cost code can dominate project outcome."]; r.decision = "Apply dedicated forecast, procurement, and productivity controls to the leading driver."; r.mitigation = ["Validate quantity, rate, commitment, and remaining exposure for the top driver."]; }
     else if (share > p.concentrationCautionPct) { r.status = "caution"; r.indication = "The leading cost driver deserves focused monitoring."; r.reason = `Its share is ${share.toFixed(1)}%.`; r.decision = "Track the leading driver as a separate management exception."; }
@@ -366,6 +454,17 @@ export function evaluateDescriptor(d: IntelligenceDescriptor, p: IntelligencePol
     else if (delta < 0) { const pct = ratioPct(delta, m.bac || 0); r.status = pct != null && pct < p.vacCautionPct ? "critical" : "caution"; r.indication = "ETC exceeds the remaining budget."; r.reason = `Forecast remaining variance is ${delta.toFixed(2)}.`; r.risks = ["Current forecast implies budget pressure on the remaining work."]; r.decision = "Revalidate remaining quantities, productivity, commitments, and forecast rates."; r.mitigation = ["Assign recovery actions to the largest negative forecast rows."]; }
     else { r.status = "favorable"; r.indication = "Remaining budget covers current ETC on the available rows."; r.reason = "The forecast remaining variance is non-negative."; r.benefits = ["The current detailed forecast retains a remaining budget buffer."]; r.decision = "Maintain monthly bottom-up ETC validation."; }
     r.ruleApplied = "Remaining budget minus ETC"; r.thresholds = { vacCautionPct: p.vacCautionPct }; return r;
+  }
+  if (d.semanticType === "indirect_variance") {
+    const budget = m.budget, actual = m.actual, variance = m.variance ?? (budget != null && actual != null ? budget - actual : null);
+    if (budget == null || actual == null || variance == null || budget <= 0) return unavailable(d, "Comparable indirect budget and actual cost are not both available.");
+    const variancePct = variance / Math.abs(budget) * 100;
+    r.meaning = "Compares indirect actual cost with its controlled budget without merging it into direct-cost performance.";
+    r.thresholds = { adverseVarianceCriticalPct: p.cvCautionPct };
+    if (variancePct < p.cvCautionPct) { r.status = "critical"; r.indication = "Indirect cost materially exceeds its controlled budget."; r.reason = `Indirect variance is ${variancePct.toFixed(2)}% of indirect budget.`; r.risks = ["Continued indirect-cost pressure can erode remaining project margin."]; r.decision = "Require an indirect-cost recovery plan by cost pool and responsible owner."; r.mitigation = ["Reforecast remaining staff, facilities, equipment, and time-related indirect exposure."]; }
+    else if (variancePct < 0) { r.status = "caution"; r.indication = "Indirect actual cost is above budget but remains inside the warning band."; r.reason = `Indirect variance is ${variancePct.toFixed(2)}% of indirect budget.`; r.risks = ["A limited overrun can compound if project duration or support requirements increase."]; r.decision = "Review the leading indirect pools before the next reporting period."; }
+    else { r.status = "favorable"; r.indication = "Indirect actual cost remains within the controlled budget."; r.reason = `Indirect variance is ${variancePct.toFixed(2)}% of indirect budget.`; r.benefits = ["Current indirect spending retains a budget buffer."]; r.decision = "Maintain pool-level controls and watch time-related exposure."; }
+    r.ruleApplied = "Indirect budget minus indirect actual / indirect budget"; return r;
   }
   if (d.semanticType === "data_quality") {
     const severe = number(m.severe), warnings = number(m.warnings), unaccounted = number(m.unaccountedSheets); r.meaning = "Tests whether source coverage and parser findings support management reliance.";

@@ -5,6 +5,7 @@ import type { IdentityConflict, NormalizedData, PortfolioModel, ProjectRegistryI
 import { money, pct, portfolioBase, scoped } from "@/lib/normalized";
 import { BubbleChart, ChartShell, GroupedBarChart, LineChart } from "@/components/Charts";
 import { publishIntelligenceContext, type PortfolioScenario } from "@/lib/liveIntelligence";
+import PortfolioRisk from "@/components/PortfolioRisk";
 
 type Scope="dashboard"|"total";
 type Display="bars"|"index"|"share";
@@ -41,7 +42,7 @@ function ScenarioLab({rows,onContext}:{rows:any[];onContext:(value:PortfolioScen
 function Range({label,value,set,min,max}:{label:string;value:number;set:(v:number)=>void;min:number;max:number}){return <div className="rangebox"><label><span>{label}</span><b>{value}%</b></label><input type="range" min={min} max={max} value={value} onChange={e=>set(Number(e.target.value))}/></div>}
 
 export function PortfolioCommandCenter({projects,onOpen}:{projects:ProjectRegistryItem[];onOpen:(id:string)=>void}){
- const models=usePortfolioModels(projects);const [scope,setScope]=useState<Scope>("dashboard"),[selected,setSelected]=useState<Set<string>>(()=>new Set(projects.map(p=>p.project_id))),[portfolioTab,setPortfolioTab]=useState<"charts"|"analysis">("charts"),[scenario,setScenario]=useState<PortfolioScenario|undefined>();useEffect(()=>{setSelected(s=>{const valid=new Set([...s].filter(id=>projects.some(p=>p.project_id===id)));if(!valid.size)projects.forEach(p=>valid.add(p.project_id));projects.forEach(p=>{if(!s.size)valid.add(p.project_id)});return valid})},[projects.map(p=>p.project_id).join("|")]);const active=models.filter(m=>selected.has(m.registry.project_id)).map(portfolioBase).map(p=>scoped(p,scope));const sum=(k:string)=>active.reduce((a,p)=>a+(Number((p as any)[k])||0),0),ev=sum("ev"),ac=sum("ac"),gp=sum("gp"),revenue=sum("revenue"),indirectVar=sum("indirectVar");
+ const models=usePortfolioModels(projects);const [scope,setScope]=useState<Scope>("dashboard"),[selected,setSelected]=useState<Set<string>>(()=>new Set(projects.map(p=>p.project_id))),[portfolioTab,setPortfolioTab]=useState<"charts"|"analysis"|"risk">("charts"),[scenario,setScenario]=useState<PortfolioScenario|undefined>();useEffect(()=>{setSelected(s=>{const valid=new Set([...s].filter(id=>projects.some(p=>p.project_id===id)));if(!valid.size)projects.forEach(p=>valid.add(p.project_id));projects.forEach(p=>{if(!s.size)valid.add(p.project_id)});return valid})},[projects.map(p=>p.project_id).join("|")]);const active=models.filter(m=>selected.has(m.registry.project_id)).map(portfolioBase).map(p=>scoped(p,scope));const sum=(k:string)=>active.reduce((a,p)=>a+(Number((p as any)[k])||0),0),ev=sum("ev"),ac=sum("ac"),gp=sum("gp"),revenue=sum("revenue"),indirectVar=sum("indirectVar");
  useEffect(()=>publishIntelligenceContext({kind:"portfolio",view:portfolioTab,scope,projects,active,scenario}),[portfolioTab,scope,projects.map(p=>`${p.project_id}:${p.source_fingerprint}`).join("|"),active.map(p=>`${p.id}:${p.period}:${p.ev}:${p.ac}`).join("|"),scenario]);
  const marginPoints=active.map(p=>({label:p.name,x:p.cpi||0,y:p.gpPct*100,size:p.contract,detail:`${p.name} · CPI ${p.cpi?.toFixed(2)??"—"} · GP ${pct(p.gpPct,true)} · Contract ${money(p.contract)}`}));
  const months=[...new Set(active.flatMap(p=>p.cashflow.map((x:any)=>x.month)))].sort();
@@ -51,6 +52,7 @@ export function PortfolioCommandCenter({projects,onOpen}:{projects:ProjectRegist
   <nav className="portfolioTabNav" aria-label="Portfolio command center views">
    <button type="button" className={portfolioTab==="charts"?"active":""} aria-pressed={portfolioTab==="charts"} onClick={()=>setPortfolioTab("charts")}><b>Charts</b><span>Portfolio visual performance</span></button>
    <button type="button" className={portfolioTab==="analysis"?"active":""} aria-pressed={portfolioTab==="analysis"} onClick={()=>setPortfolioTab("analysis")}><b>CTO Analysis</b><span>Matrix, monthly comparison and scenario lab</span></button>
+   <button type="button" className={portfolioTab==="risk"?"active":""} aria-pressed={portfolioTab==="risk"} onClick={()=>setPortfolioTab("risk")}><b>Risk</b><span>Live risks and recommended decisions</span></button>
   </nav>
   {portfolioTab==="charts"&&<section className="portfolioPanel" aria-label="Portfolio charts">
    <div className="grid2"><ChartShell title="Portfolio Cost Position" description="Compares Budget, Earned Value and Actual Cost on the selected common scope." badge="NEW"><GroupedBarChart labels={active.map(p=>p.name)} series={[{label:"Budget",values:active.map(p=>p.budget)},{label:"EV",values:active.map(p=>p.ev)},{label:"Actual Cost",values:active.map(p=>p.ac)}]}/></ChartShell><ChartShell title="Margin vs Cost Performance" description="X = CPI, Y = revenue-based gross profit %, bubble size = contract price. It shows cost efficiency and margin together." badge="NEW"><BubbleChart points={marginPoints}/></ChartShell></div>
@@ -58,6 +60,7 @@ export function PortfolioCommandCenter({projects,onOpen}:{projects:ProjectRegist
    <ChartShell title="Portfolio Cashflow Comparison" description="Cumulative cash-in and cash-out from selected cost reports. Dates remain exactly on each project’s source timeline." badge="NEW"><LineChart labels={months} series={active.flatMap(p=>[{label:`${p.name} · Cash In`,values:months.map(m=>p.cashflow.find((x:any)=>x.month===m)?.cash_in_cum??null)},{label:`${p.name} · Cash Out`,values:months.map(m=>p.cashflow.find((x:any)=>x.month===m)?.cash_out_cum??null)}])}/></ChartShell>
   </section>}
   {portfolioTab==="analysis"&&<section className="portfolioPanel portfolioAnalysis" aria-label="CTO portfolio analysis"><CostMatrix rows={active} onOpen={onOpen}/><MonthlyComparison rows={active}/><ScenarioLab rows={active} onContext={setScenario}/></section>}
+  {portfolioTab==="risk"&&<PortfolioRisk context={{kind:"portfolio",view:"risk",scope,projects,active,scenario}} onOpen={onOpen}/>}
  </>;
 }
 
