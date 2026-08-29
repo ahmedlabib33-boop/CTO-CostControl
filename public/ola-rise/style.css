@@ -179,6 +179,36 @@ button:active {
     radial-gradient(circle at 50% 44%, transparent 35%, rgba(4, 12, 23, 0.22) 100%),
     linear-gradient(180deg, rgba(90, 191, 224, 0.08), transparent 28%, rgba(7, 18, 32, 0.14));
 }
+body[data-time-phase="morning"] #game::before {
+  background:
+    linear-gradient(180deg, rgba(255, 212, 136, 0.09), transparent 34%),
+    radial-gradient(circle at 50% 44%, transparent 42%, rgba(4, 12, 23, 0.13) 100%);
+}
+body[data-time-phase="afternoon"] #game::before {
+  background:
+    linear-gradient(180deg, rgba(88, 195, 235, 0.07), transparent 34%),
+    radial-gradient(circle at 50% 44%, transparent 45%, rgba(4, 12, 23, 0.1) 100%);
+}
+body[data-time-phase="evening"] #game::before {
+  background:
+    radial-gradient(circle at 84% 16%, #fff8c9 0 1.2%, rgba(255, 244, 185, .42) 1.3% 2.2%, transparent 2.4%),
+    radial-gradient(circle at 11% 13%, rgba(255,255,255,.85) 0 1px, transparent 2px),
+    radial-gradient(circle at 27% 22%, rgba(255,255,255,.7) 0 1px, transparent 2px),
+    radial-gradient(circle at 68% 11%, rgba(255,255,255,.78) 0 1px, transparent 2px),
+    linear-gradient(180deg, rgba(238, 144, 75, 0.13), transparent 42%),
+    radial-gradient(circle at 50% 44%, transparent 45%, rgba(18, 9, 19, 0.13) 100%);
+}
+body[data-time-phase="night"] #game::before {
+  background:
+    radial-gradient(circle at 82% 15%, #fffce1 0 1.6%, rgba(222, 232, 255, .5) 1.7% 3%, transparent 3.2%),
+    radial-gradient(circle at 8% 17%, #fff 0 1px, transparent 2px),
+    radial-gradient(circle at 17% 9%, rgba(255,255,255,.88) 0 1px, transparent 2px),
+    radial-gradient(circle at 31% 20%, rgba(255,255,255,.72) 0 1px, transparent 2px),
+    radial-gradient(circle at 48% 12%, rgba(255,255,255,.82) 0 1px, transparent 2px),
+    radial-gradient(circle at 66% 24%, rgba(255,255,255,.76) 0 1px, transparent 2px),
+    linear-gradient(180deg, rgba(56, 91, 150, 0.17), transparent 48%),
+    radial-gradient(circle at 50% 44%, transparent 42%, rgba(0, 3, 10, 0.2) 100%);
+}
 #world3d {
   position: absolute;
   inset: 0;
@@ -289,6 +319,14 @@ button:active {
 }
 .clock span {
   color: var(--gold);
+}
+.clock small {
+  margin-top: 1px;
+  color: #82dfb0;
+  font-size: 8px;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 .mood-chip {
   border: 1px solid rgba(255, 255, 255, 0.15);
@@ -520,6 +558,85 @@ button:active {
   font-size: 12px;
   font-weight: 850;
 }
+.wellbeing-prompt {
+  position: absolute;
+  z-index: 28;
+  left: 50%;
+  bottom: 92px;
+  transform: translateX(-50%);
+  width: min(360px, calc(100% - 190px));
+  min-height: 58px;
+  padding: 9px 15px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 11px;
+  color: #eafff5;
+  text-align: left;
+  border-color: rgba(99, 236, 180, 0.58);
+  background: linear-gradient(135deg, rgba(16, 82, 83, 0.96), rgba(15, 52, 75, 0.96));
+  box-shadow: 0 16px 46px rgba(0, 0, 0, 0.42), 0 0 28px rgba(75, 225, 169, 0.2);
+  animation: wellbeingFloat 2.6s ease-in-out infinite;
+}
+.ambient-conversations {
+  position: absolute;
+  z-index: 31;
+  inset: 0;
+  pointer-events: none;
+}
+.ambient-conversation {
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 18px));
+  width: min(245px, 28vw);
+  min-height: 0;
+  padding: 10px 12px;
+  pointer-events: auto;
+  color: #173025;
+  text-align: right;
+  border: 2px solid rgba(105, 217, 154, 0.78);
+  border-radius: 19px 19px 7px 19px;
+  background: linear-gradient(145deg, rgba(255, 253, 242, 0.98), rgba(226, 249, 235, 0.97));
+  box-shadow: 0 14px 34px rgba(0,0,0,.32), 0 0 22px rgba(89, 213, 139, .2);
+  animation: chatFloat 2.8s ease-in-out infinite;
+}
+.ambient-conversation::after {
+  content: "";
+  position: absolute;
+  right: 20px;
+  bottom: -12px;
+  width: 18px;
+  height: 18px;
+  background: #e5f8eb;
+  border-right: 2px solid rgba(105, 217, 154, 0.78);
+  border-bottom: 2px solid rgba(105, 217, 154, 0.78);
+  transform: rotate(45deg);
+}
+.ambient-conversation small {
+  display: block;
+  color: #24714b;
+  font-size: 8px;
+  font-weight: 900;
+}
+.ambient-conversation b {
+  display: block;
+  margin: 4px 0;
+  font-family: Tahoma, "Noto Naskh Arabic", sans-serif;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.ambient-conversation span {
+  color: #9a6220;
+  font-size: 9px;
+  font-weight: 900;
+}
+@keyframes chatFloat { 50% { transform: translate(-50%, calc(-100% - 23px)); } }
+.wellbeing-prompt > span { font-size: 26px; }
+.wellbeing-prompt div { display: flex; flex-direction: column; gap: 2px; }
+.wellbeing-prompt small { color: #78edba; font-size: 8px; letter-spacing: .12em; }
+.wellbeing-prompt b { font-size: 12px; }
+@keyframes wellbeingFloat {
+  50% { transform: translate(-50%, -5px); }
+}
 .objective-marker {
   width: 30px;
   height: 30px;
@@ -661,6 +778,49 @@ button:active {
   margin-top: 9px;
   color: var(--muted);
   font-size: 11px;
+  line-height: 1.45;
+}
+.food-menu {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+  padding: 10px;
+  border: 1px solid rgba(240, 201, 111, 0.3);
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(158, 93, 39, 0.2), rgba(66, 48, 40, 0.25));
+}
+.food-menu button {
+  min-height: 43px;
+  border-color: rgba(244, 210, 137, 0.32);
+  background: rgba(255, 245, 221, 0.06);
+}
+.food-menu button:last-child {
+  grid-column: 1 / -1;
+}
+.wellbeing-panel {
+  padding: 12px;
+  border: 1px solid rgba(100, 228, 177, 0.34);
+  border-radius: 16px;
+  background: linear-gradient(145deg, rgba(38, 112, 102, 0.24), rgba(32, 66, 96, 0.3));
+}
+.wellbeing-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+.wellbeing-actions button { min-height: 42px; }
+.wellbeing-panel blockquote {
+  margin: 13px 0 5px;
+  color: #f4fbf7;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 15px;
+  line-height: 1.5;
+}
+.wellbeing-panel > small { color: #7fe7b5; font-weight: 800; }
+.wellbeing-panel > p {
+  margin: 11px 0 0;
+  color: #bdcbd3;
+  font-size: 10px;
   line-height: 1.45;
 }
 .music-player {
@@ -992,6 +1152,64 @@ button:active {
   font-size: 18px;
   line-height: 1.7;
 }
+.bedtime-card {
+  width: min(460px, calc(100vw - 28px));
+  padding: 30px;
+  text-align: center;
+  border-color: rgba(130, 158, 233, 0.42);
+  background:
+    radial-gradient(circle at 50% 0, rgba(67, 90, 160, 0.34), transparent 52%),
+    linear-gradient(160deg, rgba(10, 25, 51, 0.98), rgba(5, 13, 31, 0.98));
+  box-shadow: 0 28px 90px rgba(0, 0, 0, 0.74), 0 0 45px rgba(89, 113, 193, 0.22);
+}
+.moon-mark {
+  color: #dae5ff;
+  font-size: 68px;
+  line-height: 1;
+  filter: drop-shadow(0 0 20px rgba(181, 203, 255, 0.55));
+}
+.bedtime-card h2 { margin: 10px 0 8px; font-size: 29px; }
+.bedtime-card p { color: #c3cee0; line-height: 1.6; }
+.bedtime-card .gold { margin-bottom: 9px; }
+.night-social-dock {
+  position: absolute;
+  z-index: 46;
+  left: 50%;
+  top: 92px;
+  transform: translateX(-50%);
+  width: min(620px, calc(100% - 24px));
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-color: rgba(240, 201, 111, .48);
+  background: linear-gradient(135deg, rgba(77, 49, 30, .9), rgba(14, 45, 61, .94));
+}
+.night-social-dock div { display: flex; flex-direction: column; gap: 2px; }
+.night-social-dock small { color: var(--gold); font-size: 8px; letter-spacing: .12em; }
+.night-social-dock b { font-size: 16px; }
+.night-social-dock span { color: #c7d4dc; font-size: 10px; }
+.night-social-dock button { white-space: nowrap; }
+.night-social-mode .status-strip,
+.night-social-mode .objective,
+.night-social-mode .stage-rail,
+.night-social-mode .campaign-progress,
+.night-social-mode .mood-chip,
+.night-social-mode .touch-actions,
+.night-social-mode #projectSheet,
+.night-social-mode #decisionSheet,
+.night-social-mode #examSheet,
+.night-social-mode #trophyModal,
+.night-social-mode .management-control,
+.night-social-mode .wellbeing-prompt {
+  display: none !important;
+}
+.night-social-mode .identity small { display: none; }
+.night-social-mode .mobile-top {
+  width: min(520px, calc(100% - 24px));
+  right: auto;
+}
 .toast {
   position: absolute;
   z-index: 90;
@@ -1153,6 +1371,22 @@ button:active {
     bottom: 112px;
     border-radius: 18px;
   }
+  .wellbeing-prompt {
+    width: calc(100% - 150px);
+    bottom: 104px;
+    padding: 8px 10px;
+  }
+  .ambient-conversation {
+    width: min(190px, 48vw);
+    padding: 8px 9px;
+  }
+  .ambient-conversation b { font-size: 11px; }
+  .night-social-dock {
+    top: 78px;
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .night-social-dock button { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
   .plumbob,

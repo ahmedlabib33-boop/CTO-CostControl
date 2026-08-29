@@ -2,6 +2,31 @@ export const NEED_KEYS = ["energy", "focus", "patience", "social", "fun"];
 
 const clampNeed = (value) => Math.max(0, Math.min(100, Number(value) || 0));
 
+export function timePhaseFor(hour) {
+  const normalizedHour = ((Number(hour) || 0) % 24 + 24) % 24;
+  if (normalizedHour >= 6 && normalizedHour < 12) return { id: "morning", label: "Morning" };
+  if (normalizedHour >= 12 && normalizedHour < 17) return { id: "afternoon", label: "Afternoon" };
+  if (normalizedHour >= 17 && normalizedHour < 21) return { id: "evening", label: "Evening" };
+  return { id: "night", label: "Night" };
+}
+
+export function isBedtime(hour) {
+  return timePhaseFor(hour).id === "night";
+}
+
+export function sleepUntilMorning(current) {
+  const state = normalizeGameState(current);
+  if (state.hour >= 21) state.day = Math.min(30, state.day + 1);
+  state.hour = 6;
+  state.speed = 1;
+  state.energy = 100;
+  state.focus = Math.max(78, state.focus);
+  state.patience = Math.max(76, state.patience);
+  state.fun = Math.max(68, state.fun);
+  state.nightSocial = false;
+  return state;
+}
+
 export function normalizeGameState(saved = {}) {
   return {
     day: Math.max(1, Math.min(30, Number(saved.day) || 1)),
@@ -20,7 +45,9 @@ export function normalizeGameState(saved = {}) {
       saved.examAttempts && typeof saved.examAttempts === "object"
         ? saved.examAttempts
         : {},
-    teaServed: Math.max(0, Number(saved.teaServed) || 0),
+    coffeeServed: Math.max(0, Number(saved.coffeeServed ?? saved.teaServed) || 0),
+    mealsServed: Math.max(0, Number(saved.mealsServed) || 0),
+    nightSocial: Boolean(saved.nightSocial),
     started: Boolean(saved.started),
   };
 }
@@ -36,8 +63,8 @@ function advanceClock(state, hours) {
 export function applySimAction(current, action) {
   const state = normalizeGameState(current);
   const reactions = {
-    tea: {
-      line: "Tea first. Then we can explain why the forecast is feeling dramatic. ☕",
+    coffee: {
+      line: "Coffee first. Then we can explain why the forecast is feeling dramatic. ☕",
       changes: { energy: 22, patience: 12, fun: 14 },
       hours: 0.25,
     },
@@ -56,13 +83,39 @@ export function applySimAction(current, action) {
       changes: { focus: 12, energy: -8, fun: 5 },
       hours: 1.5,
     },
+    "food-pizza": {
+      line: "Pizza break complete. Energy restored; decisions remain evidence first. 🍕",
+      changes: { energy: 16, patience: 5, fun: 16 },
+      hours: 0.5,
+    },
+    "food-burger": {
+      line: "Burger break complete. Back to the project with a better battery. 🍔",
+      changes: { energy: 18, patience: 4, fun: 13 },
+      hours: 0.5,
+    },
+    "food-tameez": {
+      line: "تميس دافئ، نفس أهدى، والخطوة الجاية أوضح. 🫓",
+      changes: { energy: 14, patience: 8, social: 4 },
+      hours: 0.4,
+    },
+    "food-shaabiyat": {
+      line: "شعبيات shared with the team. Morale and connection are back up. 🍲",
+      changes: { energy: 16, social: 10, fun: 10 },
+      hours: 0.6,
+    },
+    "food-karak": {
+      line: "شاي كرك: a warm pause before the next controlled decision. 🫖",
+      changes: { energy: 12, patience: 10, social: 8 },
+      hours: 0.25,
+    },
   };
   const reaction = reactions[action];
   if (!reaction) throw new Error(`Unknown Sims action: ${action}`);
   Object.entries(reaction.changes).forEach(([key, delta]) => {
     state[key] = clampNeed(state[key] + delta);
   });
-  if (action === "tea") state.teaServed += 1;
+  if (action === "coffee") state.coffeeServed += 1;
+  if (action.startsWith("food-")) state.mealsServed += 1;
   advanceClock(state, reaction.hours);
   return { state, line: reaction.line };
 }
@@ -71,7 +124,7 @@ export function moodFor(state) {
   const values = NEED_KEYS.map((key) => clampNeed(state[key]));
   const average = values.reduce((sum, value) => sum + value, 0) / values.length;
   const minimum = Math.min(...values);
-  if (minimum < 20) return { label: "Emergency tea meeting", tone: "critical" };
+  if (minimum < 20) return { label: "Emergency coffee meeting", tone: "critical" };
   if (minimum < 40 || average < 52) return { label: "Running on spreadsheets", tone: "caution" };
   if (average >= 82) return { label: "Peak Eng. Ola", tone: "excellent" };
   return { label: "Focused & formidable", tone: "good" };

@@ -7,6 +7,9 @@ import {
   moodFor,
   normalizeGameState,
   projectIsControlled,
+  isBedtime,
+  sleepUntilMorning,
+  timePhaseFor,
   trophySummary,
 } from "./systems.js";
 import { loadLiveGameProjects } from "./live-data.js";
@@ -38,7 +41,145 @@ const MUSIC_TRACKS = [
   { label: "The xx · Crystalised", src: "assets/crystalised.mp3" },
   { label: "Track 3", src: "assets/track-3.mp3" },
 ];
+const WELLBEING_WORDS = [
+  {
+    text: "There is nothing stronger than those two: patience and time, they will do it all.",
+    author: "Leo Tolstoy · War and Peace",
+  },
+  {
+    text: "He who has a why to live for can bear with almost any how.",
+    author: "Friedrich Nietzsche",
+  },
+  {
+    text: "The next small, deliberate action is enough for this moment.",
+    author: "OLA: RISE · supportive reflection",
+  },
+  {
+    text: "Rest is part of the plan. You do not have to solve every problem in one moment.",
+    author: "OLA: RISE · supportive reflection",
+  },
+  {
+    text: "Meet what is in your control with care; release what is not yours to command.",
+    author: "Inspired by Epictetus",
+  },
+  {
+    text: "A difficult hour is not the whole life. Breathe slowly, take water, and begin again.",
+    author: "OLA: RISE · supportive reflection",
+  },
+];
+const BAHRAINI_CONVERSATIONS = [
+  ["هلا والله يا عُلا… منوّرة المكان كله.", "Eng. Ola, even the city noticed your entrance. Try not to make the skyline jealous. ✨"],
+  ["يا زين هالطلة… حتى المشاريع عدّلت وقفتها.", "That was definitely about you—not the dashboard. Keep walking like the plan already passed review."],
+  ["شلونج يا عُلا؟ البحرين تقول لج: لا تشيلين هم.", "Take the kindness, leave the worry, and choose one controlled action at a time."],
+  ["عيني عليج باردة… كل ما تمشين، الدنيا تصير أرتب.", "Careful, Eng. Ola—the city is flirting with your project-control skills now."],
+  ["قهوة على حسابي إذا خلصتي هالتقرير… اتفقنا؟", "A coffee promise is serious business. Finish the evidence check, then collect. ☕"],
+  ["منو قدّج يا عُلا؟ حتى الأرقام تحترمج.", "The numbers respect evidence. The speaker may simply be very impressed by you."],
+  ["يا بعد قلبي، خذي نفس… الشغل ما يخلص وإنتي أهم.", "A warm Bahraini reminder: breathe, drink water, and do not disappear inside the workload."],
+  ["وش هالهيبة؟ المشروع شافج وقال خلاص بنتعدل.", "Apparently your presence is now a mitigation strategy. Verify it before adding it to the register. 😄"],
+  ["عُلا، ضحكتج أحلى من تقرير بدون ملاحظات.", "That is a very high compliment in this world. Smile, then check the source evidence."],
+];
 let musicIndex = 0;
+let wellbeingIndex = 0,
+  hydrationReminderKey = "",
+  conversationCycle = 0,
+  conversationChangedAt = 0;
+
+function renderWellbeingQuote() {
+  const quote = WELLBEING_WORDS[wellbeingIndex % WELLBEING_WORDS.length];
+  if ($("#wellbeingQuote")) $("#wellbeingQuote").textContent = `“${quote.text}”`;
+  if ($("#wellbeingAuthor")) $("#wellbeingAuthor").textContent = `— ${quote.author}`;
+}
+
+function maybeShowWellbeingPrompt() {
+  const prompt = $("#wellbeingPrompt");
+  if (!prompt || gameFinished || isBedtime(state.hour)) return;
+  const hour = Math.floor(state.hour);
+  const reminderHour = hour >= 8 && hour <= 20 && hour % 2 === 0;
+  const reminderKey = `${state.day}:${hour}`;
+  if (!reminderHour || reminderKey === hydrationReminderKey) return;
+  hydrationReminderKey = reminderKey;
+  prompt.querySelector("b").textContent = hour >= 18
+    ? "Water, breathe, then finish gently."
+    : "Water time, Eng. Ola.";
+  prompt.classList.remove("hidden");
+}
+
+function drinkWater() {
+  if (!requireAwake()) return;
+  state.energy = Math.min(100, state.energy + 4);
+  state.focus = Math.min(100, state.focus + 3);
+  state.patience = Math.min(100, state.patience + 2);
+  $("#wellbeingPrompt")?.classList.add("hidden");
+  save();
+  updateHUD();
+  toast("Water taken · energy and focus supported 💧");
+  showThought("Eng. Ola, one small act of care helps the next decision feel lighter.", 4300);
+}
+
+function renderAmbientConversations() {
+  const container = $("#ambientConversations");
+  if (!container || !ambientActors.length) return;
+  container.innerHTML = ambientActors.slice(0, 6).map((actor, actorIndex) => {
+    const [line] = ambientConversationFor(actor);
+    const persona = actor.userData.persona;
+    return `<button class="ambient-conversation" data-chat-actor="${actorIndex}" dir="rtl"><small>${escapeHtml(persona.name)} · ${escapeHtml(persona.role)}</small><b>${escapeHtml(line)}</b><span>روحي اسمعي السالفة ←</span></button>`;
+  }).join("");
+  $$('[data-chat-actor]').forEach((button) => {
+    button.onclick = () => hearAmbientConversation(Number(button.dataset.chatActor));
+  });
+  conversationChangedAt = performance.now();
+}
+
+function ambientConversationFor(actor) {
+  const choices = actor?.userData?.persona?.lines || [0];
+  return BAHRAINI_CONVERSATIONS[choices[conversationCycle % choices.length]];
+}
+
+function hearAmbientConversation(actorIndex) {
+  if (!state.nightSocial && !requireAwake()) return;
+  const actor = ambientActors[actorIndex];
+  if (!actor) return;
+  const [_line, response] = ambientConversationFor(actor);
+  guidedProject = null;
+  hasWalkTarget = true;
+  walkTarget.copy(actor.position).add(new THREE.Vector3(0, 0, 1.45));
+  drawNavigationLine(walkTarget);
+  state.social = Math.min(100, state.social + 4);
+  state.fun = Math.min(100, state.fun + 3);
+  save();
+  updateHUD();
+  showThought(response, 6500);
+  toast("Ola is going to hear the conversation…");
+  conversationCycle = (conversationCycle + 1) % BAHRAINI_CONVERSATIONS.length;
+  renderAmbientConversations();
+}
+
+function positionAmbientConversations() {
+  const container = $("#ambientConversations");
+  if (!container || !camera || !ambientActors.length) return;
+  if ((isBedtime(state.hour) && !state.nightSocial) || $("#decisionSheet")?.classList.contains("hidden") === false) {
+    container.classList.add("hidden");
+    return;
+  }
+  container.classList.remove("hidden");
+  if (performance.now() - conversationChangedAt > 9000) {
+    conversationCycle = (conversationCycle + 1) % BAHRAINI_CONVERSATIONS.length;
+    renderAmbientConversations();
+  }
+  $$('[data-chat-actor]').forEach((button) => {
+    const actor = ambientActors[Number(button.dataset.chatActor)];
+    if (!actor) return;
+    const point = actor.position.clone().add(new THREE.Vector3(0, 2.45, 0)).project(camera),
+      x = (point.x * 0.5 + 0.5) * innerWidth + (Number(button.dataset.chatActor) % 2 ? 18 : -18),
+      y = (-point.y * 0.5 + 0.5) * innerHeight - (Number(button.dataset.chatActor) % 3) * 24,
+      visible = point.z > -1 && point.z < 1 && x > 110 && x < innerWidth - 110 && y > 220 && y < innerHeight - 120;
+    button.classList.toggle("hidden", !visible);
+    if (visible) {
+      button.style.left = `${x}px`;
+      button.style.top = `${y}px`;
+    }
+  });
+}
 function setMusicVolume(value) {
   const audio = $("#musicPlayer");
   if (!audio) return;
@@ -391,6 +532,11 @@ function updateHUD() {
   $("#dayLabel").textContent = `Day ${state.day}/30`;
   $("#timeLabel").textContent =
     String(Math.floor(state.hour)).padStart(2, "0") + ":00";
+  const timePhase = timePhaseFor(state.hour);
+  $("#timePhase").textContent = timePhase.label;
+  document.body.dataset.timePhase = timePhase.id;
+  document.body.classList.toggle("night-social-mode", Boolean(state.nightSocial && isBedtime(state.hour)));
+  $("#nightSocialDock")?.classList.toggle("hidden", !(state.nightSocial && isBedtime(state.hour)));
   NEED_KEYS.forEach((k) => {
     const b = `#${k}Bar`,
       v = `#${k}Value`;
@@ -417,6 +563,7 @@ function updateHUD() {
     campaignProgressBar = $("#campaignProgressBar");
   if (campaignProgress) campaignProgress.textContent = `${missionControlled} / ${missionTotal}`;
   if (campaignProgressBar) campaignProgressBar.style.width = `${missionTotal ? (missionControlled / missionTotal) * 100 : 0}%`;
+  maybeShowWellbeingPrompt();
   renderStageRail();
   renderTrophyShelf();
 }
@@ -481,6 +628,7 @@ let scene,
   navigationLine = null,
   sunLight = null,
   skyLight = null,
+  snowField = null,
   worldClock = 0,
   quality = "auto",
   running = false,
@@ -494,7 +642,8 @@ let scene,
   thoughtPersistent = false;
 const move = { x: 0, y: 0 },
   walkTarget = new THREE.Vector3();
-let hasWalkTarget = false;
+let hasWalkTarget = false,
+  nightFoodTravel = false;
 function mat(c, metal = 0.05, rough = 0.75) {
   return new THREE.MeshStandardMaterial({
     color: c,
@@ -570,19 +719,19 @@ function createOla() {
 
   const skirt = new THREE.Mesh(
     new THREE.CylinderGeometry(0.53, 0.74, 1.42, 12),
-    mat(0xb79d88, 0.02, 0.92),
+    mat(0xf2f4f1, 0.03, 0.74),
   );
   skirt.position.y = 1.05;
   skirt.castShadow = true;
   g.add(skirt);
   const torso = new THREE.Mesh(
     new THREE.CylinderGeometry(0.5, 0.58, 1.42, 12),
-    mat(0xc7b09c, 0.02, 0.82),
+    mat(0xfaf9f4, 0.03, 0.7),
   );
   torso.position.y = 2.22;
   torso.castShadow = true;
   g.add(torso);
-  const jacket = box(1.04, 0.12, 0.62, 0x8f7463);
+  const jacket = box(1.04, 0.12, 0.62, 0xdbe5e8);
   jacket.position.set(0, 2.58, 0);
   g.add(jacket);
 
@@ -604,7 +753,7 @@ function createOla() {
   const rightArm = new THREE.Group();
   [-0.66, 0.66].forEach((x, index) => {
     const arm = index ? rightArm : leftArm;
-    const sleeve = cylinder(0.17, 0.14, 1.05, 0xb79d88, 10);
+    const sleeve = cylinder(0.17, 0.14, 1.05, 0xf2f4f1, 10);
     sleeve.position.y = -0.43;
     arm.add(sleeve);
     const hand = sphere(0.16, 0xd9a987, 16, 12);
@@ -623,14 +772,14 @@ function createOla() {
   g.add(head);
   const hijab = new THREE.Mesh(
     new THREE.SphereGeometry(0.57, 28, 20, 0, Math.PI * 2, 0, Math.PI * 0.78),
-    mat(0x242d3c, 0.06, 0.72),
+    mat(0xf3f5f8, 0.04, 0.68),
   );
   hijab.position.y = 3.61;
   hijab.castShadow = true;
   g.add(hijab);
   const scarf = new THREE.Mesh(
     new THREE.ConeGeometry(0.5, 0.82, 18),
-    mat(0x242d3c, 0.06, 0.72),
+    mat(0xe1e6ec, 0.04, 0.72),
   );
   scarf.position.set(0, 3.08, -0.08);
   g.add(scarf);
@@ -669,6 +818,7 @@ function createOla() {
   );
   pl.position.y = 4.62;
   g.add(pl);
+  g.scale.setScalar(0.65);
   g.userData = { leftArm, rightArm, leftLeg, rightLeg, plumbob: pl, baseY: 0 };
   return g;
 }
@@ -817,6 +967,21 @@ function tree(x, z, scale = 1) {
     );
     crown.position.set((i - 1) * 0.22 * scale, (1.72 + i * 0.3) * scale, 0);
     g.add(crown);
+    if (i > 0) {
+      const snowCap = sphere(
+        (0.49 - i * 0.045) * scale,
+        0xe8f5ff,
+        16,
+        10,
+      );
+      snowCap.scale.y = 0.3;
+      snowCap.position.set(
+        (i - 1) * 0.22 * scale,
+        (2.13 + i * 0.3) * scale,
+        -0.04 * scale,
+      );
+      g.add(snowCap);
+    }
   }
   g.position.set(x, 0, z);
   scene.add(g);
@@ -909,6 +1074,47 @@ function stars() {
   );
   scene.add(starField);
 }
+function snowfall() {
+  const count = matchMedia("(max-width: 620px)").matches ? 110 : 230,
+    positions = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    positions[i * 3] = THREE.MathUtils.randFloatSpread(70);
+    positions[i * 3 + 1] = THREE.MathUtils.randFloat(2, 31);
+    positions[i * 3 + 2] = THREE.MathUtils.randFloatSpread(70);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  snowField = new THREE.Points(
+    geometry,
+    new THREE.PointsMaterial({
+      color: 0xf4fbff,
+      size: 0.13,
+      transparent: true,
+      opacity: 0.72,
+      depthWrite: false,
+      sizeAttenuation: true,
+    }),
+  );
+  scene.add(snowField);
+  for (let i = 0; i < 26; i++) {
+    const patch = new THREE.Mesh(
+      new THREE.CircleGeometry(THREE.MathUtils.randFloat(0.3, 1.15), 18),
+      new THREE.MeshStandardMaterial({
+        color: 0xdcecf2,
+        roughness: 1,
+        transparent: true,
+        opacity: THREE.MathUtils.randFloat(0.24, 0.5),
+      }),
+    );
+    patch.rotation.x = -Math.PI / 2;
+    patch.position.set(
+      THREE.MathUtils.randFloatSpread(42),
+      0.075,
+      THREE.MathUtils.randFloatSpread(34),
+    );
+    scene.add(patch);
+  }
+}
 function cafeNook() {
   const group = new THREE.Group(),
     table = cylinder(0.92, 0.82, 0.12, 0x815a37, 24),
@@ -919,9 +1125,9 @@ function cafeNook() {
   leg.position.y = 0.52;
   tray.position.set(0, 1.14, 0);
   cup.position.set(0, 1.34, 0);
-  const tea = cylinder(0.155, 0.155, 0.012, 0x9a481f, 18);
-  tea.position.set(0, 1.51, 0);
-  group.add(table, leg, tray, cup, tea);
+  const coffee = cylinder(0.155, 0.155, 0.012, 0x4b2412, 18);
+  coffee.position.set(0, 1.51, 0);
+  group.add(table, leg, tray, cup, coffee);
   [-1, 1].forEach((side) => {
     const seat = box(0.72, 0.12, 0.72, 0x38675b),
       base = cylinder(0.09, 0.14, 0.62, 0x293b39, 10);
@@ -929,7 +1135,7 @@ function cafeNook() {
     base.position.set(side * 1.25, 0.31, 0);
     group.add(seat, base);
   });
-  const sign = textSprite("TEA + FORECAST", "#f6d98c");
+  const sign = textSprite("COFFEE + FORECAST", "#f6d98c");
   sign.scale.set(3.7, 0.92, 1);
   sign.position.set(0, 2.25, -0.2);
   group.add(sign);
@@ -937,16 +1143,142 @@ function cafeNook() {
   group.rotation.y = -0.4;
   scene.add(group);
 }
-function ambientActor(x, z, color) {
+function foodCourt() {
+  const court = new THREE.Group(),
+    courtyard = box(24, 0.16, 19, 0xb5a88f),
+    street = box(27, 0.1, 4.8, 0x343b3d),
+    curb = box(27, 0.18, 0.34, 0xe5d9bf);
+  courtyard.position.y = 0.08;
+  street.position.set(0, 0.1, 10.4);
+  curb.position.set(0, 0.18, 7.9);
+  court.add(courtyard, street, curb);
+
+  const shopBlock = (x, z, width, facade, signText) => {
+    const block = new THREE.Group(),
+      building = box(width, 5.1, 3.8, facade),
+      shop = box(width - 0.55, 1.8, 0.22, 0x31505b),
+      awning = box(width - 0.3, 0.16, 1.25, 0xd29a3f),
+      balcony = box(width - 0.65, 0.16, 1.0, 0xb99f7c);
+    building.position.y = 2.55;
+    shop.position.set(0, 1.05, 2.02);
+    awning.position.set(0, 2.05, 2.52);
+    balcony.position.set(0, 3.42, 2.28);
+    block.add(building, shop, awning, balcony);
+    for (let index = 0; index < 4; index++) {
+      const rail = box(0.06, 0.65, 0.06, 0x654f3e),
+        window = box(0.62, 0.72, 0.08, 0x8ec3ce),
+        ac = box(0.48, 0.34, 0.24, 0xd8d5cc);
+      rail.position.set(-width / 2 + 0.7 + index * ((width - 1.4) / 3), 3.78, 2.75);
+      window.position.set(-width / 2 + 0.72 + index * ((width - 1.44) / 3), 4.1, 1.94);
+      ac.position.set(-width / 2 + 0.8 + index * ((width - 1.6) / 3), 2.9, 2.03);
+      block.add(rail, window, ac);
+    }
+    const sign = textSprite(signText, "#fff0bd");
+    sign.scale.set(Math.min(width - 0.4, 5.8), 0.95, 1);
+    sign.position.set(0, 2.55, 2.2);
+    block.add(sign);
+    block.position.set(x, 0, z);
+    court.add(block);
+  };
+  shopBlock(-7.2, -6.3, 7.8, 0xd7c3a4, "SHAABIYAT LABIB");
+  shopBlock(1.2, -6.3, 7.6, 0xc8b08e, "KARAK · TAMEEZ");
+  shopBlock(8.4, -6.3, 5.8, 0xe0cfb3, "PIZZA · BURGER");
+
+  const stall = box(7.2, 2.7, 2.8, 0xf1e5cf),
+    counter = box(6.5, 0.76, 0.82, 0x8b5d3e),
+    canopy = box(7.7, 0.18, 3.2, 0xe3ad45);
+  stall.position.set(0, 1.44, 2.6);
+  counter.position.set(0, 0.95, 4.25);
+  canopy.position.set(0, 2.92, 3.12);
+  court.add(stall, counter, canopy);
+  const mainSign = textSprite("SHAABIYAT LABIB · AL KHOBAR AL SHAMALIA", "#fff0bd");
+  mainSign.scale.set(8.4, 1.2, 1);
+  mainSign.position.set(0, 3.75, 4.15);
+  court.add(mainSign);
+  const gateLeft = box(0.68, 3.4, 0.72, 0xd8c3a1),
+    gateRight = box(0.68, 3.4, 0.72, 0xd8c3a1),
+    gateBeam = box(10.7, 0.52, 0.72, 0xb89362),
+    gateSign = textSprite("WELCOME · SHAABIYAT LABIB", "#fff1bb");
+  gateLeft.position.set(-5.1, 1.7, 8.0);
+  gateRight.position.set(5.1, 1.7, 8.0);
+  gateBeam.position.set(0, 3.3, 8.0);
+  gateSign.scale.set(7.8, 1.0, 1);
+  gateSign.position.set(0, 3.42, 8.42);
+  court.add(gateLeft, gateRight, gateBeam, gateSign);
+  [-8.8, 8.8].forEach((x) => {
+    const planter = cylinder(0.76, 0.88, 0.62, 0xa7845b, 18),
+      trunk = cylinder(0.08, 0.13, 1.8, 0x745234, 9),
+      crown = sphere(0.76, 0x3d8055, 16, 12);
+    planter.position.set(x, 0.32, 6.9);
+    trunk.position.set(x, 1.45, 6.9);
+    crown.position.set(x, 2.45, 6.9);
+    court.add(planter, trunk, crown);
+  });
+
+  for (let index = 0; index < 11; index++) {
+    const lamp = sphere(0.13, 0xffd986, 12, 8),
+      cableX = -10 + index * 2;
+    lamp.material = emissive(0xffc96a, 1.5);
+    lamp.position.set(cableX, 4.8 + Math.sin(index * 0.8) * 0.25, 0.4);
+    court.add(lamp);
+  }
+  for (let index = 0; index < 5; index++) {
+    const table = cylinder(0.62, 0.58, 0.1, 0x8d684a, 18),
+      leg = cylinder(0.07, 0.12, 0.72, 0x574338, 10);
+    table.position.set(-7 + index * 3.4, 0.82, 6.0 - (index % 2) * 1.2);
+    leg.position.set(table.position.x, 0.4, table.position.z);
+    court.add(table, leg);
+  }
+  for (let index = 0; index < 4; index++) {
+    const car = box(2.5, 0.72, 1.2, index % 2 ? 0xe4e4df : 0x5f7f91),
+      roof = box(1.4, 0.48, 1.05, index % 2 ? 0xd7d7d2 : 0x4b6573);
+    car.position.set(-9 + index * 6, 0.48, 10.5);
+    roof.position.set(car.position.x, 1.04, 10.5);
+    court.add(car, roof);
+  }
+  const pizza = new THREE.Mesh(new THREE.ConeGeometry(0.48, 0.8, 3), mat(0xeebd53));
+  pizza.rotation.z = Math.PI / 2;
+  pizza.position.set(-1.4, 1.55, 4.7);
+  court.add(pizza);
+  const burger = new THREE.Group();
+  [
+    [0.2, 0xcf8a35],
+    [0.1, 0x4e2d1e],
+    [0.07, 0x65a54c],
+    [0.2, 0xcf8a35],
+  ].forEach(([height, color], index) => {
+    const layer = cylinder(0.43, 0.43, height, color, 20);
+    layer.position.y = index * 0.15;
+    burger.add(layer);
+  });
+  burger.position.set(1.3, 1.38, 4.7);
+  court.add(burger);
+  court.position.set(35, 0, 25);
+  court.rotation.y = -0.08;
+  scene.add(court);
+}
+function ambientActor(x, z, color, persona) {
   const actor = new THREE.Group(),
-    body = cylinder(0.26, 0.34, 1.25, color, 12),
-    head = sphere(0.26, 0xc99071, 14, 10);
-  body.position.y = 0.95;
-  head.position.y = 1.78;
-  actor.add(body, head);
+    skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.42, 0.9, 12), mat(color)),
+    body = cylinder(0.3, 0.35, 0.78, color, 12),
+    head = sphere(0.27, persona.skin, 14, 10),
+    hijab = new THREE.Mesh(
+      new THREE.SphereGeometry(0.32, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.76),
+      mat(persona.hijab),
+    ),
+    scarf = new THREE.Mesh(new THREE.ConeGeometry(0.31, 0.5, 14), mat(persona.hijab));
+  skirt.position.y = 0.48;
+  body.position.y = 1.22;
+  head.position.y = 1.86;
+  hijab.position.set(0, 1.96, -0.02);
+  hijab.scale.set(1.02, 0.96, 1.02);
+  scarf.position.set(0, 1.61, -0.06);
+  actor.add(skirt, body, head, hijab, scarf);
   actor.position.set(x, 0, z);
+  actor.scale.setScalar(persona.scale);
   actor.userData.origin = new THREE.Vector3(x, 0, z);
   actor.userData.phase = Math.random() * Math.PI * 2;
+  actor.userData.persona = persona;
   scene.add(actor);
   ambientActors.push(actor);
 }
@@ -1051,13 +1383,67 @@ function environment() {
     scene.add(stem, flower);
   }
   stars();
+  snowfall();
   cloud(-22, 20, -18, 2.4, 0.42);
   cloud(12, 24, -30, 3.1, 0.28);
   cloud(30, 18, 5, 2.0, 0.5);
   cafeNook();
-  ambientActor(-4.2, 0.5, 0x4f7891);
-  ambientActor(5.1, 4.8, 0x8d5e72);
-  ambientActor(1.6, 10.5, 0x6e8b59);
+  foodCourt();
+  ambientActor(29.5, 25.5, 0x76564c, {
+    name: "أم خالد",
+    role: "الكبيرة الحنونة",
+    skin: 0xb87958,
+    hijab: 0xe4c98b,
+    scale: 0.98,
+    lines: [2, 6, 0],
+    walks: true,
+  });
+  ambientActor(32.5, 22.5, 0x8d5e72, {
+    name: "مريم",
+    role: "من جيل عُلا",
+    skin: 0xc98b69,
+    hijab: 0x315f73,
+    scale: 0.94,
+    lines: [1, 3, 4, 8],
+    walks: true,
+  });
+  ambientActor(36.5, 28.0, 0x6e8b59, {
+    name: "نور",
+    role: "شابة بالغة متدربة",
+    skin: 0xd39a76,
+    hijab: 0xb46a86,
+    scale: 0.86,
+    lines: [5, 7, 2],
+    walks: true,
+  });
+  ambientActor(40.0, 22.8, 0x6d4e88, {
+    name: "شيخة",
+    role: "صاحبة سوالف وخبرة",
+    skin: 0xbc7f5e,
+    hijab: 0xd6b6d9,
+    scale: 0.92,
+    lines: [0, 6, 2],
+    walks: true,
+  });
+  ambientActor(33.0, 29.2, 0x4b7690, {
+    name: "دانة",
+    role: "مهندسة من جيل عُلا",
+    skin: 0xce9070,
+    hijab: 0xe2b55d,
+    scale: 0.91,
+    lines: [4, 3, 8],
+    walks: false,
+  });
+  ambientActor(39.0, 27.0, 0x92715b, {
+    name: "جود",
+    role: "شابة بالغة في بداية مسيرتها",
+    skin: 0xd69b79,
+    hijab: 0x6f8ea8,
+    scale: 0.84,
+    lines: [5, 7, 1],
+    walks: false,
+  });
+  renderAmbientConversations();
 }
 function createTrophy(project, index, animateIn = false) {
   if (!scene || trophyMeshes.has(project.id)) return trophyMeshes.get(project.id);
@@ -1123,11 +1509,11 @@ function positionThoughtBubble() {
 }
 function actionProp(action) {
   const prop = new THREE.Group();
-  if (action === "tea") {
+  if (action === "coffee") {
     const cup = cylinder(0.22, 0.16, 0.34, 0xf7edda, 18),
-      tea = cylinder(0.17, 0.17, 0.018, 0xa64b20, 18);
-    tea.position.y = 0.18;
-    prop.add(cup, tea);
+      coffee = cylinder(0.17, 0.17, 0.018, 0x4b2412, 18);
+    coffee.position.y = 0.18;
+    prop.add(cup, coffee);
     for (let i = 0; i < 5; i++) {
       const steam = sphere(0.05 + i * 0.012, 0xffffff, 8, 6);
       steam.material.transparent = true;
@@ -1135,6 +1521,20 @@ function actionProp(action) {
       steam.position.set(Math.sin(i) * 0.05, 0.34 + i * 0.13, 0);
       prop.add(steam);
     }
+  } else if (action.startsWith("food-")) {
+    const plate = cylinder(0.46, 0.46, 0.07, 0xf4eee4, 22),
+      foodColors = {
+        "food-pizza": 0xe7ae43,
+        "food-burger": 0x9d542d,
+        "food-tameez": 0xd8a85c,
+        "food-shaabiyat": 0xc77838,
+        "food-karak": 0xb76b35,
+      },
+      serving = action === "food-karak"
+        ? cylinder(0.18, 0.15, 0.36, foodColors[action], 18)
+        : cylinder(0.31, 0.34, 0.2, foodColors[action], 18);
+    serving.position.y = 0.14;
+    prop.add(plate, serving);
   } else if (action === "rest") {
     const pillow = box(0.95, 0.22, 0.62, 0xe7d7bd);
     prop.add(pillow);
@@ -1178,9 +1578,14 @@ function updateWorldEffects(dt) {
       const angle = (index / ambientActors.length) * Math.PI * 2 + worldClock * 0.16;
       actor.position.lerp(ola.position.clone().add(new THREE.Vector3(Math.cos(angle) * 2, 0, Math.sin(angle) * 2)), 0.06);
       actor.lookAt(ola.position.x, actor.position.y, ola.position.z);
-    } else {
+    } else if (actor.userData.persona.walks) {
       actor.position.x = actor.userData.origin.x + Math.cos(phase) * 1.4;
       actor.position.z = actor.userData.origin.z + Math.sin(phase) * 0.8;
+      actor.rotation.y = -phase + Math.PI / 2;
+    } else {
+      actor.position.x = actor.userData.origin.x;
+      actor.position.z = actor.userData.origin.z;
+      actor.lookAt(35, actor.position.y, 25);
     }
     actor.position.y = Math.abs(Math.sin(phase * 3)) * 0.025;
   });
@@ -1195,7 +1600,7 @@ function updateWorldEffects(dt) {
   });
   if (activeAction) {
     const elapsed = performance.now() - activeAction.started,
-      anchor = ola.position.clone().add(new THREE.Vector3(activeAction.action === "tea" ? 0.72 : 0, activeAction.action === "rest" ? 1.15 : 3.0, 0.25));
+      anchor = ola.position.clone().add(new THREE.Vector3(activeAction.action === "coffee" ? 0.72 : 0, activeAction.action === "rest" ? 1.15 : 3.0, 0.25));
     activeAction.prop.position.copy(anchor);
     activeAction.prop.rotation.y += dt * 1.2;
     if (activeAction.action === "rest") ola.rotation.z = Math.sin(Math.min(1, elapsed / 700) * Math.PI / 2) * -0.22;
@@ -1261,6 +1666,7 @@ function init3D() {
   updateHUD();
   updateGoToPrompt();
   animate();
+  if (isBedtime(state.hour) && !state.nightSocial) setTimeout(openBedtimeGate, 0);
   if ("serviceWorker" in navigator)
     navigator.serviceWorker.register("./sw.js").catch(() => {});
 }
@@ -1313,6 +1719,7 @@ function updateGoToPrompt() {
   }
 }
 function goToProject(p) {
+  if (!requireAwake()) return;
   const model = projectMeshes.find((x) => x.userData.project.id === p.id);
   if (!model) return;
   guidedProject = p;
@@ -1381,20 +1788,28 @@ function animateOla(dt, moving) {
   ola.position.y = lift;
 }
 function updateDayLight() {
-  const phase = ((state.hour - 6) / 24) * Math.PI * 2;
-  const daylight = THREE.MathUtils.clamp(
-    Math.sin(phase) * 0.62 + 0.65,
-    0.18,
-    1,
-  );
-  const dayColor = new THREE.Color(0x84b7c7);
-  const nightColor = new THREE.Color(0x071323);
+  const hour = state.hour,
+    daylight = hour < 5.5
+      ? 0.3
+      : hour < 7.5
+        ? THREE.MathUtils.lerp(0.3, 0.88, (hour - 5.5) / 2)
+        : hour < 16.5
+          ? 1
+          : hour < 19.5
+            ? THREE.MathUtils.lerp(1, 0.5, (hour - 16.5) / 3)
+            : hour < 21
+              ? THREE.MathUtils.lerp(0.5, 0.3, (hour - 19.5) / 1.5)
+              : 0.3,
+    warmWeight = Math.max(0, 1 - Math.abs(hour - 18) / 2.8),
+    dayColor = new THREE.Color(0x84c8df).lerp(new THREE.Color(0xf09a68), warmWeight * 0.42);
+  const nightColor = new THREE.Color(0x173654);
   const sky = nightColor.clone().lerp(dayColor, daylight);
   scene.background.copy(sky);
   scene.fog.color.copy(sky);
-  sunLight.intensity = 0.45 + daylight * 3.2;
-  skyLight.intensity = 0.55 + daylight * 1.85;
-  if (starField) starField.material.opacity = THREE.MathUtils.clamp((0.48 - daylight) * 2.8, 0, 0.9);
+  sunLight.intensity = 0.85 + daylight * 3.0;
+  sunLight.color.copy(new THREE.Color(0xffe4aa).lerp(new THREE.Color(0xff8b57), warmWeight * 0.7));
+  skyLight.intensity = 1.05 + daylight * 1.55;
+  if (starField) starField.material.opacity = THREE.MathUtils.clamp((0.72 - daylight) * 2.2, 0, 0.95);
   cloudGroups.forEach((item) => {
     item.children.forEach((puff) => {
       if (puff.material) puff.material.opacity = 0.24 + daylight * 0.54;
@@ -1406,14 +1821,9 @@ function animate() {
   const dt = Math.min(clock3d.getDelta(), 0.04);
   if (!gameFinished && state.speed > 0) {
     state.hour += dt * state.speed * 0.2;
-    if (state.hour >= 24) {
-      if (state.day >= 30) {
-        state.hour = 23.99;
-        finishGame(false);
-      } else {
-        state.hour -= 24;
-        state.day += 1;
-      }
+    if (state.hour >= 21) {
+      state.hour = 21;
+      openBedtimeGate();
     }
     state.energy = Math.max(0, state.energy - dt * state.speed * 0.03);
     state.focus = Math.max(0, state.focus - dt * state.speed * 0.025);
@@ -1421,9 +1831,20 @@ function animate() {
     state.social = Math.max(0, state.social - dt * state.speed * 0.012);
     state.fun = Math.max(0, state.fun - dt * state.speed * 0.015);
   }
+  if (snowField) {
+    const positions = snowField.geometry.attributes.position.array;
+    for (let i = 0; i < positions.length; i += 3) {
+      positions[i] += Math.sin(worldClock * 0.6 + i) * dt * 0.08;
+      positions[i + 1] -= dt * (0.42 + (i % 9) * 0.018);
+      if (positions[i + 1] < 0.2) positions[i + 1] = 31;
+    }
+    snowField.geometry.attributes.position.needsUpdate = true;
+    snowField.rotation.y += dt * 0.002;
+  }
   const forward = new THREE.Vector3(-Math.cos(camYaw), 0, -Math.sin(camYaw));
   const right = new THREE.Vector3(-forward.z, 0, forward.x);
   let dir = forward.multiplyScalar(move.y).add(right.multiplyScalar(move.x));
+  if (isBedtime(state.hour) && !state.nightSocial) dir.set(0, 0, 0);
   let characterMoving = false;
   if (dir.lengthSq() > 0.01) {
     guidedProject = null;
@@ -1445,10 +1866,22 @@ function animate() {
         clearNavigationLine();
         openProject(arrived);
         updateGoToPrompt();
+      } else if (nightFoodTravel) {
+        nightFoodTravel = false;
+        clearNavigationLine();
+        camYaw = Math.PI / 2;
+        camPitch = 1.25;
+        camDist = 29;
+        setTimeout(() => {
+          $("#drawer").classList.add("open");
+          $(".food-menu")?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }, 1800);
+        showThought("Welcome to شعبيات لبيب. The northern Khobar-inspired street is open for food, snowfall, and Bahraini conversation.", 6500);
+        toast("Arrived at شعبيات لبيب");
       }
     } else {
       d.normalize();
-      ola.position.addScaledVector(d, dt * (guidedProject ? 11 : 4.6));
+      ola.position.addScaledVector(d, dt * (guidedProject || nightFoodTravel ? 12 : 4.6));
       ola.rotation.y = Math.atan2(d.x, d.z);
       characterMoving = true;
     }
@@ -1475,6 +1908,7 @@ function animate() {
   updateWorldEffects(dt);
   updateDayLight();
   cameraUpdate();
+  positionAmbientConversations();
   updateHUD();
   renderer.render(scene, camera);
 }
@@ -1579,6 +2013,7 @@ function bindWorldControls() {
 }
 
 function openProject(p) {
+  if (!requireAwake()) return;
   $("#projectAlias").textContent = p.alias.toUpperCase();
   $("#projectName").textContent = p.name;
   $("#projectSource").textContent = p.source;
@@ -1603,6 +2038,7 @@ function openProject(p) {
   );
 }
 function openDecision(p, i) {
+  if (!requireAwake()) return;
   const m = p.missions[i];
   $("#decisionStatus").textContent = m[0];
   $("#decisionTitle").textContent = m[1];
@@ -1697,6 +2133,7 @@ function guideAnswer(p, i) {
   $("#guideModal").classList.remove("hidden");
 }
 $("#goToBtn").onclick = () => {
+  if (!requireAwake()) return;
   const p = nextOpenProject();
   if (p) goToProject(p);
   else {
@@ -1705,6 +2142,7 @@ $("#goToBtn").onclick = () => {
   }
 };
 $("#guideBtn").onclick = () => {
+  if (!requireAwake()) return;
   useHelp(
     nearest
       ? "المشروع اللي واقفة جنبه مش محتاج بطولة… محتاج قرار صح ومصدر بيانات محترم. افتحي المهمة وأنا أقولك منين تؤكل الكتف."
@@ -1727,7 +2165,9 @@ $("#collapseProject").onclick = () => {
   button.setAttribute("aria-expanded", String(!compact));
 };
 $("#interactBtn").onclick = () =>
-  nearest
+  !requireAwake()
+    ? null
+    : nearest
     ? openProject(nearest)
     : nextOpenProject()
       ? goToProject(nextOpenProject())
@@ -1738,14 +2178,17 @@ $("#closeDrawer").onclick = () => $("#drawer").classList.remove("open");
 $$("[data-speed]").forEach(
   (b) =>
     (b.onclick = () => {
+      if (+b.dataset.speed > 0 && !requireAwake()) return;
       state.speed = +b.dataset.speed;
       $$("[data-speed]").forEach((x) =>
         x.classList.toggle("selected", x === b),
       );
       save();
+      toast(state.speed ? `Time speed set to ${state.speed}×` : "Time paused");
     }),
 );
 function runSimAction(action) {
+  if (!requireAwake()) return;
   const result = applySimAction(state, action);
   state = result.state;
   updateHUD();
@@ -1754,10 +2197,105 @@ function runSimAction(action) {
   $("#drawer").classList.remove("open");
   toast(`${action[0].toUpperCase()}${action.slice(1)} action complete ✓`);
 }
-$("#teaBtn").onclick = () => runSimAction("tea");
+function requireAwake() {
+  if (!isBedtime(state.hour)) return true;
+  if (state.nightSocial) {
+    toast("Management is closed. Food and conversations only until sleep.");
+    return false;
+  }
+  openBedtimeGate();
+  toast("It is 21:00. Time to sleep.");
+  return false;
+}
+function openBedtimeGate() {
+  if (gameFinished) return;
+  if (state.day >= 30) {
+    finishGame(false);
+    return;
+  }
+  state.hour = state.hour >= 21 ? 21 : state.hour;
+  state.speed = 0;
+  state.nightSocial = false;
+  document.body.classList.remove("night-social-mode");
+  $("#projectSheet").classList.remove("open");
+  $("#drawer").classList.remove("open");
+  $("#nightSocialDock").classList.add("hidden");
+  $("#wellbeingPrompt")?.classList.add("hidden");
+  $("#bedtimeGate").classList.remove("hidden");
+  save();
+  updateHUD();
+}
+function wakeToMorning() {
+  state = sleepUntilMorning(state);
+  $("#bedtimeGate").classList.add("hidden");
+  $("#nightSocialDock").classList.add("hidden");
+  document.body.classList.remove("night-social-mode");
+  $$("[data-speed]").forEach((button) =>
+    button.classList.toggle("selected", button.dataset.speed === "1"),
+  );
+  save();
+  updateHUD();
+  toast(`Good morning. Day ${state.day} begins at 06:00.`);
+  showThought("Eng. Ola, new day, restored energy. Now choose the next controlled action.", 4800);
+}
+$("#sleepUntilMorning").onclick = wakeToMorning;
+$("#nightSleepNow").onclick = wakeToMorning;
+$("#goNightFoodCourt").onclick = () => {
+  state.nightSocial = true;
+  state.speed = 0;
+  $("#bedtimeGate").classList.add("hidden");
+  $("#projectSheet").classList.remove("open");
+  $("#nightSocialDock").classList.remove("hidden");
+  document.body.classList.add("night-social-mode");
+  guidedProject = null;
+  nightFoodTravel = true;
+  walkTarget.set(35, 0, 32.5);
+  hasWalkTarget = true;
+  drawNavigationLine(walkTarget);
+  $("#drawer").classList.remove("open");
+  save();
+  updateHUD();
+  showThought("Eng. Ola, شعبيات لبيب is open. Tonight is for food, warm conversation, and rest—not management fields.", 6000);
+  toast("GO TO شعبيات لبيب · night social mode");
+};
+$("#coffeeBtn").onclick = () => runSimAction("coffee");
 $("#restBtn").onclick = () => runSimAction("rest");
 $("#teamBtn").onclick = () => runSimAction("team");
 $("#siteBtn").onclick = () => runSimAction("site");
+function runFoodAction(food) {
+  if (!isBedtime(state.hour)) {
+    runSimAction(`food-${food}`);
+    return;
+  }
+  if (!state.nightSocial) {
+    openBedtimeGate();
+    return;
+  }
+  const result = applySimAction(state, `food-${food}`);
+  state = result.state;
+  state.hour = 21;
+  state.speed = 0;
+  state.nightSocial = true;
+  updateHUD();
+  save();
+  const nightLines = {
+    pizza: "Pizza, snowfall, and a quiet night at شعبيات لبيب. 🍕",
+    burger: "A warm burger break while the city slows down. 🍔",
+    tameez: "تميس دافئ وسوالف هادية قبل النوم. 🫓",
+    shaabiyat: "شعبيات لبيب جمعت اللمة والضحكة قبل النوم. 🍲",
+    karak: "شاي كرك دافئ، سوالف بحرينية، وليلة أهدى. 🫖",
+  };
+  playSimAction(`food-${food}`, nightLines[food] || result.line);
+}
+$$('[data-food]').forEach((button) => {
+  button.onclick = () => runFoodAction(button.dataset.food);
+});
+$("#waterBtn").onclick = drinkWater;
+$("#wellbeingPrompt").onclick = drinkWater;
+$("#quoteNext").onclick = () => {
+  wellbeingIndex = (wellbeingIndex + 1) % WELLBEING_WORDS.length;
+  renderWellbeingQuote();
+};
 $("#centerBtn").onclick = () => {
   camYaw = 0.65;
   camPitch = 0.75;
@@ -1953,5 +2491,6 @@ $("#restartStory").onclick = () => {
 };
 
 setupMusic();
+renderWellbeingQuote();
 renderStory();
 updateHUD();

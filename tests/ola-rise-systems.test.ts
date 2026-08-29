@@ -8,6 +8,9 @@ import {
   moodFor,
   normalizeGameState,
   projectIsControlled,
+  isBedtime,
+  sleepUntilMorning,
+  timePhaseFor,
 } from "../public/ola-rise/systems.js";
 import { buildLiveProject, loadLiveGameProjects } from "../public/ola-rise/live-data.js";
 
@@ -48,21 +51,53 @@ const julyNormalized = {
   data_quality: [{ severity: "warning", message: "One controlled warning" }],
 };
 
-test("legacy saves gain all Sims needs and tea visibly changes the state", () => {
+test("legacy saves gain all Sims needs and coffee visibly changes the state", () => {
   const initial = normalizeGameState({ energy: 40, patience: 50, hour: 23.9 });
   assert.equal(initial.social, 82);
   assert.equal(initial.fun, 76);
-  const result = applySimAction(initial, "tea");
+  const result = applySimAction(initial, "coffee");
   assert.equal(result.state.energy, 62);
   assert.equal(result.state.patience, 62);
-  assert.equal(result.state.teaServed, 1);
+  assert.equal(result.state.coffeeServed, 1);
   assert.equal(result.state.day, 2);
-  assert.match(result.line, /Tea first/);
+  assert.match(result.line, /Coffee first/);
+});
+
+test("food court choices restore needs and advance time without inventing project data", () => {
+  const hungry = normalizeGameState({ energy: 35, fun: 30, social: 40, hour: 12 });
+  const pizza = applySimAction(hungry, "food-pizza");
+  assert.equal(pizza.state.energy, 51);
+  assert.equal(pizza.state.fun, 46);
+  assert.equal(pizza.state.hour, 12.5);
+  assert.equal(pizza.state.mealsServed, 1);
+  const karak = applySimAction(hungry, "food-karak");
+  assert.equal(karak.state.patience, 100);
+  assert.equal(karak.state.social, 48);
+  assert.match(karak.line, /شاي كرك/);
 });
 
 test("mood reflects the weakest needs rather than fabricating success", () => {
   assert.equal(moodFor(normalizeGameState({ energy: 10 })).tone, "critical");
   assert.equal(moodFor(normalizeGameState({ energy: 100, focus: 100, patience: 100, social: 100, fun: 100 })).tone, "excellent");
+});
+
+test("the real day path locks work at 21:00 and sleep returns at 06:00", () => {
+  assert.equal(timePhaseFor(6).label, "Morning");
+  assert.equal(timePhaseFor(12).label, "Afternoon");
+  assert.equal(timePhaseFor(17).label, "Evening");
+  assert.equal(timePhaseFor(20.99).label, "Evening");
+  assert.equal(timePhaseFor(21).label, "Night");
+  assert.equal(timePhaseFor(5.99).label, "Night");
+  assert.equal(isBedtime(20.99), false);
+  assert.equal(isBedtime(21), true);
+  const rested = sleepUntilMorning(normalizeGameState({ day: 4, hour: 21, energy: 8, focus: 20 }));
+  assert.equal(rested.day, 5);
+  assert.equal(rested.hour, 6);
+  assert.equal(rested.energy, 100);
+  assert.equal(rested.speed, 1);
+  assert.equal(rested.nightSocial, false);
+  assert.equal(normalizeGameState({ speed: 2 }).speed, 2);
+  assert.equal(normalizeGameState({ speed: 4 }).speed, 4);
 });
 
 test("every question has an Eng. Ola evidence-based thought hint", () => {

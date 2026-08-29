@@ -61,7 +61,7 @@
             <i><span id="campaignProgressBar"></span></i>
           </div>
           <div class="clock">
-            <b id="dayLabel">Day 1/30</b><span id="timeLabel">08:00</span>
+            <b id="dayLabel">Day 1/30</b><span id="timeLabel">08:00</span><small id="timePhase">Morning</small>
           </div>
           <div id="moodLabel" class="mood-chip good">Focused &amp; formidable</div>
           <button id="menuBtn" class="icon-btn">☰</button>
@@ -109,6 +109,10 @@
           <i></i><i></i><i></i>
         </div>
         <div id="actionFx" class="action-fx hidden" aria-live="polite"></div>
+        <div id="ambientConversations" class="ambient-conversations" aria-live="polite"></div>
+        <button id="wellbeingPrompt" class="wellbeing-prompt hidden" type="button">
+          <span>💧</span><div><small>SELF-CARE CHECK</small><b>Water time, Eng. Ola.</b></div>
+        </button>
 
         <div id="worldLabels"></div>
         <div id="toast" class="toast"></div>
@@ -136,20 +140,39 @@
             <b>OLA CONTROL</b
             ><button id="closeDrawer" class="icon-btn">×</button>
           </div>
-          <div class="grid2">
+          <div class="grid2 management-control">
             <button data-speed="0">❚❚ Pause</button
             ><button data-speed="1" class="selected">▶ 1×</button>
             <button data-speed="2">▶▶ 2×</button
             ><button data-speed="4">▶▶▶ 4×</button>
           </div>
-          <h3>SIM ACTIONS</h3>
-          <div class="grid2">
-            <button id="teaBtn">☕ Brew Egyptian tea</button
+          <h3 class="management-control">SIM ACTIONS</h3>
+          <div class="grid2 management-control">
+            <button id="coffeeBtn">☕ Brew Egyptian coffee</button
             ><button id="restBtn">🛋 Rest 6 hours</button>
             <button id="teamBtn">👥 Call team huddle</button
             ><button id="siteBtn">🏗 Walk the live site</button>
           </div>
-          <div class="sims-note">Every action changes visible needs, advances game time, plays in the 3D world, and saves automatically.</div>
+          <div class="sims-note management-control">Every action changes visible needs, advances game time, plays in the 3D world, and saves automatically.</div>
+          <h3>FOOD COURT · شعبيات لبيب</h3>
+          <div class="food-menu">
+            <button data-food="pizza">🍕 Pizza</button>
+            <button data-food="burger">🍔 Burger</button>
+            <button data-food="tameez">🫓 تميس · Tameez</button>
+            <button data-food="shaabiyat">🍲 شعبيات</button>
+            <button data-food="karak">🫖 شاي كرك</button>
+          </div>
+          <div class="sims-note">Food restores selected needs and uses game time. At 21:00, شعبيات لبيب becomes the only open destination before sleep.</div>
+          <h3>SELF CARE</h3>
+          <div class="wellbeing-panel">
+            <div class="wellbeing-actions">
+              <button id="waterBtn" type="button">💧 Drink water</button>
+              <button id="quoteNext" type="button">↻ New reflection</button>
+            </div>
+            <blockquote id="wellbeingQuote"></blockquote>
+            <small id="wellbeingAuthor"></small>
+            <p>Small care can support a hard moment. If low mood feels persistent or unsafe, contact someone you trust or a qualified professional.</p>
+          </div>
           <h3>ATMOSPHERE</h3>
           <div class="music-player" aria-label="Game music controls">
             <button id="musicToggle" type="button">▶ Play music</button>
@@ -161,8 +184,8 @@
           </div>
           <div id="musicTrack" class="music-track">The xx · Intro</div>
           <div class="sims-note">Windows volume-up/down keys, the controls above, and zero volume all work. Music starts after the story entry click.</div>
-          <h3>TROPHY CABINET</h3>
-          <div id="trophyShelf" class="trophy-shelf"></div>
+          <h3 class="management-control">TROPHY CABINET</h3>
+          <div id="trophyShelf" class="trophy-shelf management-control"></div>
           <h3>VIEW</h3>
           <div class="grid2">
             <button id="centerBtn">⌖ Center Ola</button
@@ -243,6 +266,20 @@
               <button id="guideClose" class="primary full">تمام</button>
             </div>
           </div>
+        </section>
+        <section id="bedtimeGate" class="modal hidden" aria-modal="true" role="dialog">
+          <div class="bedtime-card glass">
+            <div class="moon-mark">☾</div>
+            <div class="kicker">NIGHT ROUTINE · 21:00</div>
+            <h2>Management is closed for the night.</h2>
+            <p>No project decisions are allowed after 21:00. Ola can visit شعبيات لبيب for food and conversation, or sleep now and return at 06:00.</p>
+            <button id="goNightFoodCourt" class="gold full">GO TO شعبيات لبيب →</button>
+            <button id="sleepUntilMorning" class="primary full">Sleep until 06:00 →</button>
+          </div>
+        </section>
+        <section id="nightSocialDock" class="night-social-dock hidden glass">
+          <div><small>NIGHT SOCIAL MODE · 21:00</small><b>شعبيات لبيب</b><span>Management fields are closed. Food and conversations only.</span></div>
+          <button id="nightSleepNow" class="primary">Sleep until 06:00 →</button>
         </section>
       </section>
 
