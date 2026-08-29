@@ -1,9 +1,11 @@
-const CACHE = "ola-rise-v5-sims-3d";
+const CACHE = "ola-rise-v7-live-sims-academy";
 const CORE = [
   "./",
   "./index.html",
   "./style.css",
   "./game.js",
+  "./systems.js",
+  "./live-data.js",
   "./manifest.webmanifest",
   "./assets/layer_1.jpg",
   "./assets/layer_2.jpg",
@@ -23,7 +25,12 @@ self.addEventListener("activate", (e) =>
       ),
   ),
 );
-self.addEventListener("fetch", (e) =>
+self.addEventListener("fetch", (e) => {
+  const url = new URL(e.request.url);
+  if (url.pathname.includes("/generated/")) {
+    e.respondWith(fetch(e.request, { cache: "no-store" }));
+    return;
+  }
   e.respondWith(
     caches.match(e.request).then(
       (r) =>
@@ -38,5 +45,5 @@ self.addEventListener("fetch", (e) =>
           })
           .catch(() => r),
     ),
-  ),
-);
+  );
+});

@@ -5,7 +5,7 @@ import { useEffect } from "react";
 export const OLA_RISE_KEY_SEQUENCE = "654123";
 
 export type OlaRiseKnockState = {
-  stage: 0 | 1 | 2 | 3 | 4 | 5;
+  stage: 0 | 1 | 2 | 3 | 4;
   lastTapAt: number;
   burstStartedAt: number;
 };
@@ -13,6 +13,8 @@ export type OlaRiseKnockState = {
 export const OLA_RISE_KNOCK = {
   quickTapMaximumMs: 450,
   tripleTapMaximumMs: 850,
+  firstBurstTapCount: 2,
+  secondBurstTapCount: 3,
   pauseMinimumMs: 950,
   pauseMaximumMs: 2600,
 } as const;
@@ -43,29 +45,20 @@ export function advanceOlaRiseKnock(
   }
   if (current.stage === 2) {
     if (
-      elapsed <= OLA_RISE_KNOCK.quickTapMaximumMs &&
-      now - current.burstStartedAt <= OLA_RISE_KNOCK.tripleTapMaximumMs
+      elapsed >= OLA_RISE_KNOCK.pauseMinimumMs &&
+      elapsed <= OLA_RISE_KNOCK.pauseMaximumMs
     ) {
       return {
-        state: { ...current, stage: 3, lastTapAt: now },
+        state: { stage: 3, lastTapAt: now, burstStartedAt: now },
         complete: false,
       };
     }
     return restart();
   }
   if (current.stage === 3) {
-    if (elapsed >= OLA_RISE_KNOCK.pauseMinimumMs && elapsed <= OLA_RISE_KNOCK.pauseMaximumMs) {
-      return {
-        state: { stage: 4, lastTapAt: now, burstStartedAt: now },
-        complete: false,
-      };
-    }
-    return restart();
-  }
-  if (current.stage === 4) {
     if (elapsed <= OLA_RISE_KNOCK.quickTapMaximumMs) {
       return {
-        state: { ...current, stage: 5, lastTapAt: now },
+        state: { ...current, stage: 4, lastTapAt: now },
         complete: false,
       };
     }

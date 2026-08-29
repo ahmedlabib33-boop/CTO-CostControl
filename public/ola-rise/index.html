@@ -59,21 +59,30 @@
           <div class="clock">
             <b id="dayLabel">Day 1/30</b><span id="timeLabel">08:00</span>
           </div>
+          <div id="moodLabel" class="mood-chip good">Focused &amp; formidable</div>
           <button id="menuBtn" class="icon-btn">☰</button>
         </header>
 
         <div class="status-strip glass">
-          <div>
+          <div title="Energy">
             <span>⚡</span><i><b id="energyBar"></b></i
-            ><em id="energyValue">100</em>
+            ><em id="energyValue">100</em><small>Energy</small>
           </div>
-          <div>
+          <div title="Focus">
             <span>◎</span><i><b id="focusBar"></b></i
-            ><em id="focusValue">100</em>
+            ><em id="focusValue">100</em><small>Focus</small>
           </div>
-          <div>
+          <div title="Patience">
             <span>♡</span><i><b id="patienceBar"></b></i
-            ><em id="patienceValue">100</em>
+            ><em id="patienceValue">100</em><small>Patience</small>
+          </div>
+          <div title="Social">
+            <span>♟</span><i><b id="socialBar"></b></i
+            ><em id="socialValue">82</em><small>Social</small>
+          </div>
+          <div title="Fun">
+            <span>✦</span><i><b id="funBar"></b></i
+            ><em id="funValue">76</em><small>Fun</small>
           </div>
         </div>
 
@@ -87,6 +96,15 @@
           </div>
           <button id="goToBtn" class="go-to">GO TO PROJECT →</button>
         </div>
+
+        <div id="stageRail" class="stage-rail glass" aria-label="Game stages"></div>
+
+        <div id="thoughtBubble" class="thought-bubble hidden" role="status">
+          <small>ENG. OLA · THINK ABOUT</small>
+          <b id="thoughtText"></b>
+          <i></i><i></i><i></i>
+        </div>
+        <div id="actionFx" class="action-fx hidden" aria-live="polite"></div>
 
         <div id="worldLabels"></div>
         <div id="toast" class="toast"></div>
@@ -122,11 +140,14 @@
           </div>
           <h3>SIM ACTIONS</h3>
           <div class="grid2">
-            <button id="teaBtn">☕ Egyptian tea</button
-            ><button id="restBtn">🛋 Rest 6h</button>
-            <button id="teamBtn">👥 Team huddle</button
-            ><button id="siteBtn">🏗 Site walk</button>
+            <button id="teaBtn">☕ Brew Egyptian tea</button
+            ><button id="restBtn">🛋 Rest 6 hours</button>
+            <button id="teamBtn">👥 Call team huddle</button
+            ><button id="siteBtn">🏗 Walk the live site</button>
           </div>
+          <div class="sims-note">Every action changes visible needs, advances game time, plays in the 3D world, and saves automatically.</div>
+          <h3>TROPHY CABINET</h3>
+          <div id="trophyShelf" class="trophy-shelf"></div>
           <h3>VIEW</h3>
           <div class="grid2">
             <button id="centerBtn">⌖ Center Ola</button
@@ -158,10 +179,39 @@
               <b>Evidence</b>
               <p id="decisionEvidence"></p>
             </div>
+            <div class="hint-card">
+              <b>Eng. Ola, think about…</b>
+              <p id="decisionHint"></p>
+            </div>
             <div id="decisionOptions" class="decision-options"></div>
             <button id="decisionGuide" class="gold full">
               ✦ Ask the Guide for the answer
             </button>
+          </div>
+        </section>
+
+        <section id="examSheet" class="modal hidden">
+          <div class="exam-box glass">
+            <div class="exam-trophy">🏆</div>
+            <div class="kicker" id="examStageLabel">STAGE CHECKPOINT</div>
+            <h2 id="examTitle">Management Mini Exam</h2>
+            <p id="examIntro" class="muted"></p>
+            <div class="exam-progress"><b id="examProgressBar"></b></div>
+            <small id="examCounter"></small>
+            <h3 id="examQuestion"></h3>
+            <div class="exam-evidence"><b>Evidence reminder</b><p id="examEvidence"></p></div>
+            <div id="examOptions" class="decision-options"></div>
+            <button id="examHintBtn" class="gold full">💭 Eng. Ola hint</button>
+          </div>
+        </section>
+
+        <section id="trophyModal" class="modal hidden">
+          <div class="trophy-card glass">
+            <div class="trophy-burst"><span>✦</span><b>🏆</b><span>✦</span></div>
+            <div class="kicker">STAGE CONTROLLED</div>
+            <h2 id="trophyTitle">Management Trophy Earned</h2>
+            <p id="trophyText"></p>
+            <button id="trophyContinue" class="primary full">Continue to the next stage →</button>
           </div>
         </section>
 

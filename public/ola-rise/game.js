@@ -1,7 +1,26 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js";
+import {
+  NEED_KEYS,
+  applySimAction,
+  buildStageExam,
+  decisionHint,
+  moodFor,
+  normalizeGameState,
+  projectIsControlled,
+  trophySummary,
+} from "./systems.js";
+import { loadLiveGameProjects } from "./live-data.js";
 
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
+const escapeHtml = (value) =>
+  String(value ?? "").replace(
+    /[&<>'"]/g,
+    (character) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" })[
+        character
+      ],
+  );
 const screens = ["story", "game", "success", "ending", "blackout"];
 function show(id) {
   screens.forEach((x) => $("#" + x)?.classList.toggle("active", x === id));
@@ -43,13 +62,26 @@ function renderStory() {
   $("#storyBody").textContent = s.b;
   $("#storyDialogue").textContent = s.d;
 }
-$("#storyNext").onclick = () => {
+$("#storyNext").onclick = async () => {
   if (storyIndex < story.length - 1) {
     storyIndex++;
     renderStory();
   } else {
-    show("game");
-    init3D();
+    const button = $("#storyNext");
+    button.disabled = true;
+    button.textContent = "Reading the current app snapshot…";
+    try {
+      await ensureLiveProjects();
+      show("game");
+      init3D();
+    } catch (error) {
+      console.error(error);
+      $("#storyKicker").textContent = "LIVE DATA REQUIRED";
+      $("#storyTitle").textContent = "The current game stage could not be built";
+      $("#storyBody").textContent = `${error.message} No older project questions were substituted.`;
+      button.disabled = false;
+      button.textContent = "Retry live reading";
+    }
   }
 };
 
@@ -272,35 +304,103 @@ const PROJECTS = [
   },
 ];
 
-let state = JSON.parse(localStorage.getItem("ola3d-v3") || "null") || {
-  day: 1,
-  hour: 8,
-  energy: 100,
-  focus: 100,
-  patience: 100,
-  help: 4,
-  bonus: false,
-  speed: 1,
-  resolved: {},
-  started: false,
-};
+let liveGeneratedAt = null,
+  liveRegistryFingerprint = null,
+  stateStorageKey = "ola3d-live:loading";
+function signatureKey(signature) {
+  let hash = 2166136261;
+  for (const character of signature) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16);
+}
+async function ensureLiveProjects() {
+  const live = await loadLiveGameProjects();
+  PROJECTS.splice(0, PROJECTS.length, ...live.projects);
+  liveGeneratedAt = live.generatedAt;
+  liveRegistryFingerprint = live.registryFingerprint;
+  stateStorageKey = `ola3d-live:${signatureKey(live.signature)}`;
+  state = normalizeGameState(
+    JSON.parse(localStorage.getItem(stateStorageKey) || "null") || {},
+  );
+  $("#phaseLabel").textContent = `${PROJECTS.length} live stage${PROJECTS.length === 1 ? "" : "s"} · ${PROJECTS.map((project) => project.period).filter(Boolean).join(" · ")}`;
+}
+
+let state = normalizeGameState({});
 function save() {
-  localStorage.setItem("ola3d-v3", JSON.stringify(state));
-  toast("Saved");
+  localStorage.setItem(stateStorageKey, JSON.stringify(state));
+}
+function saveWithToast() {
+  save();
+  toast("Progress saved locally ✓");
 }
 function updateHUD() {
   $("#dayLabel").textContent = `Day ${state.day}/30`;
   $("#timeLabel").textContent =
     String(Math.floor(state.hour)).padStart(2, "0") + ":00";
-  [
-    ["energy", "#energyBar", "#energyValue"],
-    ["focus", "#focusBar", "#focusValue"],
-    ["patience", "#patienceBar", "#patienceValue"],
-  ].forEach(([k, b, v]) => {
+  NEED_KEYS.forEach((k) => {
+    const b = `#${k}Bar`,
+      v = `#${k}Value`;
     $(b).style.width = state[k] + "%";
+    $(b).dataset.level = state[k] < 25 ? "critical" : state[k] < 50 ? "caution" : "good";
     $(v).textContent = Math.round(state[k]);
   });
   $("#helpCount").textContent = state.help;
+  const mood = moodFor(state),
+    moodLabel = $("#moodLabel");
+  moodLabel.textContent = mood.label;
+  moodLabel.className = `mood-chip ${mood.tone}`;
+  if (ola?.userData?.plumbob) {
+    const color = mood.tone === "critical" ? 0xff4d5e : mood.tone === "caution" ? 0xffbd50 : 0x58f29b;
+    ola.userData.plumbob.material.color.setHex(color);
+    ola.userData.plumbob.material.emissive.setHex(color);
+  }
+  renderStageRail();
+  renderTrophyShelf();
+}
+
+let lastStageRender = "",
+  lastTrophyRender = "";
+function renderStageRail() {
+  const rail = $("#stageRail");
+  if (!rail || !PROJECTS.length) return;
+  const signature = PROJECTS.map((project) => `${project.id}:${projectIsControlled(project, state.resolved[project.id] || {})}:${Boolean(state.trophies[project.id])}`).join("|");
+  if (signature === lastStageRender) return;
+  lastStageRender = signature;
+  rail.innerHTML = PROJECTS.map((project, index) => {
+    const controlled = projectIsControlled(project, state.resolved[project.id] || {}),
+      trophy = Boolean(state.trophies[project.id]),
+      stateClass = trophy ? "won" : controlled ? "exam" : "active";
+    return `<button class="stage-node ${stateClass}" data-stage-project="${escapeHtml(project.id)}" title="${escapeHtml(`${project.name} · ${project.period}`)}"><span>${trophy ? "🏆" : controlled ? "✎" : index + 1}</span><small>${escapeHtml(project.name)}</small></button>${index < PROJECTS.length - 1 ? '<i class="stage-link"></i>' : ""}`;
+  }).join("");
+  rail.onclick = (event) => {
+    const button = event.target.closest("[data-stage-project]");
+    if (!button || !rail.contains(button)) return;
+    const project = PROJECTS.find((item) => item.id === button.dataset.stageProject);
+    if (!project) return;
+    if (projectIsControlled(project, state.resolved[project.id] || {}) && !state.trophies[project.id]) openStageExam(project);
+    else goToProject(project);
+  };
+}
+
+function renderTrophyShelf() {
+  const shelf = $("#trophyShelf");
+  if (!shelf || !PROJECTS.length) return;
+  const renderSignature = PROJECTS.map((project) => `${project.id}:${Boolean(state.trophies[project.id])}`).join("|");
+  if (renderSignature === lastTrophyRender) return;
+  lastTrophyRender = renderSignature;
+  const summary = trophySummary(PROJECTS, state.trophies);
+  shelf.innerHTML = `<div class="trophy-count"><b>${summary.earned}/${summary.total}</b><small>stage trophies</small></div>${PROJECTS.map((project) => `<button data-trophy-project="${escapeHtml(project.id)}" class="${state.trophies[project.id] ? "earned" : "locked"}"><span>${state.trophies[project.id] ? "🏆" : "◇"}</span><small>${escapeHtml(project.name)}</small></button>`).join("")}`;
+  $$('[data-trophy-project]').forEach((button) => {
+    button.onclick = () => {
+      const project = PROJECTS.find((item) => item.id === button.dataset.trophyProject);
+      if (!project) return;
+      if (state.trophies[project.id]) showThought(`Trophy secured for ${project.name}. The next snapshot will create a fresh challenge.`);
+      else if (projectIsControlled(project, state.resolved[project.id] || {})) openStageExam(project);
+      else showThought(`Eng. Ola, control every live question for ${project.name} before the checkpoint exam.`);
+    };
+  });
 }
 
 let scene,
@@ -322,7 +422,15 @@ let scene,
   skyLight = null,
   worldClock = 0,
   quality = "auto",
-  running = false;
+  running = false,
+  fountainWater = null,
+  fountainJet = null,
+  starField = null,
+  cloudGroups = [],
+  ambientActors = [],
+  trophyMeshes = new Map(),
+  activeAction = null,
+  thoughtPersistent = false;
 const move = { x: 0, y: 0 },
   walkTarget = new THREE.Vector3();
 let hasWalkTarget = false;
@@ -693,6 +801,94 @@ function road(x, z, width, depth, rotation = 0) {
   stripe.rotation.y = rotation;
   scene.add(stripe);
 }
+function cloud(x, y, z, scale, speed) {
+  const group = new THREE.Group(),
+    material = new THREE.MeshStandardMaterial({
+      color: 0xf8fbff,
+      roughness: 1,
+      transparent: true,
+      opacity: 0.76,
+      depthWrite: false,
+    });
+  [
+    [-1.1, 0, 0, 0.9],
+    [0, 0.24, 0, 1.3],
+    [1.15, 0.02, 0, 0.82],
+    [0.45, -0.12, 0.35, 0.78],
+  ].forEach(([cx, cy, cz, size]) => {
+    const puff = new THREE.Mesh(new THREE.SphereGeometry(size, 14, 10), material);
+    puff.position.set(cx, cy, cz);
+    group.add(puff);
+  });
+  group.position.set(x, y, z);
+  group.scale.setScalar(scale);
+  group.userData.speed = speed;
+  scene.add(group);
+  cloudGroups.push(group);
+}
+function stars() {
+  const geometry = new THREE.BufferGeometry(),
+    points = [];
+  for (let i = 0; i < 340; i++) {
+    const radius = THREE.MathUtils.randFloat(58, 100),
+      angle = THREE.MathUtils.randFloat(0, Math.PI * 2),
+      height = THREE.MathUtils.randFloat(18, 62);
+    points.push(Math.cos(angle) * radius, height, Math.sin(angle) * radius);
+  }
+  geometry.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
+  starField = new THREE.Points(
+    geometry,
+    new THREE.PointsMaterial({
+      color: 0xfff2c7,
+      size: 0.22,
+      transparent: true,
+      opacity: 0,
+      sizeAttenuation: true,
+    }),
+  );
+  scene.add(starField);
+}
+function cafeNook() {
+  const group = new THREE.Group(),
+    table = cylinder(0.92, 0.82, 0.12, 0x815a37, 24),
+    leg = cylinder(0.1, 0.18, 1.0, 0x44352a, 12),
+    tray = cylinder(0.42, 0.42, 0.045, 0xc7a650, 24),
+    cup = cylinder(0.19, 0.15, 0.32, 0xf4ead5, 18);
+  table.position.y = 1.05;
+  leg.position.y = 0.52;
+  tray.position.set(0, 1.14, 0);
+  cup.position.set(0, 1.34, 0);
+  const tea = cylinder(0.155, 0.155, 0.012, 0x9a481f, 18);
+  tea.position.set(0, 1.51, 0);
+  group.add(table, leg, tray, cup, tea);
+  [-1, 1].forEach((side) => {
+    const seat = box(0.72, 0.12, 0.72, 0x38675b),
+      base = cylinder(0.09, 0.14, 0.62, 0x293b39, 10);
+    seat.position.set(side * 1.25, 0.65, 0);
+    base.position.set(side * 1.25, 0.31, 0);
+    group.add(seat, base);
+  });
+  const sign = textSprite("TEA + FORECAST", "#f6d98c");
+  sign.scale.set(3.7, 0.92, 1);
+  sign.position.set(0, 2.25, -0.2);
+  group.add(sign);
+  group.position.set(-5.5, 0, 7.5);
+  group.rotation.y = -0.4;
+  scene.add(group);
+}
+function ambientActor(x, z, color) {
+  const actor = new THREE.Group(),
+    body = cylinder(0.26, 0.34, 1.25, color, 12),
+    head = sphere(0.26, 0xc99071, 14, 10);
+  body.position.y = 0.95;
+  head.position.y = 1.78;
+  actor.add(body, head);
+  actor.position.set(x, 0, z);
+  actor.userData.origin = new THREE.Vector3(x, 0, z);
+  actor.userData.phase = Math.random() * Math.PI * 2;
+  scene.add(actor);
+  ambientActors.push(actor);
+}
 function environment() {
   ground = new THREE.Mesh(new THREE.PlaneGeometry(160, 160), mat(0x33463d));
   ground.rotation.x = -Math.PI / 2;
@@ -713,7 +909,7 @@ function environment() {
   );
   fountainPool.position.set(0, 0.24, 1.5);
   scene.add(fountainPool);
-  const fountainWater = new THREE.Mesh(
+  fountainWater = new THREE.Mesh(
     new THREE.CylinderGeometry(1.78, 1.78, 0.12, 48),
     new THREE.MeshStandardMaterial({
       color: 0x3f9eb6,
@@ -725,7 +921,7 @@ function environment() {
   );
   fountainWater.position.set(0, 0.51, 1.5);
   scene.add(fountainWater);
-  const fountainJet = new THREE.Mesh(
+  fountainJet = new THREE.Mesh(
     new THREE.CylinderGeometry(0.055, 0.13, 2.2, 12),
     new THREE.MeshBasicMaterial({
       color: 0xa8efff,
@@ -781,6 +977,163 @@ function environment() {
     streetLight(i * 4.2, -4.6);
     if (i % 2 === 0) streetLight(i * 4.2, 5.2);
   }
+  stars();
+  cloud(-22, 20, -18, 2.4, 0.42);
+  cloud(12, 24, -30, 3.1, 0.28);
+  cloud(30, 18, 5, 2.0, 0.5);
+  cafeNook();
+  ambientActor(-4.2, 0.5, 0x4f7891);
+  ambientActor(5.1, 4.8, 0x8d5e72);
+  ambientActor(1.6, 10.5, 0x6e8b59);
+}
+function createTrophy(project, index, animateIn = false) {
+  if (!scene || trophyMeshes.has(project.id)) return trophyMeshes.get(project.id);
+  const group = new THREE.Group(),
+    gold = new THREE.MeshStandardMaterial({
+      color: 0xf4ca68,
+      emissive: 0x6f4511,
+      emissiveIntensity: 0.55,
+      metalness: 0.86,
+      roughness: 0.2,
+    }),
+    cup = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.22, 0.52, 20, 1, true), gold),
+    stem = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.1, 0.42, 14), gold),
+    base = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.4, 0.18, 18), mat(0x26212a, 0.4, 0.35));
+  cup.position.y = 0.92;
+  stem.position.y = 0.48;
+  base.position.y = 0.1;
+  [-1, 1].forEach((side) => {
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.3, 0.055, 8, 18, Math.PI), gold);
+    handle.position.set(side * 0.36, 0.92, 0);
+    handle.rotation.z = side > 0 ? -Math.PI / 2 : Math.PI / 2;
+    group.add(handle);
+  });
+  const star = new THREE.Mesh(new THREE.OctahedronGeometry(0.17), emissive(0xffdc7d, 1.6));
+  star.position.y = 1.35;
+  group.add(cup, stem, base, star);
+  const projectModel = projectMeshes.find((item) => item.userData.project.id === project.id),
+    position = projectModel?.position || new THREE.Vector3(index * 2 - 2, 0, 5);
+  group.position.copy(position).add(new THREE.Vector3(3.25, animateIn ? 8 : 0.18, 2.8));
+  group.scale.setScalar(animateIn ? 0.05 : 0.9);
+  group.userData = { projectId: project.id, targetY: 0.18, animateIn };
+  scene.add(group);
+  trophyMeshes.set(project.id, group);
+  return group;
+}
+function restoreTrophies() {
+  PROJECTS.forEach((project, index) => {
+    if (state.trophies[project.id]) createTrophy(project, index, false);
+  });
+}
+function showThought(text, duration = 6500, persistent = false) {
+  const bubble = $("#thoughtBubble");
+  if (!bubble) return;
+  clearTimeout(showThought.timer);
+  $("#thoughtText").textContent = text;
+  bubble.classList.remove("hidden");
+  thoughtPersistent = persistent;
+  if (!persistent) showThought.timer = setTimeout(hideThought, duration);
+}
+function hideThought() {
+  clearTimeout(showThought.timer);
+  thoughtPersistent = false;
+  $("#thoughtBubble")?.classList.add("hidden");
+}
+function positionThoughtBubble() {
+  const bubble = $("#thoughtBubble");
+  if (!ola || !camera || !bubble || bubble.classList.contains("hidden")) return;
+  const point = ola.position.clone().add(new THREE.Vector3(0, 5.2, 0)).project(camera),
+    x = (point.x * 0.5 + 0.5) * innerWidth,
+    y = (-point.y * 0.5 + 0.5) * innerHeight;
+  bubble.style.setProperty("--bubble-x", `${Math.max(150, Math.min(innerWidth - 150, x))}px`);
+  bubble.style.setProperty("--bubble-y", `${Math.max(205, Math.min(innerHeight - 180, y))}px`);
+}
+function actionProp(action) {
+  const prop = new THREE.Group();
+  if (action === "tea") {
+    const cup = cylinder(0.22, 0.16, 0.34, 0xf7edda, 18),
+      tea = cylinder(0.17, 0.17, 0.018, 0xa64b20, 18);
+    tea.position.y = 0.18;
+    prop.add(cup, tea);
+    for (let i = 0; i < 5; i++) {
+      const steam = sphere(0.05 + i * 0.012, 0xffffff, 8, 6);
+      steam.material.transparent = true;
+      steam.material.opacity = 0.38 - i * 0.04;
+      steam.position.set(Math.sin(i) * 0.05, 0.34 + i * 0.13, 0);
+      prop.add(steam);
+    }
+  } else if (action === "rest") {
+    const pillow = box(0.95, 0.22, 0.62, 0xe7d7bd);
+    prop.add(pillow);
+  } else if (action === "team") {
+    const board = box(1.1, 0.72, 0.08, 0x32556b);
+    board.position.y = 0.5;
+    prop.add(board);
+  } else {
+    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.43, 18, 10, 0, Math.PI * 2, 0, Math.PI / 2), mat(0xf2c33d));
+    prop.add(helmet);
+  }
+  scene.add(prop);
+  return prop;
+}
+function playSimAction(action, line) {
+  if (!scene || !ola) return;
+  if (activeAction?.prop) scene.remove(activeAction.prop);
+  const prop = actionProp(action);
+  activeAction = { action, line, prop, started: performance.now(), duration: action === "rest" ? 3600 : 3000 };
+  $("#actionFx").textContent = line;
+  $("#actionFx").classList.remove("hidden");
+  showThought(line, activeAction.duration + 600);
+  if (action === "site") {
+    const project = nextOpenProject() || PROJECTS[0];
+    if (project) goToProject(project);
+  }
+}
+function updateWorldEffects(dt) {
+  if (fountainWater) {
+    fountainWater.rotation.y += dt * 0.18;
+    fountainWater.scale.y = 1 + Math.sin(worldClock * 2.2) * 0.05;
+  }
+  if (fountainJet) fountainJet.scale.y = 0.9 + Math.sin(worldClock * 3.4) * 0.12;
+  cloudGroups.forEach((item) => {
+    item.position.x += item.userData.speed * dt;
+    if (item.position.x > 58) item.position.x = -58;
+  });
+  ambientActors.forEach((actor, index) => {
+    const phase = worldClock * 0.45 + actor.userData.phase;
+    if (activeAction?.action === "team") {
+      const angle = (index / ambientActors.length) * Math.PI * 2 + worldClock * 0.16;
+      actor.position.lerp(ola.position.clone().add(new THREE.Vector3(Math.cos(angle) * 2, 0, Math.sin(angle) * 2)), 0.06);
+      actor.lookAt(ola.position.x, actor.position.y, ola.position.z);
+    } else {
+      actor.position.x = actor.userData.origin.x + Math.cos(phase) * 1.4;
+      actor.position.z = actor.userData.origin.z + Math.sin(phase) * 0.8;
+    }
+    actor.position.y = Math.abs(Math.sin(phase * 3)) * 0.025;
+  });
+  trophyMeshes.forEach((trophy) => {
+    trophy.rotation.y += dt * 0.7;
+    if (trophy.userData.animateIn) {
+      trophy.position.y = THREE.MathUtils.lerp(trophy.position.y, trophy.userData.targetY, 0.055);
+      const scale = THREE.MathUtils.lerp(trophy.scale.x, 0.9, 0.08);
+      trophy.scale.setScalar(scale);
+      if (Math.abs(trophy.position.y - trophy.userData.targetY) < 0.05) trophy.userData.animateIn = false;
+    }
+  });
+  if (activeAction) {
+    const elapsed = performance.now() - activeAction.started,
+      anchor = ola.position.clone().add(new THREE.Vector3(activeAction.action === "tea" ? 0.72 : 0, activeAction.action === "rest" ? 1.15 : 3.0, 0.25));
+    activeAction.prop.position.copy(anchor);
+    activeAction.prop.rotation.y += dt * 1.2;
+    if (activeAction.action === "rest") ola.rotation.z = Math.sin(Math.min(1, elapsed / 700) * Math.PI / 2) * -0.22;
+    if (elapsed >= activeAction.duration) {
+      scene.remove(activeAction.prop);
+      ola.rotation.z = 0;
+      activeAction = null;
+      $("#actionFx").classList.add("hidden");
+    }
+  }
+  positionThoughtBubble();
 }
 function init3D() {
   if (running) return;
@@ -802,6 +1155,9 @@ function init3D() {
     ),
   );
   renderer.setSize(innerWidth, innerHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.12;
   renderer.shadowMap.enabled = matchMedia("(min-width:700px)").matches;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   skyLight = new THREE.HemisphereLight(0xd6f1ff, 0x62523d, 2.4);
@@ -818,8 +1174,9 @@ function init3D() {
   environment();
   PROJECTS.forEach(building);
   ola = createOla();
-  ola.position.set(0, 0, 8);
+  ola.position.set(-3.8, 0, -4.6);
   scene.add(ola);
+  restoreTrophies();
   walkTarget.copy(ola.position);
   raycaster = new THREE.Raycaster();
   clock3d = new THREE.Clock();
@@ -851,13 +1208,19 @@ function nextOpenProject() {
   return (
     PROJECTS.find((p) =>
       p.missions.some(
-        (m, i) => m[0] !== "FAVORABLE" && !(state.resolved[p.id] || {})[i],
+        (_m, i) => !(state.resolved[p.id] || {})[i],
       ),
     ) || null
   );
 }
+function nextCheckpointProject() {
+  return PROJECTS.find(
+    (project) => projectIsControlled(project, state.resolved[project.id] || {}) && !state.trophies[project.id],
+  ) || null;
+}
 function updateGoToPrompt() {
   const p = nextOpenProject(),
+    checkpoint = nextCheckpointProject(),
     button = $("#goToBtn");
   if (!button) return;
   if (p) {
@@ -865,11 +1228,14 @@ function updateGoToPrompt() {
     button.textContent = `GO TO ${p.alias.toUpperCase()} →`;
     $("#objective b").textContent =
       `Next step: go directly to ${p.alias} and open its management decision.`;
+  } else if (checkpoint) {
+    button.disabled = false;
+    button.textContent = `TAKE ${checkpoint.name.toUpperCase()} EXAM →`;
+    $("#objective b").textContent = `Live questions controlled. Pass the ${checkpoint.name} checkpoint to earn its trophy.`;
   } else {
     button.disabled = true;
-    button.textContent = "ALL STEPS CONTROLLED ✓";
-    $("#objective b").textContent =
-      "All required management decisions are controlled.";
+    button.textContent = "ALL STAGES CONTROLLED ✓";
+    $("#objective b").textContent = "All live questions and checkpoint trophies are controlled.";
   }
 }
 function goToProject(p) {
@@ -954,6 +1320,12 @@ function updateDayLight() {
   scene.fog.color.copy(sky);
   sunLight.intensity = 0.45 + daylight * 3.2;
   skyLight.intensity = 0.55 + daylight * 1.85;
+  if (starField) starField.material.opacity = THREE.MathUtils.clamp((0.48 - daylight) * 2.8, 0, 0.9);
+  cloudGroups.forEach((item) => {
+    item.children.forEach((puff) => {
+      if (puff.material) puff.material.opacity = 0.24 + daylight * 0.54;
+    });
+  });
 }
 function animate() {
   requestAnimationFrame(animate);
@@ -967,6 +1339,8 @@ function animate() {
     state.energy = Math.max(0, state.energy - dt * state.speed * 0.03);
     state.focus = Math.max(0, state.focus - dt * state.speed * 0.025);
     state.patience = Math.max(0, state.patience - dt * state.speed * 0.018);
+    state.social = Math.max(0, state.social - dt * state.speed * 0.012);
+    state.fun = Math.max(0, state.fun - dt * state.speed * 0.015);
   }
   const forward = new THREE.Vector3(-Math.cos(camYaw), 0, -Math.sin(camYaw));
   const right = new THREE.Vector3(-forward.z, 0, forward.x);
@@ -1019,6 +1393,7 @@ function animate() {
     }
   });
   animateOla(dt, characterMoving);
+  updateWorldEffects(dt);
   updateDayLight();
   cameraUpdate();
   updateHUD();
@@ -1129,13 +1504,13 @@ function openProject(p) {
   $("#projectName").textContent = p.name;
   $("#projectSource").textContent = p.source;
   $("#projectMetrics").innerHTML = Object.entries(p.metrics)
-    .map(([k, v]) => `<div class="metric"><small>${k}</small><b>${v}</b></div>`)
+    .map(([k, v]) => `<div class="metric"><small>${escapeHtml(k)}</small><b>${escapeHtml(v)}</b></div>`)
     .join("");
   const done = state.resolved[p.id] || {};
   $("#missionList").innerHTML = p.missions
     .map(
       (m, i) =>
-        `<div class="mission"><div class="dot ${m[0]}"></div><div><b>${m[1]}</b><br><small>${m[0]} · ${done[i] ? "Controlled" : "Open"}</small></div><button data-mission="${i}">${done[i] ? "✓" : "GO TO →"}</button></div>`,
+        `<div class="mission ${done[i] ? "controlled" : ""}"><div class="dot ${escapeHtml(m[0])}"></div><div><b>${escapeHtml(m[1])}</b><br><small>${escapeHtml(m[0])} · ${done[i] ? "Controlled from this snapshot" : `Live question · ${escapeHtml(p.period)}`}</small></div><button data-mission="${i}">${done[i] ? "REVIEW ✓" : "GO TO →"}</button></div>`,
     )
     .join("");
   $("#projectSheet").classList.add("open");
@@ -1148,11 +1523,17 @@ function openDecision(p, i) {
   $("#decisionStatus").textContent = m[0];
   $("#decisionTitle").textContent = m[1];
   $("#decisionReading").textContent = m[2];
-  $("#decisionEvidence").textContent = `${p.source}. ${m[3]}`;
-  $("#decisionOptions").innerHTML = m[4]
+  $("#decisionEvidence").textContent = m[6] || `${p.source}. ${m[3]}`;
+  const hint = decisionHint(p, m),
+    rotation = (i + p.id.length) % m[4].length,
+    orderedOptions = m[4].map((option, originalIndex) => ({ option, originalIndex })).slice(rotation).concat(m[4].map((option, originalIndex) => ({ option, originalIndex })).slice(0, rotation));
+  $("#decisionHint").textContent = hint;
+  document.body.classList.add("modal-question-open");
+  showThought(hint, 4200);
+  $("#decisionOptions").innerHTML = orderedOptions
     .map(
-      (o, j) =>
-        `<button data-opt="${j}">${String.fromCharCode(65 + j)}. ${o}</button>`,
+      ({ option, originalIndex }, displayIndex) =>
+        `<button data-opt="${originalIndex}">${String.fromCharCode(65 + displayIndex)}. ${escapeHtml(option)}</button>`,
     )
     .join("");
   $("#decisionSheet").classList.remove("hidden");
@@ -1164,18 +1545,24 @@ function openDecision(p, i) {
 function choose(p, i, opt) {
   state.energy = Math.max(0, state.energy - 6);
   state.focus = Math.max(0, state.focus - 8);
-  if (opt === 0) {
+  const mission = p.missions[i],
+    correctIndex = Number.isInteger(mission[5]) ? mission[5] : 0;
+  if (opt === correctIndex) {
     state.resolved[p.id] ??= {};
     state.resolved[p.id][i] = true;
     state.patience = Math.min(100, state.patience + 3);
+    state.fun = Math.min(100, state.fun + 2);
     toast("Correct management decision ✓");
+    showThought("That is the controlled decision. Tiny trophy energy activated. ✦", 3200);
     $("#decisionSheet").classList.add("hidden");
+    document.body.classList.remove("modal-question-open");
     openProject(p);
     visualReaction(p, true);
     checkWin();
   } else {
     state.patience = Math.max(0, state.patience - 10);
     toast("That decision increased exposure");
+    showThought(decisionHint(p, mission), 6500);
     visualReaction(p, false);
   }
   save();
@@ -1218,14 +1605,20 @@ function useHelp(answer) {
 }
 function guideAnswer(p, i) {
   const m = p.missions[i];
+  const correctIndex = Number.isInteger(m[5]) ? m[5] : 0;
   useHelp(
-    `بصي يا علا… الإجابة الصح من غير لف ودوران: ${m[4][0]}. واعتبري إني ما قلتش حاجة.`,
+    `بصي يا علا… الإجابة الصح من غير لف ودوران: ${m[4][correctIndex]}. واعتبري إني ما قلتش حاجة.`,
   );
+  showThought(decisionHint(p, m), 6500);
   $("#guideModal").classList.remove("hidden");
 }
 $("#goToBtn").onclick = () => {
   const p = nextOpenProject();
   if (p) goToProject(p);
+  else {
+    const checkpoint = nextCheckpointProject();
+    if (checkpoint) openStageExam(checkpoint);
+  }
 };
 $("#guideBtn").onclick = () => {
   useHelp(
@@ -1236,7 +1629,11 @@ $("#guideBtn").onclick = () => {
   $("#guideModal").classList.remove("hidden");
 };
 $("#guideClose").onclick = () => $("#guideModal").classList.add("hidden");
-$("#closeDecision").onclick = () => $("#decisionSheet").classList.add("hidden");
+$("#closeDecision").onclick = () => {
+  $("#decisionSheet").classList.add("hidden");
+  document.body.classList.remove("modal-question-open");
+  hideThought();
+};
 $("#closeProject").onclick = () => $("#projectSheet").classList.remove("open");
 $("#interactBtn").onclick = () =>
   nearest
@@ -1257,40 +1654,29 @@ $$("[data-speed]").forEach(
       save();
     }),
 );
-$("#teaBtn").onclick = () => {
-  state.energy = Math.min(100, state.energy + 18);
-  state.patience = Math.min(100, state.patience + 10);
-  toast("Tea deployed. Crisis postponed ☕");
-};
-$("#restBtn").onclick = () => {
-  state.hour += 6;
-  if (state.hour >= 24) {
-    state.hour -= 24;
-    state.day++;
-  }
-  state.energy = Math.min(100, state.energy + 45);
-  toast("Ola rested");
-};
-$("#teamBtn").onclick = () => {
-  state.focus = Math.min(100, state.focus + 16);
-  state.patience = Math.min(100, state.patience + 5);
-  toast("Team aligned");
-};
-$("#siteBtn").onclick = () => {
-  state.focus = Math.min(100, state.focus + 8);
-  state.energy = Math.max(0, state.energy - 7);
-  toast("Site reality checked");
-};
+function runSimAction(action) {
+  const result = applySimAction(state, action);
+  state = result.state;
+  updateHUD();
+  save();
+  playSimAction(action, result.line);
+  $("#drawer").classList.remove("open");
+  toast(`${action[0].toUpperCase()}${action.slice(1)} action complete ✓`);
+}
+$("#teaBtn").onclick = () => runSimAction("tea");
+$("#restBtn").onclick = () => runSimAction("rest");
+$("#teamBtn").onclick = () => runSimAction("team");
+$("#siteBtn").onclick = () => runSimAction("site");
 $("#centerBtn").onclick = () => {
   camYaw = 0.65;
   camPitch = 0.75;
   camDist = 18;
   toast("Camera centered");
 };
-$("#saveBtn").onclick = save;
+$("#saveBtn").onclick = saveWithToast;
 $("#resetBtn").onclick = () => {
-  if (confirm("Reset all game progress?")) {
-    localStorage.removeItem("ola3d-v3");
+  if (confirm("Reset progress for this exact live data snapshot? Older snapshot saves will remain separate.")) {
+    localStorage.removeItem(stateStorageKey);
     location.reload();
   }
 };
@@ -1308,19 +1694,108 @@ $("#qualityBtn").onclick = () => {
 };
 $("#fullBtn").onclick = () => document.documentElement.requestFullscreen?.();
 
+let activeExam = null;
+function openStageExam(project) {
+  const questions = buildStageExam(project, 3);
+  if (!questions.length) {
+    toast("No controlled questions are available for this checkpoint");
+    return;
+  }
+  activeExam = { project, questions, index: 0, score: 0 };
+  $("#projectSheet").classList.remove("open");
+  $("#decisionSheet").classList.add("hidden");
+  $("#examStageLabel").textContent = `${project.name.toUpperCase()} · ${project.period}`;
+  $("#examTitle").textContent = "Management Mini Exam";
+  $("#examIntro").textContent = "Three compact questions sampled from this live project snapshot. Earn 3/3 to place its trophy in the world.";
+  $("#examSheet").classList.remove("hidden");
+  document.body.classList.add("modal-question-open");
+  renderExamQuestion();
+}
+function renderExamQuestion() {
+  if (!activeExam) return;
+  const question = activeExam.questions[activeExam.index],
+    count = activeExam.questions.length;
+  $("#examCounter").textContent = `Question ${activeExam.index + 1} of ${count} · Score ${activeExam.score}/${count}`;
+  $("#examProgressBar").style.width = `${(activeExam.index / count) * 100}%`;
+  $("#examQuestion").textContent = question.prompt;
+  $("#examEvidence").textContent = question.evidence;
+  $("#examOptions").innerHTML = question.options
+    .map((option, index) => `<button data-exam-opt="${index}">${String.fromCharCode(65 + index)}. ${escapeHtml(option)}</button>`)
+    .join("");
+  $$('[data-exam-opt]').forEach((button) => {
+    button.onclick = () => answerExam(Number(button.dataset.examOpt));
+  });
+  $("#examHintBtn").onclick = () => showThought(question.hint, 6500);
+  showThought(question.hint, 4200);
+}
+function answerExam(selected) {
+  if (!activeExam) return;
+  const question = activeExam.questions[activeExam.index],
+    buttons = $$('[data-exam-opt]');
+  if (selected !== question.correctIndex) {
+    state.examAttempts[activeExam.project.id] = (state.examAttempts[activeExam.project.id] || 0) + 1;
+    buttons[selected]?.classList.add("wrong");
+    state.fun = Math.max(0, state.fun - 2);
+    save();
+    toast("Not controlled yet—use Eng. Ola's thought bubble");
+    showThought(question.hint, 6500);
+    return;
+  }
+  buttons.forEach((button) => (button.disabled = true));
+  buttons[selected]?.classList.add("correct");
+  activeExam.score += 1;
+  activeExam.index += 1;
+  state.focus = Math.min(100, state.focus + 3);
+  state.fun = Math.min(100, state.fun + 4);
+  if (activeExam.index < activeExam.questions.length) {
+    $("#examProgressBar").style.width = `${(activeExam.index / activeExam.questions.length) * 100}%`;
+    setTimeout(renderExamQuestion, 520);
+  } else {
+    setTimeout(awardStageTrophy, 620);
+  }
+}
+function awardStageTrophy() {
+  if (!activeExam) return;
+  const project = activeExam.project,
+    projectIndex = PROJECTS.findIndex((item) => item.id === project.id);
+  state.trophies[project.id] = {
+    period: project.period,
+    fingerprint: project.fingerprint,
+    earnedAt: new Date().toISOString(),
+  };
+  state.patience = Math.min(100, state.patience + 8);
+  state.fun = Math.min(100, state.fun + 15);
+  save();
+  createTrophy(project, projectIndex, true);
+  $("#examSheet").classList.add("hidden");
+  document.body.classList.remove("modal-question-open");
+  $("#trophyTitle").textContent = `${project.name} Trophy Earned`;
+  $("#trophyText").textContent = `3/3 decisions passed for ${project.period}. This trophy belongs only to fingerprint ${project.fingerprint.slice(0, 12)}…; a changed upload creates fresh questions.`;
+  $("#trophyModal").classList.remove("hidden");
+  showThought("A trophy! Finally, a management report with handles. 🏆", 5000);
+  activeExam = null;
+  updateHUD();
+}
+$("#trophyContinue").onclick = () => {
+  $("#trophyModal").classList.add("hidden");
+  hideThought();
+  checkWin();
+  const next = nextOpenProject();
+  if (next) goToProject(next);
+};
+
 function checkWin() {
-  const total = PROJECTS.reduce(
-      (n, p) => n + p.missions.filter((m) => m[0] !== "FAVORABLE").length,
-      0,
-    ),
-    done = PROJECTS.reduce(
-      (n, p) =>
-        n + Object.values(state.resolved[p.id] || {}).filter(Boolean).length,
-      0,
-    );
-  if (done >= total) {
-    $("#objective b").textContent =
-      `Controlled ${done} / ${total} management exposures`;
+  const checkpoint = nextCheckpointProject();
+  if (checkpoint) {
+    updateGoToPrompt();
+    setTimeout(() => openStageExam(checkpoint), 520);
+    return;
+  }
+  const allControlled = PROJECTS.length > 0 && PROJECTS.every((project) => projectIsControlled(project, state.resolved[project.id] || {})),
+    allTrophies = PROJECTS.length > 0 && PROJECTS.every((project) => Boolean(state.trophies[project.id]));
+  if (allControlled && allTrophies) {
+    const total = PROJECTS.reduce((count, project) => count + project.missions.length, 0);
+    $("#objective b").textContent = `Controlled ${total} live questions and earned ${PROJECTS.length} stage trophies`;
     setTimeout(() => show("success"), 700);
   } else updateGoToPrompt();
 }

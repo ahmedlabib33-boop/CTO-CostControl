@@ -14,22 +14,25 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn('reveal("rise")', dashboard)
         self.assertIn('reveal("mastery")', dashboard)
 
-    def test_touch_knock_requires_three_pause_three(self):
+    def test_touch_knock_requires_two_pause_three(self):
         launcher = (ROOT / "src/components/OlaRiseLayer.tsx").read_text(encoding="utf-8")
         self.assertIn("quickTapMaximumMs: 450", launcher)
         self.assertIn("tripleTapMaximumMs: 850", launcher)
+        self.assertIn("firstBurstTapCount: 2", launcher)
+        self.assertIn("secondBurstTapCount: 3", launcher)
         self.assertIn("pauseMinimumMs: 950", launcher)
-        self.assertIn("stage: 0 | 1 | 2 | 3 | 4 | 5", launcher)
+        self.assertIn("stage: 0 | 1 | 2 | 3 | 4", launcher)
         self.assertIn("complete: true", launcher)
 
         dashboard = (ROOT / "src/components/Dashboard.tsx").read_text(encoding="utf-8")
-        self.assertIn("OLA_RISE_KNOCK.pauseMaximumMs+80", dashboard)
-        self.assertIn("riseKnock.current.stage===3", dashboard)
+        self.assertIn("masteryTaps.current.filter", dashboard)
+        self.assertIn('reveal("rise")', dashboard)
+        self.assertIn('reveal("mastery")', dashboard)
 
     def test_game_package_and_exact_name_are_present(self):
         game_root = ROOT / "public/ola-rise"
         for relative in [
-            "index.html", "style.css", "game.js", "manifest.webmanifest", "sw.js",
+            "index.html", "style.css", "game.js", "systems.js", "live-data.js", "manifest.webmanifest", "sw.js",
             "assets/layer_1.jpg", "assets/layer_2.jpg", "assets/layer_3.jpg",
             "assets/layer_4.jpg", "assets/layer_5.jpg",
         ]:
@@ -67,12 +70,39 @@ class OlaRiseLayerTests(unittest.TestCase):
             "animateOla",
             "updateDayLight",
             "streetLight",
+            "playSimAction",
+            "openStageExam",
+            "awardStageTrophy",
+            "showThought",
         ]:
             self.assertIn(f"function {feature}", script)
         self.assertIn("LIVE MANAGEMENT OBJECTIVE", html)
         self.assertIn("objective-marker", html)
         self.assertIn("goToPulse", css)
-        self.assertIn("ola-rise-v5-sims-3d", service_worker)
+        self.assertIn("ola-rise-v7-live-sims-academy", service_worker)
+
+    def test_questions_are_built_from_current_generated_data(self):
+        game_root = ROOT / "public/ola-rise"
+        script = (game_root / "game.js").read_text(encoding="utf-8")
+        live = (game_root / "live-data.js").read_text(encoding="utf-8")
+        systems = (game_root / "systems.js").read_text(encoding="utf-8")
+        self.assertIn("await loadLiveGameProjects()", script)
+        self.assertIn('fetchJson("/generated/portfolio/latest.json"', live)
+        self.assertIn('cache: "no-store"', live)
+        self.assertIn("source_fingerprint", live)
+        self.assertIn("reporting_period", live)
+        self.assertIn("No older project questions were substituted", script)
+        self.assertIn("buildStageExam", systems)
+
+    def test_every_question_has_hint_exam_and_trophy_ui(self):
+        game_root = ROOT / "public/ola-rise"
+        html = (game_root / "index.html").read_text(encoding="utf-8")
+        css = (game_root / "style.css").read_text(encoding="utf-8")
+        for element_id in ["thoughtBubble", "decisionHint", "examSheet", "trophyModal", "trophyShelf"]:
+            self.assertIn(f'id="{element_id}"', html)
+        self.assertIn("ENG. OLA · THINK ABOUT", html)
+        self.assertIn(".thought-bubble", css)
+        self.assertIn(".trophy-card", css)
 
 
 if __name__ == "__main__":
