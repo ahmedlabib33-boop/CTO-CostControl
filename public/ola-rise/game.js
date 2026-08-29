@@ -51,7 +51,8 @@ function loadMusicTrack(index, autoplay = false) {
   if (!audio) return;
   musicIndex = (index + MUSIC_TRACKS.length) % MUSIC_TRACKS.length;
   const track = MUSIC_TRACKS[musicIndex];
-  audio.src = track.src;
+  audio.setAttribute("src", track.src);
+  audio.load();
   $("#musicTrack").textContent = track.label;
   if (autoplay) audio.play().catch(() => toast("Press Play music to start the soundtrack"));
   $("#musicToggle").textContent = audio.paused ? "▶ Play music" : "❚❚ Pause music";
