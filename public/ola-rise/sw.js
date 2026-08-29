@@ -1,4 +1,4 @@
-const CACHE = "ola-rise-v13-live-sims-academy";
+const CACHE = "ola-rise-v14-live-sims-academy";
 const CORE = [
   "./",
   "./index.html",
@@ -17,7 +17,12 @@ const CORE = [
   "./assets/track-3.mp3",
 ];
 self.addEventListener("install", (e) =>
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE))),
+  e.waitUntil(
+    caches
+      .open(CACHE)
+      .then((c) => c.addAll(CORE))
+      .then(() => self.skipWaiting()),
+  ),
 );
 self.addEventListener("activate", (e) =>
   e.waitUntil(
@@ -25,7 +30,8 @@ self.addEventListener("activate", (e) =>
       .keys()
       .then((k) =>
         Promise.all(k.filter((x) => x !== CACHE).map((x) => caches.delete(x))),
-      ),
+      )
+      .then(() => self.clients.claim()),
   ),
 );
 self.addEventListener("fetch", (e) => {

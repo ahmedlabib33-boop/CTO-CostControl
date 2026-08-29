@@ -80,7 +80,9 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn("LIVE MANAGEMENT OBJECTIVE", html)
         self.assertIn("objective-marker", html)
         self.assertIn("goToPulse", css)
-        self.assertIn("ola-rise-v13-live-sims-academy", service_worker)
+        self.assertIn("ola-rise-v14-live-sims-academy", service_worker)
+        self.assertIn("self.skipWaiting()", service_worker)
+        self.assertIn("self.clients.claim()", service_worker)
 
     def test_questions_are_built_from_current_generated_data(self):
         game_root = ROOT / "public/ola-rise"
