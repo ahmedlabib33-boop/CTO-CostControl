@@ -65,6 +65,18 @@ class EngOllaMasteryTests(unittest.TestCase):
         self.assertIn("<EngOllaMastery onExit={dismiss} intelligenceContext={context}/>", DASHBOARD)
         self.assertIn("LiveProjectIntelligence", MASTERY)
 
+    def test_trick_layer_uses_peer_tabs_and_explained_charts(self):
+        live = (ROOT / "src/components/LiveProjectIntelligence.tsx").read_text(encoding="utf-8")
+        self.assertIn('className="ollaPrimaryTabs"', MASTERY)
+        self.assertIn('className="ollaPageTabs"', MASTERY)
+        self.assertIn('className="ollaExplainedVisual"', MASTERY)
+        self.assertIn('Charts & Explanations', live)
+        self.assertIn('function ExplainedMetricChart', live)
+        self.assertIn('What this chart measures', live)
+        self.assertIn('Recommended decision', live)
+        self.assertIn('.ollaPrimaryTabs', CSS)
+        self.assertIn('.liveChartExplanation', CSS)
+
     def test_responsive_and_motion_accessibility_rules_exist(self):
         self.assertIn("@media(max-width:760px)", CSS)
         self.assertIn("@media(max-height:780px)", CSS)
