@@ -146,6 +146,17 @@
             ><button id="siteBtn">🏗 Walk the live site</button>
           </div>
           <div class="sims-note">Every action changes visible needs, advances game time, plays in the 3D world, and saves automatically.</div>
+          <h3>ATMOSPHERE</h3>
+          <div class="music-player" aria-label="Game music controls">
+            <button id="musicToggle" type="button">▶ Play music</button>
+            <button id="musicPrev" type="button" aria-label="Previous track">⏮</button>
+            <button id="musicNext" type="button" aria-label="Next track">⏭</button>
+            <button id="volumeDown" type="button" aria-label="Volume down">🔉 −</button>
+            <output id="volumeValue">50%</output>
+            <button id="volumeUp" type="button" aria-label="Volume up">🔊 +</button>
+          </div>
+          <div id="musicTrack" class="music-track">The xx · Intro</div>
+          <div class="sims-note">Windows volume-up/down keys, the controls above, and zero volume all work. Music starts after the story entry click.</div>
           <h3>TROPHY CABINET</h3>
           <div id="trophyShelf" class="trophy-shelf"></div>
           <h3>VIEW</h3>
@@ -157,6 +168,8 @@
           </div>
           <button id="resetBtn" class="danger full">Reset game</button>
         </aside>
+
+        <audio id="musicPlayer" preload="metadata"></audio>
 
         <section id="projectSheet" class="bottom-sheet glass">
           <div class="sheet-handle"></div>

@@ -623,6 +623,29 @@ button:active {
   font-size: 11px;
   line-height: 1.45;
 }
+.music-player {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(5, auto);
+  align-items: center;
+  gap: 6px;
+}
+.music-player button {
+  min-height: 38px;
+  padding: 7px 9px;
+  font-size: 11px;
+}
+.music-player output {
+  min-width: 42px;
+  color: var(--gold);
+  font-size: 11px;
+  text-align: center;
+}
+.music-track {
+  margin-top: 7px;
+  color: #f4d486;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+}
 .trophy-shelf {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1028,6 +1051,15 @@ button:active {
   }
   .thought-bubble {
     width: min(330px, calc(100vw - 18px));
+  }
+  .music-player {
+    grid-template-columns: minmax(0, 1fr) repeat(5, auto);
+    gap: 4px;
+  }
+  .music-player button {
+    min-height: 36px;
+    padding: 6px 7px;
+    font-size: 10px;
   }
   .action-fx {
     width: calc(100% - 170px);

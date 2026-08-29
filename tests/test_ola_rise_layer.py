@@ -35,6 +35,7 @@ class OlaRiseLayerTests(unittest.TestCase):
             "index.html", "style.css", "game.js", "systems.js", "live-data.js", "manifest.webmanifest", "sw.js",
             "assets/layer_1.jpg", "assets/layer_2.jpg", "assets/layer_3.jpg",
             "assets/layer_4.jpg", "assets/layer_5.jpg",
+            "assets/intro.mp3", "assets/crystalised.mp3", "assets/track-3.mp3",
         ]:
             self.assertTrue((game_root / relative).is_file(), relative)
         html = (game_root / "index.html").read_text(encoding="utf-8")
@@ -79,7 +80,7 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn("LIVE MANAGEMENT OBJECTIVE", html)
         self.assertIn("objective-marker", html)
         self.assertIn("goToPulse", css)
-        self.assertIn("ola-rise-v9-live-sims-academy", service_worker)
+        self.assertIn("ola-rise-v10-live-sims-academy", service_worker)
 
     def test_questions_are_built_from_current_generated_data(self):
         game_root = ROOT / "public/ola-rise"
@@ -103,6 +104,19 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn("ENG. OLA · THINK ABOUT", html)
         self.assertIn(".thought-bubble", css)
         self.assertIn(".trophy-card", css)
+
+    def test_soundtrack_has_ordered_tracks_and_windows_volume_controls(self):
+        game_root = ROOT / "public/ola-rise"
+        html = (game_root / "index.html").read_text(encoding="utf-8")
+        script = (game_root / "game.js").read_text(encoding="utf-8")
+        self.assertIn('id="musicPlayer"', html)
+        self.assertIn('id="volumeDown"', html)
+        self.assertIn('id="volumeUp"', html)
+        self.assertIn('assets/intro.mp3', script)
+        self.assertIn('assets/crystalised.mp3', script)
+        self.assertIn('assets/track-3.mp3', script)
+        self.assertIn('AudioVolumeDown', script)
+        self.assertIn('AudioVolumeUp', script)
 
 
 if __name__ == "__main__":

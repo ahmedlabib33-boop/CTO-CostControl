@@ -33,6 +33,50 @@ function toast(t) {
   toast.t = setTimeout(() => el.classList.remove("show"), 1900);
 }
 
+const MUSIC_TRACKS = [
+  { label: "The xx · Intro", src: "assets/intro.mp3" },
+  { label: "The xx · Crystalised", src: "assets/crystalised.mp3" },
+  { label: "Track 3", src: "assets/track-3.mp3" },
+];
+let musicIndex = 0;
+function setMusicVolume(value) {
+  const audio = $("#musicPlayer");
+  if (!audio) return;
+  audio.volume = Math.max(0, Math.min(1, value));
+  $("#volumeValue").textContent = `${Math.round(audio.volume * 100)}%`;
+  $("#volumeValue").setAttribute("aria-label", `Volume ${Math.round(audio.volume * 100)} percent`);
+}
+function loadMusicTrack(index, autoplay = false) {
+  const audio = $("#musicPlayer");
+  if (!audio) return;
+  musicIndex = (index + MUSIC_TRACKS.length) % MUSIC_TRACKS.length;
+  const track = MUSIC_TRACKS[musicIndex];
+  audio.src = track.src;
+  $("#musicTrack").textContent = track.label;
+  if (autoplay) audio.play().catch(() => toast("Press Play music to start the soundtrack"));
+  $("#musicToggle").textContent = audio.paused ? "▶ Play music" : "❚❚ Pause music";
+}
+function setupMusic() {
+  const audio = $("#musicPlayer");
+  if (!audio) return;
+  setMusicVolume(0.5);
+  loadMusicTrack(0);
+  audio.addEventListener("ended", () => loadMusicTrack(musicIndex + 1, true));
+  $("#musicToggle").onclick = () => {
+    if (audio.paused) audio.play().then(() => { $("#musicToggle").textContent = "❚❚ Pause music"; }).catch(() => toast("The browser blocked audio; press Play again"));
+    else { audio.pause(); $("#musicToggle").textContent = "▶ Play music"; }
+  };
+  $("#musicPrev").onclick = () => loadMusicTrack(musicIndex - 1, !audio.paused);
+  $("#musicNext").onclick = () => loadMusicTrack(musicIndex + 1, !audio.paused);
+  $("#volumeDown").onclick = () => setMusicVolume(audio.volume - 0.1);
+  $("#volumeUp").onclick = () => setMusicVolume(audio.volume + 0.1);
+  addEventListener("keydown", (event) => {
+    if (event.key === "AudioVolumeDown") { event.preventDefault(); setMusicVolume(audio.volume - 0.1); }
+    if (event.key === "AudioVolumeUp") { event.preventDefault(); setMusicVolume(audio.volume + 0.1); }
+    if (event.key === "AudioVolumeMute") { event.preventDefault(); setMusicVolume(audio.volume ? 0 : 0.5); }
+  });
+}
+
 const story = [
   {
     k: "LAYER 1 · BAHRAIN",
@@ -73,6 +117,8 @@ $("#storyNext").onclick = async () => {
     try {
       await ensureLiveProjects();
       show("game");
+      const audio = $("#musicPlayer");
+      if (audio?.paused) audio.play().catch(() => {});
       init3D();
     } catch (error) {
       console.error(error);
@@ -1844,5 +1890,6 @@ $("#restartStory").onclick = () => {
   location.reload();
 };
 
+setupMusic();
 renderStory();
 updateHUD();

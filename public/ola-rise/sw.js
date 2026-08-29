@@ -1,4 +1,4 @@
-const CACHE = "ola-rise-v9-live-sims-academy";
+const CACHE = "ola-rise-v10-live-sims-academy";
 const CORE = [
   "./",
   "./index.html",
@@ -12,6 +12,9 @@ const CORE = [
   "./assets/layer_3.jpg",
   "./assets/layer_4.jpg",
   "./assets/layer_5.jpg",
+  "./assets/intro.mp3",
+  "./assets/crystalised.mp3",
+  "./assets/track-3.mp3",
 ];
 self.addEventListener("install", (e) =>
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE))),
