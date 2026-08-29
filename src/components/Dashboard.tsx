@@ -9,7 +9,7 @@ import { PortfolioDataMapping } from "@/components/DataMapping";
 import { money } from "@/lib/normalized";
 import OutputStudio from "@/components/OutputStudio";
 import EngOllaMastery from "@/components/EngOllaMastery";
-import OlaRiseLayer, { advanceOlaRiseKnock, initialOlaRiseKnockState, OLA_RISE_KEY_SEQUENCE, type OlaRiseKnockState } from "@/components/OlaRiseLayer";
+import OlaRiseLayer, { advanceOlaRiseKnock, initialOlaRiseKnockState, OLA_RISE_KEY_SEQUENCE, OLA_RISE_KNOCK, type OlaRiseKnockState } from "@/components/OlaRiseLayer";
 import DeploymentIndicator from "@/components/DeploymentIndicator";
 import RepoLastModified from "@/components/RepoLastModified";
 import { INTELLIGENCE_CONTEXT_EVENT, publishIntelligenceContext, type DashboardIntelligenceContext } from "@/lib/liveIntelligence";
@@ -22,7 +22,7 @@ function SourceRegistry({projects,onOpen}:{projects:ProjectRegistryItem[];onOpen
 function OlaOverlay(){
  const [show,setShow]=useState<"mastery"|"rise"|null>(null);
  const [context,setContext]=useState<DashboardIntelligenceContext|null>(null);
- const masterySeq=useRef(0),riseSeq=useRef(0),taps=useRef<number[]>([]),riseKnock=useRef<OlaRiseKnockState>(initialOlaRiseKnockState()),showing=useRef(false);
+ const masterySeq=useRef(0),riseSeq=useRef(0),riseKnock=useRef<OlaRiseKnockState>(initialOlaRiseKnockState()),masteryTimer=useRef<number|null>(null),showing=useRef(false);
  useEffect(()=>{
   const reveal=(layer:"mastery"|"rise")=>{if(showing.current)return;showing.current=true;setShow(layer);document.documentElement.classList.add("trick-open")};
   const key=(e:KeyboardEvent)=>{
@@ -38,17 +38,21 @@ function OlaOverlay(){
   const touch=(e:PointerEvent)=>{
    if(e.pointerType!=="touch"||showing.current)return;
    const now=Date.now();
+   const previousStage=riseKnock.current.stage;
    const riseProgress=advanceOlaRiseKnock(riseKnock.current,now);
    riseKnock.current=riseProgress.state;
-   if(riseProgress.complete){taps.current=[];reveal("rise");return}
-   taps.current=[...taps.current.filter(t=>now-t<850),now];
-   if(taps.current.length>=3){taps.current=[];riseKnock.current=initialOlaRiseKnockState();reveal("mastery")}
+   if(riseProgress.complete){if(masteryTimer.current!==null)window.clearTimeout(masteryTimer.current);masteryTimer.current=null;reveal("rise");return}
+   if(previousStage===3&&riseProgress.state.stage===4&&masteryTimer.current!==null){window.clearTimeout(masteryTimer.current);masteryTimer.current=null}
+   if(riseProgress.state.stage===3&&previousStage!==3){
+    if(masteryTimer.current!==null)window.clearTimeout(masteryTimer.current);
+    masteryTimer.current=window.setTimeout(()=>{masteryTimer.current=null;if(!showing.current&&riseKnock.current.stage===3){riseKnock.current=initialOlaRiseKnockState();reveal("mastery")}},OLA_RISE_KNOCK.pauseMaximumMs+80)
+   }
   };
   const intelligence=(event:Event)=>setContext((event as CustomEvent<DashboardIntelligenceContext>).detail);
   window.addEventListener("keydown",key);window.addEventListener("pointerup",touch,{passive:true});window.addEventListener(INTELLIGENCE_CONTEXT_EVENT,intelligence);
-  return()=>{window.removeEventListener("keydown",key);window.removeEventListener("pointerup",touch);window.removeEventListener(INTELLIGENCE_CONTEXT_EVENT,intelligence);document.documentElement.classList.remove("trick-open")}
+  return()=>{window.removeEventListener("keydown",key);window.removeEventListener("pointerup",touch);window.removeEventListener(INTELLIGENCE_CONTEXT_EVENT,intelligence);if(masteryTimer.current!==null)window.clearTimeout(masteryTimer.current);document.documentElement.classList.remove("trick-open")}
  },[]);
- const dismiss=()=>{setShow(null);showing.current=false;masterySeq.current=0;riseSeq.current=0;taps.current=[];riseKnock.current=initialOlaRiseKnockState();document.documentElement.classList.remove("trick-open")};
+ const dismiss=()=>{setShow(null);showing.current=false;masterySeq.current=0;riseSeq.current=0;if(masteryTimer.current!==null)window.clearTimeout(masteryTimer.current);masteryTimer.current=null;riseKnock.current=initialOlaRiseKnockState();document.documentElement.classList.remove("trick-open")};
  if(!show)return null;
  return show==="rise"?<OlaRiseLayer onExit={dismiss}/>:<EngOllaMastery onExit={dismiss} intelligenceContext={context}/>;
 }

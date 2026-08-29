@@ -13,14 +13,22 @@ function run(times: number[]) {
   return complete;
 }
 
-test("two taps, pause, one tap, pause, two taps completes the OLA: RISE knock", () => {
-  assert.equal(run([100, 300, 1400, 2500, 2700]), true);
+test("three quick taps, pause, three quick taps completes the OLA: RISE knock", () => {
+  assert.equal(run([100, 300, 450, 1500, 1700, 1850]), true);
 });
 
-test("five rapid taps do not complete the OLA: RISE knock", () => {
-  assert.equal(run([100, 250, 400, 550, 700]), false);
+test("the first quick triple is only the shared first-layer prefix", () => {
+  assert.equal(run([100, 300, 450]), false);
+});
+
+test("six rapid taps without the required pause do not complete the OLA: RISE knock", () => {
+  assert.equal(run([100, 220, 340, 460, 580, 700]), false);
 });
 
 test("an overlong pause resets the OLA: RISE knock", () => {
-  assert.equal(run([100, 250, 4000, 5100, 5300]), false);
+  assert.equal(run([100, 250, 400, 4000, 4200, 4350]), false);
+});
+
+test("a slow triple does not satisfy either burst", () => {
+  assert.equal(run([100, 700, 800, 1900, 2100, 2250]), false);
 });

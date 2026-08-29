@@ -14,12 +14,17 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn('reveal("rise")', dashboard)
         self.assertIn('reveal("mastery")', dashboard)
 
-    def test_touch_knock_requires_two_pause_one_pause_two(self):
+    def test_touch_knock_requires_three_pause_three(self):
         launcher = (ROOT / "src/components/OlaRiseLayer.tsx").read_text(encoding="utf-8")
         self.assertIn("quickTapMaximumMs: 450", launcher)
+        self.assertIn("tripleTapMaximumMs: 850", launcher)
         self.assertIn("pauseMinimumMs: 950", launcher)
-        self.assertIn("stage: 0 | 1 | 2 | 3 | 4", launcher)
+        self.assertIn("stage: 0 | 1 | 2 | 3 | 4 | 5", launcher)
         self.assertIn("complete: true", launcher)
+
+        dashboard = (ROOT / "src/components/Dashboard.tsx").read_text(encoding="utf-8")
+        self.assertIn("OLA_RISE_KNOCK.pauseMaximumMs+80", dashboard)
+        self.assertIn("riseKnock.current.stage===3", dashboard)
 
     def test_game_package_and_exact_name_are_present(self):
         game_root = ROOT / "public/ola-rise"

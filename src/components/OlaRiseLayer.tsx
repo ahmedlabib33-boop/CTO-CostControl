@@ -5,18 +5,20 @@ import { useEffect } from "react";
 export const OLA_RISE_KEY_SEQUENCE = "654123";
 
 export type OlaRiseKnockState = {
-  stage: 0 | 1 | 2 | 3 | 4;
+  stage: 0 | 1 | 2 | 3 | 4 | 5;
   lastTapAt: number;
+  burstStartedAt: number;
 };
 
 export const OLA_RISE_KNOCK = {
   quickTapMaximumMs: 450,
+  tripleTapMaximumMs: 850,
   pauseMinimumMs: 950,
   pauseMaximumMs: 2600,
 } as const;
 
 export function initialOlaRiseKnockState(): OlaRiseKnockState {
-  return { stage: 0, lastTapAt: 0 };
+  return { stage: 0, lastTapAt: 0, burstStartedAt: 0 };
 }
 
 export function advanceOlaRiseKnock(
@@ -25,30 +27,54 @@ export function advanceOlaRiseKnock(
 ): { state: OlaRiseKnockState; complete: boolean } {
   const elapsed = current.lastTapAt ? now - current.lastTapAt : 0;
   const restart = (): { state: OlaRiseKnockState; complete: false } => ({
-    state: { stage: 1, lastTapAt: now },
+    state: { stage: 1, lastTapAt: now, burstStartedAt: now },
     complete: false,
   });
 
   if (current.stage === 0) return restart();
   if (current.stage === 1) {
     if (elapsed <= OLA_RISE_KNOCK.quickTapMaximumMs) {
-      return { state: { stage: 2, lastTapAt: now }, complete: false };
+      return {
+        state: { ...current, stage: 2, lastTapAt: now },
+        complete: false,
+      };
     }
     return restart();
   }
   if (current.stage === 2) {
-    if (elapsed >= OLA_RISE_KNOCK.pauseMinimumMs && elapsed <= OLA_RISE_KNOCK.pauseMaximumMs) {
-      return { state: { stage: 3, lastTapAt: now }, complete: false };
+    if (
+      elapsed <= OLA_RISE_KNOCK.quickTapMaximumMs &&
+      now - current.burstStartedAt <= OLA_RISE_KNOCK.tripleTapMaximumMs
+    ) {
+      return {
+        state: { ...current, stage: 3, lastTapAt: now },
+        complete: false,
+      };
     }
     return restart();
   }
   if (current.stage === 3) {
     if (elapsed >= OLA_RISE_KNOCK.pauseMinimumMs && elapsed <= OLA_RISE_KNOCK.pauseMaximumMs) {
-      return { state: { stage: 4, lastTapAt: now }, complete: false };
+      return {
+        state: { stage: 4, lastTapAt: now, burstStartedAt: now },
+        complete: false,
+      };
     }
     return restart();
   }
-  if (elapsed <= OLA_RISE_KNOCK.quickTapMaximumMs) {
+  if (current.stage === 4) {
+    if (elapsed <= OLA_RISE_KNOCK.quickTapMaximumMs) {
+      return {
+        state: { ...current, stage: 5, lastTapAt: now },
+        complete: false,
+      };
+    }
+    return restart();
+  }
+  if (
+    elapsed <= OLA_RISE_KNOCK.quickTapMaximumMs &&
+    now - current.burstStartedAt <= OLA_RISE_KNOCK.tripleTapMaximumMs
+  ) {
     return { state: initialOlaRiseKnockState(), complete: true };
   }
   return restart();
