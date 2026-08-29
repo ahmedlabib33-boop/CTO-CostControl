@@ -165,10 +165,6 @@ function positionAmbientConversations() {
     return;
   }
   container.classList.remove("hidden");
-  if (performance.now() - conversationChangedAt > 9000) {
-    conversationCycle = (conversationCycle + 1) % BAHRAINI_CONVERSATIONS.length;
-    renderAmbientConversations();
-  }
   $$('[data-chat-actor]').forEach((button) => {
     const actor = ambientActors[Number(button.dataset.chatActor)];
     if (!actor) return;
