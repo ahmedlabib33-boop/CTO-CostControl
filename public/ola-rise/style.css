@@ -634,6 +634,26 @@ body[data-time-phase="night"] #game::before {
   inset: 0;
   pointer-events: none;
 }
+.conversation-sequence {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.conversation-sequence > small {
+  position: absolute;
+  left: 50%;
+  top: clamp(76px, 11vh, 116px);
+  transform: translateX(-50%);
+  padding: 5px 10px;
+  border: 1px solid rgba(239, 201, 111, 0.35);
+  border-radius: 999px;
+  background: rgba(7, 18, 30, 0.72);
+  color: #f3cd76;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .12em;
+  white-space: nowrap;
+}
 .ambient-conversation {
   position: absolute;
   transform: translate(-50%, calc(-100% - 18px));

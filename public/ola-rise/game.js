@@ -82,7 +82,8 @@ let musicIndex = 0;
 let wellbeingIndex = 0,
   hydrationReminderKey = "",
   conversationCycle = 0,
-  conversationChangedAt = 0;
+  conversationChangedAt = 0,
+  conversationActorIndex = 0;
 
 function renderWellbeingQuote() {
   const quote = WELLBEING_WORDS[wellbeingIndex % WELLBEING_WORDS.length];
@@ -119,11 +120,11 @@ function drinkWater() {
 function renderAmbientConversations() {
   const container = $("#ambientConversations");
   if (!container || !ambientActors.length) return;
-  container.innerHTML = ambientActors.slice(0, 6).map((actor, actorIndex) => {
-    const [line] = ambientConversationFor(actor);
-    const persona = actor.userData.persona;
-    return `<button class="ambient-conversation" data-chat-actor="${actorIndex}" dir="rtl"><small>${escapeHtml(persona.name)} · ${escapeHtml(persona.role)}</small><b>${escapeHtml(line)}</b><span>روحي اسمعي السالفة ←</span></button>`;
-  }).join("");
+  const actorIndex = conversationActorIndex % Math.min(ambientActors.length, 6),
+    actor = ambientActors[actorIndex],
+    [line] = ambientConversationFor(actor),
+    persona = actor.userData.persona;
+  container.innerHTML = `<div class="conversation-sequence"><small>BAHRAIN STREET VOICE · ${actorIndex + 1} / ${Math.min(ambientActors.length, 6)}</small><button class="ambient-conversation" data-chat-actor="${actorIndex}" dir="rtl"><small>${escapeHtml(persona.name)} · ${escapeHtml(persona.role)}</small><b>${escapeHtml(line)}</b><span>روحي اسمعي السالفة ←</span></button></div>`;
   $$('[data-chat-actor]').forEach((button) => {
     button.onclick = () => hearAmbientConversation(Number(button.dataset.chatActor));
   });
@@ -142,6 +143,7 @@ function hearAmbientConversation(actorIndex) {
   const [_line, response] = ambientConversationFor(actor);
   guidedProject = null;
   hasWalkTarget = true;
+  walkBlockedFrames = 0;
   walkTarget.copy(actor.position).add(new THREE.Vector3(0, 0, 1.45));
   drawNavigationLine(walkTarget);
   state.social = Math.min(100, state.social + 4);
@@ -150,6 +152,7 @@ function hearAmbientConversation(actorIndex) {
   updateHUD();
   showThought(response, 6500);
   toast("Ola is going to hear the conversation…");
+  conversationActorIndex = (actorIndex + 1) % Math.min(ambientActors.length, 6);
   conversationCycle = (conversationCycle + 1) % BAHRAINI_CONVERSATIONS.length;
   renderAmbientConversations();
 }
@@ -157,7 +160,7 @@ function hearAmbientConversation(actorIndex) {
 function positionAmbientConversations() {
   const container = $("#ambientConversations");
   if (!container || !camera || !ambientActors.length) return;
-  if ((isBedtime(state.hour) && !state.nightSocial) || $("#decisionSheet")?.classList.contains("hidden") === false) {
+  if ((isBedtime(state.hour) && !state.nightSocial) || $("#decisionSheet")?.classList.contains("hidden") === false || $("#drawer")?.classList.contains("open")) {
     container.classList.add("hidden");
     return;
   }
@@ -642,13 +645,15 @@ let scene,
   starField = null,
   cloudGroups = [],
   ambientActors = [],
+  collisionBoxes = [],
   trophyMeshes = new Map(),
   activeAction = null,
   thoughtPersistent = false;
 const move = { x: 0, y: 0 },
   walkTarget = new THREE.Vector3();
 let hasWalkTarget = false,
-  nightFoodTravel = false;
+  nightFoodTravel = false,
+  walkBlockedFrames = 0;
 function mat(c, metal = 0.05, rough = 0.75) {
   return new THREE.MeshStandardMaterial({
     color: c,
@@ -679,6 +684,37 @@ function sphere(radius, color, width = 24, height = 18) {
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   return mesh;
+}
+function registerCollider(x, z, width, depth, padding = 0.2) {
+  collisionBoxes.push({
+    minX: x - width / 2 - padding,
+    maxX: x + width / 2 + padding,
+    minZ: z - depth / 2 - padding,
+    maxZ: z + depth / 2 + padding,
+  });
+}
+function blockedAt(x, z, radius = 0.48) {
+  if (Math.abs(x) > 73 || Math.abs(z) > 73) return true;
+  return collisionBoxes.some((obstacle) =>
+    x + radius > obstacle.minX && x - radius < obstacle.maxX &&
+    z + radius > obstacle.minZ && z - radius < obstacle.maxZ,
+  );
+}
+function moveOlaWithCollision(direction, distance) {
+  if (!ola) return false;
+  const next = ola.position.clone().addScaledVector(direction, distance),
+    moved = ola.position.clone();
+  next.y = 0;
+  if (!blockedAt(next.x, next.z)) {
+    ola.position.copy(next);
+    return true;
+  }
+  // Slide along a facade when a diagonal route meets a building corner.
+  if (!blockedAt(next.x, moved.z)) moved.x = next.x;
+  if (!blockedAt(moved.x, next.z)) moved.z = next.z;
+  const changed = moved.x !== ola.position.x || moved.z !== ola.position.z;
+  if (changed) ola.position.copy(moved);
+  return changed;
 }
 function emissive(color, intensity = 0.8) {
   return new THREE.MeshStandardMaterial({
@@ -875,6 +911,22 @@ function addWindows(group, width, floors, depth, startY = 1.15) {
     }
   }
 }
+function externalLadder(group, x, y, z, height = 2.7) {
+  const metal = mat(0x4b5960, 0.65, 0.38),
+    left = cylinder(0.035, 0.035, height, 0x4b5960, 8),
+    right = cylinder(0.035, 0.035, height, 0x4b5960, 8);
+  left.material = metal;
+  right.material = metal;
+  left.position.set(x - 0.22, y + height / 2, z);
+  right.position.set(x + 0.22, y + height / 2, z);
+  group.add(left, right);
+  for (let rung = 0; rung < Math.floor(height / 0.42); rung++) {
+    const step = box(0.52, 0.045, 0.045, 0x65747a);
+    step.material = metal;
+    step.position.set(x, y + 0.22 + rung * 0.42, z);
+    group.add(step);
+  }
+}
 function projectBeacon(project) {
   const beacon = new THREE.Group();
   const ring = new THREE.Mesh(
@@ -938,6 +990,7 @@ function hospitalBuilding(group) {
   crossV.position.set(0, 4.35, 1.38);
   crossH.position.copy(crossV.position);
   group.add(crossV, crossH);
+  externalLadder(group, -2.5, 1.05, -2.78, 3.9);
 }
 function gatewayBuilding(group) {
   const base = box(6.3, 0.75, 5.7, 0x856f55);
@@ -962,6 +1015,7 @@ function gatewayBuilding(group) {
   const crown = cylinder(0.48, 0.62, 1.15, 0x8e6f3f, 8);
   crown.position.set(0, 5.85, 0);
   group.add(crown);
+  externalLadder(group, 2.62, 1.0, -2.2, 4.4);
 }
 function building(p, index) {
   const g = new THREE.Group();
@@ -982,6 +1036,7 @@ function building(p, index) {
   g.userData.project = p;
   g.userData.beacon = beacon;
   g.position.set(...p.pos);
+  registerCollider(g.position.x, g.position.z, 7.6, 5.4, 0.32);
   scene.add(g);
   projectMeshes.push(g);
   return g;
@@ -1017,6 +1072,7 @@ function tree(x, z, scale = 1) {
     }
   }
   g.position.set(x, 0, z);
+  registerCollider(x, z, 0.72 * scale, 0.72 * scale, 0.08);
   scene.add(g);
 }
 function palm(x, z, scale = 1) {
@@ -1035,6 +1091,7 @@ function palm(x, z, scale = 1) {
     g.add(leaf);
   }
   g.position.set(x, 0, z);
+  registerCollider(x, z, 0.62 * scale, 0.62 * scale, 0.08);
   scene.add(g);
 }
 function streetLight(x, z) {
@@ -1047,6 +1104,7 @@ function streetLight(x, z) {
   lamp.position.y = 2.65;
   g.add(lamp);
   g.position.set(x, 0, z);
+  registerCollider(x, z, 0.32, 0.32, 0.08);
   scene.add(g);
 }
 function road(x, z, width, depth, rotation = 0) {
@@ -1225,6 +1283,7 @@ function foodCourt() {
     sign.scale.set(Math.min(width - 0.4, 5.8), 0.95, 1);
     sign.position.set(0, 2.55, 2.2);
     block.add(sign);
+    externalLadder(block, width / 2 - 0.55, 0.4, -1.95, 3.8);
     block.position.set(x, 0, z);
     court.add(block);
   };
@@ -1380,6 +1439,13 @@ function foodCourt() {
   residentialBlock(11.0, -10.8, 4.2, 7.8, 0xb8a68e);
   court.position.set(35, 0, 25);
   court.rotation.y = -0.08;
+  registerCollider(35 - 7.2, 25 - 6.3, 7.8, 3.8, 0.28);
+  registerCollider(35 + 1.2, 25 - 6.3, 7.6, 3.8, 0.28);
+  registerCollider(35 + 8.4, 25 - 6.3, 5.8, 3.8, 0.28);
+  registerCollider(35 - 10.7, 25 - 11.2, 4.4, 3.4, 0.28);
+  registerCollider(35 - 4.4, 25 - 12.8, 5.0, 3.4, 0.28);
+  registerCollider(35 + 5.7, 25 - 12.4, 5.8, 3.4, 0.28);
+  registerCollider(35 + 11.0, 25 - 10.8, 4.2, 3.4, 0.28);
   scene.add(court);
 }
 function ambientActor(x, z, color, persona) {
@@ -1430,6 +1496,7 @@ function environment() {
   );
   fountainPool.position.set(0, 0.24, 1.5);
   scene.add(fountainPool);
+  registerCollider(0, 1.5, 4.3, 4.3, 0.2);
   fountainWater = new THREE.Mesh(
     new THREE.CylinderGeometry(1.78, 1.78, 0.12, 48),
     new THREE.MeshStandardMaterial({
@@ -1467,6 +1534,7 @@ function environment() {
       b.geometry.parameters.height / 2,
       Math.sin(a) * r,
     );
+    registerCollider(b.position.x, b.position.z, b.geometry.parameters.width, b.geometry.parameters.depth, 0.24);
     scene.add(b);
   }
   const pyramid = new THREE.Mesh(
@@ -1851,6 +1919,7 @@ function goToProject(p) {
   nearest = p;
   walkTarget.copy(model.position).add(new THREE.Vector3(0, 0, 4.4));
   hasWalkTarget = true;
+  walkBlockedFrames = 0;
   drawNavigationLine(walkTarget);
   model.userData.beacon.visible = true;
   $("#projectSheet").classList.remove("open");
@@ -1976,9 +2045,9 @@ function animate() {
     hasWalkTarget = false;
     clearNavigationLine();
     dir.normalize();
-    ola.position.addScaledVector(dir, dt * 5.5);
+    const moved = moveOlaWithCollision(dir, dt * 5.5);
     ola.rotation.y = Math.atan2(dir.x, dir.z);
-    characterMoving = true;
+    characterMoving = moved;
     updateGoToPrompt();
   } else if (hasWalkTarget) {
     const d = walkTarget.clone().sub(ola.position);
@@ -1999,16 +2068,23 @@ function animate() {
         camDist = 29;
         setTimeout(() => {
           $("#drawer").classList.add("open");
-          $(".food-menu")?.scrollIntoView({ behavior: "smooth", block: "center" });
+          $(".food-menu")?.scrollIntoView({ behavior: "auto", block: "center" });
         }, 1800);
         showThought("Welcome to شعبيات لبيب. The northern Khobar-inspired street is open for food, snowfall, and Bahraini conversation.", 6500);
         toast("Arrived at شعبيات لبيب");
       }
     } else {
       d.normalize();
-      ola.position.addScaledVector(d, dt * (guidedProject || nightFoodTravel ? 12 : 4.6));
+      const moved = moveOlaWithCollision(d, dt * (guidedProject || nightFoodTravel ? 12 : 4.6));
+      walkBlockedFrames = moved ? 0 : walkBlockedFrames + 1;
+      if (walkBlockedFrames > 24) {
+        const detour = new THREE.Vector3(-d.z, 0, d.x).multiplyScalar((walkBlockedFrames % 2 ? 1 : -1) * 2.6);
+        walkTarget.add(detour);
+        walkBlockedFrames = 0;
+        drawNavigationLine(walkTarget);
+      }
       ola.rotation.y = Math.atan2(d.x, d.z);
-      characterMoving = true;
+      characterMoving = moved;
     }
   }
   nearest = null;
@@ -2091,6 +2167,7 @@ function bindWorldControls() {
         clearNavigationLine();
         walkTarget.copy(gh[0].point);
         hasWalkTarget = true;
+        walkBlockedFrames = 0;
       }
     }
   });
@@ -2376,6 +2453,7 @@ $("#goNightFoodCourt").onclick = () => {
   nightFoodTravel = true;
   walkTarget.set(35, 0, 32.5);
   hasWalkTarget = true;
+  walkBlockedFrames = 0;
   drawNavigationLine(walkTarget);
   $("#drawer").classList.remove("open");
   save();
