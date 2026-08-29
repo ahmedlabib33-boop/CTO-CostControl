@@ -250,6 +250,11 @@ function renderStory() {
   $("#storyTitle").textContent = s.t;
   $("#storyBody").textContent = s.b;
   $("#storyDialogue").textContent = s.d;
+  const guideBubble = $("#storyGuideBubble");
+  if (guideBubble) {
+    guideBubble.classList.toggle("hidden", storyIndex !== 1);
+    $("#storyGuideText").textContent = s.d;
+  }
 }
 $("#storyNext").onclick = async () => {
   if (storyIndex < story.length - 1) {
@@ -719,27 +724,34 @@ function createOla() {
 
   const skirt = new THREE.Mesh(
     new THREE.CylinderGeometry(0.53, 0.74, 1.42, 12),
-    mat(0xf2f4f1, 0.03, 0.74),
+    mat(0x7d675f, 0.03, 0.78),
   );
   skirt.position.y = 1.05;
   skirt.castShadow = true;
   g.add(skirt);
   const torso = new THREE.Mesh(
     new THREE.CylinderGeometry(0.5, 0.58, 1.42, 12),
-    mat(0xfaf9f4, 0.03, 0.7),
+    mat(0x8a7168, 0.03, 0.72),
   );
   torso.position.y = 2.22;
   torso.castShadow = true;
   g.add(torso);
-  const jacket = box(1.04, 0.12, 0.62, 0xdbe5e8);
+  const jacket = box(1.04, 0.12, 0.62, 0x6f5a54);
   jacket.position.set(0, 2.58, 0);
   g.add(jacket);
+  const sash = new THREE.Mesh(
+    new THREE.TorusGeometry(0.52, 0.055, 8, 32, Math.PI * 1.15),
+    mat(0xa98e80, 0.02, 0.76),
+  );
+  sash.position.set(0, 1.72, 0.03);
+  sash.rotation.x = Math.PI / 2;
+  g.add(sash);
 
   const leftLeg = new THREE.Group();
   const rightLeg = new THREE.Group();
   [-0.29, 0.29].forEach((x, index) => {
     const leg = index ? rightLeg : leftLeg;
-    const calf = cylinder(0.15, 0.13, 0.88, 0x4c4050, 10);
+    const calf = cylinder(0.15, 0.13, 0.88, 0x262326, 10);
     calf.position.y = -0.42;
     leg.add(calf);
     const shoe = box(0.36, 0.2, 0.65, 0xf4eee2);
@@ -753,7 +765,7 @@ function createOla() {
   const rightArm = new THREE.Group();
   [-0.66, 0.66].forEach((x, index) => {
     const arm = index ? rightArm : leftArm;
-    const sleeve = cylinder(0.17, 0.14, 1.05, 0xf2f4f1, 10);
+    const sleeve = cylinder(0.17, 0.14, 1.05, 0x816a61, 10);
     sleeve.position.y = -0.43;
     arm.add(sleeve);
     const hand = sphere(0.16, 0xd9a987, 16, 12);
@@ -783,6 +795,20 @@ function createOla() {
   );
   scarf.position.set(0, 3.08, -0.08);
   g.add(scarf);
+  const glassesMaterial = new THREE.MeshStandardMaterial({
+    color: 0x352922,
+    metalness: 0.35,
+    roughness: 0.3,
+  });
+  [-0.18, 0.18].forEach((x) => {
+    const frame = new THREE.Mesh(new THREE.TorusGeometry(0.135, 0.027, 8, 20), glassesMaterial);
+    frame.position.set(x, 3.52, 0.45);
+    frame.scale.y = 0.78;
+    g.add(frame);
+  });
+  const bridge = box(0.12, 0.035, 0.035, 0x352922);
+  bridge.position.set(0, 3.52, 0.45);
+  g.add(bridge);
   [-0.17, 0.17].forEach((x) => {
     const eye = sphere(0.035, 0x171314, 10, 8);
     eye.position.set(x, 3.5, 0.45);
@@ -796,14 +822,21 @@ function createOla() {
   smile.rotation.z = Math.PI;
   g.add(smile);
 
-  const bag = box(0.5, 0.68, 0.2, 0x241913);
-  bag.position.set(0.76, 1.66, -0.02);
+  const bag = new THREE.Group();
+  const bagBody = box(0.5, 0.68, 0.2, 0x171719),
+    bagFlap = box(0.42, 0.16, 0.23, 0x292326),
+    clasp = sphere(0.045, 0xe1bd68, 8, 6);
+  bagBody.position.y = 0;
+  bagFlap.position.set(0, 0.26, 0.02);
+  clasp.position.set(0, 0.22, 0.14);
+  bag.add(bagBody, bagFlap, clasp);
+  bag.position.set(0.85, 1.58, 0.02);
   g.add(bag);
   const strap = new THREE.Mesh(
     new THREE.TorusGeometry(0.48, 0.035, 8, 24, Math.PI),
     mat(0x2b211c),
   );
-  strap.position.set(0.37, 2.06, 0);
+  strap.position.set(0.39, 2.04, 0.08);
   strap.rotation.z = Math.PI / 2;
   g.add(strap);
 
@@ -1173,6 +1206,21 @@ function foodCourt() {
       ac.position.set(-width / 2 + 0.8 + index * ((width - 1.6) / 3), 2.9, 2.03);
       block.add(rail, window, ac);
     }
+    const roofTrim = box(width + 0.24, 0.22, 4.06, 0x9d7a58),
+      cornice = box(width + 0.12, 0.16, 0.18, 0xf0d7a6);
+    roofTrim.position.y = 5.18;
+    cornice.position.set(0, 4.72, 2.02);
+    block.add(roofTrim, cornice);
+    for (let floor = 0; floor < 2; floor++) {
+      for (let column = 0; column < Math.max(2, Math.floor(width / 2.3)); column++) {
+        const gap = width / Math.max(2, Math.floor(width / 2.3) + 1),
+          frame = box(0.92, 0.82, 0.07, 0xc5e0e5),
+          pane = box(0.68, 0.56, 0.08, floor ? 0x7ea8b9 : 0x96c4cf);
+        frame.position.set(-width / 2 + gap * (column + 1), 3.05 + floor * 1.12, 1.96);
+        pane.position.set(frame.position.x, frame.position.y, 2.0);
+        block.add(frame, pane);
+      }
+    }
     const sign = textSprite(signText, "#fff0bd");
     sign.scale.set(Math.min(width - 0.4, 5.8), 0.95, 1);
     sign.position.set(0, 2.55, 2.2);
@@ -1253,6 +1301,83 @@ function foodCourt() {
   });
   burger.position.set(1.3, 1.38, 4.7);
   court.add(burger);
+  // North Khobar street character: tiled forecourt, lane markings, shaded seating,
+  // rooftop tanks and small storefront details make this a real neighborhood, not a prop.
+  const tileColors = [0xc6b18d, 0xd9c8a8, 0xbca27d];
+  for (let x = -11; x <= 11; x += 2.2) {
+    for (let z = -1.5; z <= 7.2; z += 2.2) {
+      const tile = box(2.02, 0.025, 2.02, tileColors[(Math.abs(x * 10 + z * 10) / 22) % tileColors.length | 0]);
+      tile.position.set(x, 0.18, z);
+      court.add(tile);
+    }
+  }
+  for (let lane = -9; lane <= 9; lane += 3.6) {
+    const marking = box(1.45, 0.018, 0.12, 0xf5dfa2);
+    marking.position.set(lane, 0.17, 10.4);
+    court.add(marking);
+  }
+  const shade = new THREE.Group();
+  shade.add(
+    box(8.6, 0.16, 0.18, 0x5f4a3d),
+    box(0.12, 3.1, 0.12, 0x5f4a3d),
+    box(0.12, 3.1, 0.12, 0x5f4a3d),
+    box(8.6, 0.16, 0.18, 0x5f4a3d),
+  );
+  shade.children[0].position.set(0, 3.24, -1.9);
+  shade.children[1].position.set(-4.15, 1.62, -1.9);
+  shade.children[2].position.set(4.15, 1.62, -1.9);
+  shade.children[3].position.set(0, 3.24, 1.9);
+  const shadeCloth = new THREE.Mesh(
+    new THREE.PlaneGeometry(8.3, 3.5),
+    new THREE.MeshStandardMaterial({ color: 0xd9b464, roughness: 0.92, side: THREE.DoubleSide }),
+  );
+  shadeCloth.rotation.x = Math.PI / 2;
+  shadeCloth.position.y = 3.18;
+  shade.add(shadeCloth);
+  court.add(shade);
+  [-7.0, -2.3, 2.3, 7.0].forEach((x) => {
+    const lantern = new THREE.Mesh(new THREE.OctahedronGeometry(0.22, 1), emissive(0xffb648, 1.7));
+    lantern.position.set(x, 4.3, 1.5);
+    court.add(lantern);
+  });
+  [-7.5, -3.8, 0, 3.8, 7.5].forEach((x, index) => {
+    const tank = cylinder(0.58, 0.58, 0.68, 0x9eaaad, 18),
+      lid = cylinder(0.42, 0.42, 0.08, 0x6f8087, 18);
+    tank.position.set(x, 5.62 + (index % 2) * 0.08, -6.3);
+    lid.position.set(x, tank.position.y + 0.38, -6.3);
+    court.add(tank, lid);
+  });
+  const streetSign = textSprite("شارع الملك خالد · SUWAIKAT", "#ffeab0");
+  streetSign.scale.set(4.8, 0.75, 1);
+  streetSign.position.set(-8.6, 2.6, 10.1);
+  streetSign.rotation.y = Math.PI;
+  court.add(streetSign);
+  for (let index = 0; index < 5; index++) {
+    const pole = cylinder(0.045, 0.065, 2.45, 0x29363c, 10),
+      bulb = sphere(0.16, 0xffd889, 12, 8);
+    pole.position.set(-10.0 + index * 5.0, 1.23, 8.55);
+    bulb.position.set(pole.position.x, 2.55, 8.55);
+    bulb.material = emissive(0xffc96a, 1.35);
+    court.add(pole, bulb);
+  }
+  const residentialBlock = (x, z, width, height, color) => {
+    const block = new THREE.Group(),
+      body = box(width, height, 3.4, color),
+      roof = box(width + 0.18, 0.22, 3.62, 0x7b6651);
+    body.position.y = height / 2;
+    roof.position.y = height + 0.11;
+    block.add(body, roof);
+    addWindows(block, Math.max(3.5, width - 1), Math.max(2, Math.floor(height / 1.1)), 3.4, 1.0);
+    const entrance = box(1.0, 1.55, 0.08, 0x4e6970);
+    entrance.position.set(0, 0.78, 1.74);
+    block.add(entrance);
+    block.position.set(x, 0, z);
+    court.add(block);
+  };
+  residentialBlock(-10.7, -11.2, 4.4, 8.8, 0xa99b88);
+  residentialBlock(-4.4, -12.8, 5.0, 10.6, 0xb9a88e);
+  residentialBlock(5.7, -12.4, 5.8, 9.5, 0x988b7f);
+  residentialBlock(11.0, -10.8, 4.2, 7.8, 0xb8a68e);
   court.position.set(35, 0, 25);
   court.rotation.y = -0.08;
   scene.add(court);

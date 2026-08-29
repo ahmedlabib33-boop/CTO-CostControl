@@ -44,6 +44,18 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn("Memory. Decisions. Projects. Destiny.", html)
         self.assertIn('"short_name":"OLA: RISE"', manifest)
 
+    def test_opening_keeps_continue_and_moves_guide_line_to_layer_two_bubble(self):
+        game_root = ROOT / "public/ola-rise"
+        html = (game_root / "index.html").read_text(encoding="utf-8")
+        script = (game_root / "game.js").read_text(encoding="utf-8")
+        css = (game_root / "style.css").read_text(encoding="utf-8")
+        self.assertIn('id="storyGuideBubble"', html)
+        self.assertIn('id="storyGuideText"', html)
+        self.assertIn('يا علا… محتاجينك في حوار صغير.', html)
+        self.assertIn('guideBubble.classList.toggle("hidden", storyIndex !== 1)', script)
+        self.assertIn('.story-copy > :not(#storyNext)', css)
+        self.assertIn('.story-guide-bubble', css)
+
     def test_3d_game_has_direct_go_to_guidance_for_every_mission(self):
         game_root = ROOT / "public/ola-rise"
         html = (game_root / "index.html").read_text(encoding="utf-8")
@@ -164,6 +176,9 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn("شاي كرك", html)
         self.assertIn("شعبيات لبيب", html)
         self.assertIn("g.scale.setScalar(0.65)", script)
+        self.assertIn("glassesMaterial", script)
+        self.assertIn("bagFlap", script)
+        self.assertIn("sash", script)
         self.assertIn("BAHRAINI_CONVERSATIONS", script)
         self.assertIn("function positionAmbientConversations", script)
         self.assertIn("أم خالد", script)
