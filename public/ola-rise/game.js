@@ -1075,7 +1075,6 @@ function restoreTrophies() {
     if (state.trophies[project.id]) createTrophy(project, index, false);
   });
 }
-let thoughtPersistent = false;
 function showThought(text, duration = 6500, persistent = false) {
   const bubble = $("#thoughtBubble");
   if (!bubble) return;
