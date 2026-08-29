@@ -71,7 +71,14 @@ class EngOllaMasteryTests(unittest.TestCase):
         self.assertIn('className="ollaPageTabs"', MASTERY)
         self.assertIn('className="ollaExplainedVisual"', MASTERY)
         self.assertIn('Charts & Explanations', live)
-        self.assertIn('function ExplainedMetricChart', live)
+        self.assertIn('function ExplainedApplicationChart', live)
+        self.assertIn('function ApplicationChart', live)
+        self.assertIn('GroupedBarChart', live)
+        self.assertIn('LineChart', live)
+        self.assertIn('BubbleChart', live)
+        self.assertIn('DonutChart', live)
+        self.assertIn('SimpleWaterfall', live)
+        self.assertNotIn('function ExplainedMetricChart', live)
         self.assertIn('What this chart measures', live)
         self.assertIn('Recommended decision', live)
         self.assertIn('Main app Charts · second-layer reading', live)
@@ -83,6 +90,7 @@ class EngOllaMasteryTests(unittest.TestCase):
         self.assertIn('openingLiveView(context)', live)
         self.assertIn('.ollaPrimaryTabs', CSS)
         self.assertIn('.liveChartExplanation', CSS)
+        self.assertIn('.liveApplicationChartPlot', CSS)
         self.assertIn('.liveDashboardTable', CSS)
 
     def test_responsive_and_motion_accessibility_rules_exist(self):

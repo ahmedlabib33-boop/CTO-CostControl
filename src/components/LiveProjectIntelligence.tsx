@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { BubbleChart, DonutChart, GroupedBarChart, LineChart, SimpleWaterfall } from "@/components/Charts";
 import { portfolioBase, scoped } from "@/lib/normalized";
 import type { NormalizedData, ProjectRegistryItem } from "@/lib/types";
 import {
@@ -16,6 +17,7 @@ import {
   type InsightKind,
   type InsightStatus,
   type IntelligencePolicy,
+  type IntelligenceDescriptor,
   type IntelligenceResult,
   type PortfolioIntelligenceContext,
 } from "@/lib/liveIntelligence";
@@ -150,10 +152,80 @@ function ResultTable({ results, title, note, limit = 14 }: { results: Intelligen
   }) : <tr><td colSpan={6}><div className="liveTableEmpty">No controlled rows are available for this selection.</div></td></tr>}</tbody></table></div><footer>Showing {rows.length} of {results.length} controlled components. Values are read from the active project, period, revision and scope.</footer></article>;
 }
 
-function ExplainedMetricChart({ result }: { result: IntelligenceResult }) {
-  const values = Object.entries(result.metrics).filter((entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1])).slice(0, 8);
-  const max = Math.max(1, ...values.map(([, value]) => Math.abs(value)));
-  return <article className={`liveExplainedChart ${result.status}`}><header><div><span>{STATUS_LABEL[result.status]} · {result.family}</span><h3>{result.componentName}</h3><p>{result.projectName} · {result.period}</p></div><b>{Math.round(result.confidence * 100)}% evidence</b></header>{values.length ? <div className="liveMetricChart">{values.map(([key, value]) => <div key={key}><span>{key.replaceAll(/([A-Z])/g, " $1").replaceAll("_", " ")}</span><div><i className={value < 0 ? "negative" : ""} style={{ width: `${Math.max(3, Math.abs(value) / max * 100)}%` }}/></div><b>{metricValue(value)}</b></div>)}</div> : <div className="liveChartUnavailable">No comparable numeric series is available for this component.</div>}<div className="liveChartExplanation"><section><span>What this chart measures</span><p>{result.meaning}</p></section><section><span>Current reading</span><p>{result.indication}</p></section><section><span>Why it matters</span><p>{result.reason}</p></section><section className="decision"><span>Recommended decision</span><p>{result.decision}</p></section></div></article>;
+const chartRows = (descriptor: IntelligenceDescriptor) => Array.isArray(descriptor.rows) ? descriptor.rows : [];
+const chartNumber = (value: unknown): number | null => typeof value === "number" && Number.isFinite(value) ? value : null;
+const chartText = (row: Record<string, unknown>, keys: string[], fallback: string) => {
+  for (const key of keys) if (row[key] != null && String(row[key]).trim()) return String(row[key]);
+  return fallback;
+};
+const rowNumber = (row: Record<string, unknown>, keys: string[]) => {
+  for (const key of keys) { const value = chartNumber(row[key]); if (value != null) return value; }
+  return null;
+};
+const aggregateChartRows = (rows: Record<string, unknown>[], labelKeys: string[], valueKeys: string[], limit = 16) => {
+  const totals = new Map<string, number>();
+  rows.forEach((row, index) => {
+    const label = chartText(row, labelKeys, `Row ${index + 1}`), value = rowNumber(row, valueKeys);
+    if (value != null) totals.set(label, (totals.get(label) || 0) + value);
+  });
+  return [...totals.entries()].map(([name, value]) => ({ name, value })).sort((a, b) => Math.abs(b.value) - Math.abs(a.value)).slice(0, limit);
+};
+
+function ApplicationChart({ descriptor, context }: { descriptor: IntelligenceDescriptor; context: DashboardIntelligenceContext | null }) {
+  const rows = chartRows(descriptor), metrics = descriptor.metrics;
+  const portfolioContext = context?.kind === "portfolio" ? context : null;
+  const active = portfolioContext?.active || [];
+  if (descriptor.componentId === "portfolio-position" && active.length) return <GroupedBarChart labels={active.map(item => item.name)} series={[{ label: "Budget", values: active.map(item => item.budget) }, { label: "EV", values: active.map(item => item.ev) }, { label: "Actual Cost", values: active.map(item => item.ac) }]}/>;
+  if (descriptor.componentId === "portfolio-margin" && active.length) return <BubbleChart points={active.map(item => ({ label: item.name, x: item.cpi || 0, y: item.gpPct * 100, size: item.contract, detail: `${item.name} · CPI ${item.cpi?.toFixed(2) ?? "—"} · GP ${(item.gpPct * 100).toFixed(1)}%` }))}/>;
+  if (descriptor.componentId === "portfolio-mix" && active.length) return <GroupedBarChart labels={active.map(item => item.name)} series={[{ label: "Direct AC", values: active.map(item => item.directAc) }, { label: "Indirect AC", values: active.map(item => item.indirectAc) }]}/>;
+  if (descriptor.componentId === "portfolio-profit" && active.length) return <GroupedBarChart labels={active.map(item => item.name)} series={[{ label: "Revenue", values: active.map(item => item.revenue) }, { label: "Actual Cost", values: active.map(item => item.ac) }, { label: "Gross Profit", values: active.map(item => item.gp) }]}/>;
+  if (descriptor.componentId === "portfolio-cashflow" && active.length) {
+    const months = [...new Set<string>(active.flatMap(item => (item.cashflow || []).map((row: Record<string, unknown>) => String(row.month))))].sort();
+    return <LineChart labels={months} series={active.flatMap(item => [{ label: `${item.name} · Cash In`, values: months.map(month => chartNumber((item.cashflow || []).find((row: Record<string, unknown>) => String(row.month) === month)?.cash_in_cum)) }, { label: `${item.name} · Cash Out`, values: months.map(month => chartNumber((item.cashflow || []).find((row: Record<string, unknown>) => String(row.month) === month)?.cash_out_cum)) }])}/>;
+  }
+  if (descriptor.componentId === "monthly-comparison-chart" && active.length) {
+    const months = [...new Set<string>(active.flatMap(item => (item.cashflow || []).map((row: Record<string, unknown>) => String(row.month))))].sort();
+    const series = active.map(item => ({
+      label: item.name,
+      values: months.map(month => chartNumber((item.cashflow || []).find((row: Record<string, unknown>) => String(row.month) === month)?.cash_in)),
+    }));
+    return <GroupedBarChart labels={months} series={series}/>;
+  }
+  if (descriptor.componentId === "division-cost-position") {
+    const divisions = [...new Set(rows.map((row, index) => chartText(row, ["division"], `Division ${index + 1}`)))];
+    const total = (division: string, keys: string[]) => rows.filter((row, index) => chartText(row, ["division"], `Division ${index + 1}`) === division).reduce((sum, row) => sum + (rowNumber(row, keys) || 0), 0);
+    return <GroupedBarChart labels={divisions} series={[{ label: "Budget", values: divisions.map(name => total(name, ["original_budget", "budget", "bac"])) }, { label: "EV", values: divisions.map(name => total(name, ["ev"])) }, { label: "AC", values: divisions.map(name => total(name, ["ac", "actual_cost"])) }]}/>;
+  }
+  if (descriptor.componentId === "cost-performance-map") return <BubbleChart points={rows.filter(row => rowNumber(row, ["cpi_to_date", "cpi"]) != null).map((row, index) => ({ label: chartText(row, ["item", "main_code"], `Item ${index + 1}`), x: (rowNumber(row, ["completion"]) || 0) * 100, y: rowNumber(row, ["cpi_to_date", "cpi"]) || 0, size: rowNumber(row, ["original_budget", "budget", "bac"]) || 0 }))}/>;
+  if (descriptor.componentId === "profitability") return <GroupedBarChart horizontal labels={rows.map((row, index) => chartText(row, ["method", "source"], `Method ${index + 1}`))} series={[{ label: "Profit / Net Profit", values: rows.map(row => rowNumber(row, ["profit"])) }]}/>;
+  if (descriptor.componentId === "monthly-cashflow") return <GroupedBarChart labels={rows.map((row, index) => chartText(row, ["month"], `Period ${index + 1}`))} series={[{ label: "Cash In", values: rows.map(row => rowNumber(row, ["cash_in"])) }, { label: "Cash Out", values: rows.map(row => rowNumber(row, ["cash_out"])) }, { label: "Net", values: rows.map(row => { const cashIn = rowNumber(row, ["cash_in"]), cashOut = rowNumber(row, ["cash_out"]); return cashIn != null && cashOut != null ? cashIn - cashOut : null; }) }]}/>;
+  if (["cumulative-cashflow", "cashflow-trend"].includes(descriptor.componentId)) return <LineChart labels={rows.map((row, index) => chartText(row, ["month"], `Period ${index + 1}`))} series={descriptor.componentId === "cumulative-cashflow" ? [{ label: "Cumulative Cash In", values: rows.map(row => rowNumber(row, ["cash_in_cum"])) }, { label: "Cumulative Cash Out", values: rows.map(row => rowNumber(row, ["cash_out_cum"])) }] : [{ label: "Cumulative Net Cash", values: rows.map(row => { const cashIn = rowNumber(row, ["cash_in_cum"]), cashOut = rowNumber(row, ["cash_out_cum"]); return cashIn != null && cashOut != null ? cashIn - cashOut : null; }) }]}/>;
+  if (["resource-pareto", "boq-resource-chart", "top-cost-codes"].includes(descriptor.componentId)) {
+    const values = aggregateChartRows(rows, ["resource", "resource_code", "code", "name", "label", "main_code"], ["actual_cost", "value", "total", "cost"]);
+    return <GroupedBarChart horizontal labels={values.map(item => item.name)} series={[{ label: "Actual Cost", values: values.map(item => item.value) }]}/>;
+  }
+  if (descriptor.componentId === "waste-efficiency") return <GroupedBarChart labels={["Steel", "Concrete"]} series={[{ label: "Actual Waste %", values: [(metrics.steelActual || 0) * 100, (metrics.concreteActual || 0) * 100] }, { label: "Budget Waste %", values: [(metrics.steelBudget || 0) * 100, (metrics.concreteBudget || 0) * 100] }]} valueFormatter={value => `${value.toFixed(2)}%`}/>;
+  if (descriptor.componentId === "classification-bridge") {
+    const raw = metrics.rawDirect || 0, equipment = metrics.equipment || 0, other = metrics.other || 0;
+    return <SimpleWaterfall labels={["Raw direct ledger", "+ Equipment realloc.", "+ Other-cost realloc.", "Reported direct AC"]} levels={[raw, raw + equipment, raw + equipment + other, metrics.reported || 0]}/>;
+  }
+  if (descriptor.componentId === "ledger-trend") return <GroupedBarChart labels={rows.map((row, index) => chartText(row, ["month"], `Period ${index + 1}`))} series={[{ label: "Ledger actual cost", values: rows.map(row => rowNumber(row, ["total", "value"])) }]}/>;
+  if (descriptor.componentId === "expense-source-mix") {
+    const values = aggregateChartRows(rows, ["source", "name", "label", "category"], ["value", "total", "cost"]);
+    return <DonutChart items={values}/>;
+  }
+  if (descriptor.componentId === "ledger-reconciliation") return <GroupedBarChart labels={["Dashboard Actual Cost", "Accounting ledger", "Raw direct ledger", "Raw indirect ledger"]} series={[{ label: "EGP", values: [metrics.reported, metrics.accounting, metrics.rawDirect, metrics.rawIndirect] }]}/>;
+  if (descriptor.componentId === "scenario-lab") return <GroupedBarChart labels={["Current AC", "Scenario EAC", "Scenario Revenue", "Scenario Profit"]} series={[{ label: "Scenario", values: [metrics.currentAc, metrics.eac, metrics.revenue, metrics.profit] }]}/>;
+  const fallbackRows = rows.slice(0, 14), labelKeys = ["item", "description", "boq_item", "main_code", "code", "category", "month", "source", "label", "name"];
+  const preferred = ["budget", "original_budget", "bac", "ev", "ac", "actual_cost", "cost", "value", "total", "etc", "eac", "vac", "steel", "concrete"];
+  const availableKeys = preferred.filter(key => fallbackRows.some(row => rowNumber(row, [key]) != null)).slice(0, 3);
+  if (fallbackRows.length && availableKeys.length) return <GroupedBarChart labels={fallbackRows.map((row, index) => chartText(row, labelKeys, `Row ${index + 1}`))} series={availableKeys.map(key => ({ label: key.replaceAll("_", " "), values: fallbackRows.map(row => rowNumber(row, [key])) }))}/>;
+  const metricEntries = Object.entries(metrics).filter((entry): entry is [string, number] => chartNumber(entry[1]) != null).slice(0, 10);
+  return <GroupedBarChart horizontal labels={metricEntries.map(([key]) => key.replaceAll(/([A-Z])/g, " $1").replaceAll("_", " "))} series={[{ label: "Current controlled value", values: metricEntries.map(([, value]) => value) }]}/>;
+}
+
+function ExplainedApplicationChart({ descriptor, result, context }: { descriptor: IntelligenceDescriptor; result: IntelligenceResult; context: DashboardIntelligenceContext | null }) {
+  return <article className={`liveExplainedChart liveApplicationChart ${result.status}`}><header><div><span>{STATUS_LABEL[result.status]} · {result.family}</span><h3>{result.componentName}</h3><p>{result.projectName} · {result.period}</p></div><b>{Math.round(result.confidence * 100)}% evidence</b></header><div className="liveApplicationChartPlot"><ApplicationChart descriptor={descriptor} context={context}/></div><div className="liveChartExplanation"><section><span>What this chart measures</span><p>{result.meaning}</p></section><section><span>Current reading</span><p>{result.indication}</p></section><section><span>Why it matters</span><p>{result.reason}</p></section><section className="decision"><span>Recommended decision</span><p>{result.decision}</p></section></div></article>;
 }
 
 function DecisionCard({ result }: { result: IntelligenceResult }) {
@@ -193,14 +265,19 @@ export default function LiveProjectIntelligence({ context, onBack }: { context: 
   const shown = results.filter(item => (family === "ALL" || item.family === family) && (kind === "ALL" || item.kind === kind) && (status === "ALL" || item.status === status));
   const counts = (Object.keys(STATUS_LABEL) as InsightStatus[]).map(key => ({ key, count: results.filter(item => item.status === key).length }));
   const priority = results.find(item => item.status === "critical") || results.find(item => item.status === "caution") || results.find(item => item.status === "unavailable") || results[0];
-  const chartResults = results.filter(item => item.kind === "chart" || item.kind === "kpi");
+  const resultByComponent = new Map(results.map(item => [`${item.projectId}:${item.componentId}`, item]));
+  const sourceChartDescriptors = descriptors.filter(item => item.kind === "chart" || item.kind === "scenario");
+  const visualDescriptors = sourceChartDescriptors.length ? sourceChartDescriptors : descriptors.filter(item => ["kpi", "table", "assurance"].includes(item.kind));
+  const chartPairs = visualDescriptors.map(descriptor => ({ descriptor, result: resultByComponent.get(`${descriptor.projectId}:${descriptor.componentId}`) })).filter((item): item is { descriptor: IntelligenceDescriptor; result: IntelligenceResult } => Boolean(item.result));
+  const chartResults = chartPairs.map(item => item.result);
+  const chartContext = scope === "portfolio" ? (context?.kind === "portfolio" ? context : portfolio) : context;
   const decisionResults = results.filter(item => ["critical", "caution", "mixed", "unavailable", "favorable"].includes(item.status));
   const openStatus = (next: InsightStatus) => { setStatus(next); setFamily("ALL"); setKind("ALL"); setView("evidence"); };
   const openFamily = (next: string) => { setFamily(next); setStatus("ALL"); setKind("ALL"); setView("evidence"); };
   if (settings) return <PolicySettings policy={policy} onChange={setPolicy} storageKey={storageKey} onClose={() => setSettings(false)}/>;
   return <section className="liveIntelligence"><header className="liveIntelligenceHead"><div><span className="ollaEyebrow">Eng. OLLA · Live Project Intelligence</span><h1>Decision Intelligence</h1><p>The current controlled data is converted into charts, tables, explanations, decisions and evidence without inventing values.</p></div><div className="liveHeadActions"><button type="button" onClick={() => setSettings(true)}>Threshold Settings</button><button type="button" onClick={onBack}>← Mastery Home</button></div></header><div className="liveScope"><button className={scope === "current" ? "active" : ""} onClick={() => setScope("current")}>Current page</button>{context?.kind === "project" && <button className={scope === "project" ? "active" : ""} onClick={() => setScope("project")}>Whole project</button>}<button className={scope === "portfolio" ? "active" : ""} onClick={() => setScope("portfolio")}>Portfolio</button></div><nav className="liveViewTabs" aria-label="Decision intelligence pages">{([{ id: "charts", label: "Charts & Explanations", note: "Main app Charts · second-layer reading" }, { id: "overview", label: "Analysis & Tables", note: "Main app CTO Analysis · interpreted" }, { id: "decisions", label: "Risk & Decisions", note: "Main app Risk · actions and mitigation" }, { id: "evidence", label: "Evidence & Sources", note: "Rules, sources and revisions" }] as { id: LiveView; label: string; note: string }[]).map(item => <button key={item.id} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><b>{item.label}</b><span>{item.note}</span></button>)}</nav><div className="liveViewViewport" key={view}>
     {view === "overview" && <div className="liveOverview"><div className="liveSummary">{counts.map(item => <button key={item.key} className={item.key} onClick={() => openStatus(item.key)}><span>{STATUS_LABEL[item.key]}</span><b>{item.count}</b></button>)}</div>{priority ? <section className={`livePriority ${priority.status}`}><div><span>Highest current management signal</span><h2>{priority.componentName}</h2><p>{priority.indication}</p></div><div><span>Recommended decision</span><b>{priority.decision}</b><button onClick={() => { setStatus(priority.status); setView("decisions"); }}>Open decision and actions →</button></div></section> : <div className="liveEmpty"><b>No controlled components are available.</b><span>Open a populated project or portfolio page before activating the Trick layer.</span></div>}<div className="liveDashboardGrid"><StatusChart results={results} onSelect={openStatus}/><FamilyChart results={results} onSelect={openFamily}/></div><ResultTable results={results} title="Executive control register" note="The chart signals and their exact current-data rows"/></div>}
-    {view === "charts" && <div className="liveChartsPage"><header><div><span className="ollaEyebrow">Current data · visual reading</span><h2>Charts with their management explanation</h2><p>Every bar uses a current registered metric. Its explanation, status and decision come from the same controlled component.</p></div><select value={family} onChange={event => setFamily(event.target.value)}><option value="ALL">All business families</option>{families.map(item => <option key={item}>{item}</option>)}</select></header><div className="liveChartGallery">{chartResults.filter(item => family === "ALL" || item.family === family).length ? chartResults.filter(item => family === "ALL" || item.family === family).map(result => <ExplainedMetricChart key={`${result.projectId}-${result.componentId}`} result={result}/>) : <div className="liveEmpty"><b>No chart metrics are available for this selection.</b><span>The application will not draw or explain a chart without controlled numeric evidence.</span></div>}</div><ResultTable results={chartResults.filter(item => family === "ALL" || item.family === family)} title="Chart metric register" note="Exact values behind every chart displayed above"/></div>}
+    {view === "charts" && <div className="liveChartsPage"><header><div><span className="ollaEyebrow">Current data · visual reading</span><h2>Main application charts with their management explanation</h2><p>The same chart components read the same active project, period, revision and scope as the main app. The Trick layer adds the controlled interpretation underneath.</p></div><select value={family} onChange={event => setFamily(event.target.value)}><option value="ALL">All business families</option>{families.map(item => <option key={item}>{item}</option>)}</select></header><div className="liveChartGallery">{chartPairs.filter(item => family === "ALL" || item.result.family === family).length ? chartPairs.filter(item => family === "ALL" || item.result.family === family).map(({ descriptor, result }) => <ExplainedApplicationChart key={`${result.projectId}-${result.componentId}`} descriptor={descriptor} result={result} context={chartContext}/>) : <div className="liveEmpty"><b>No chart data is available for this selection.</b><span>The application will not draw or explain a chart without controlled numeric evidence.</span></div>}</div><ResultTable results={chartResults.filter(item => family === "ALL" || item.family === family)} title="Chart metric register" note="Exact values behind every application chart displayed above"/></div>}
     {view === "decisions" && <div className="liveDecisionsPage"><header><div><span className="ollaEyebrow">Management action register</span><h2>Decision, mitigation and keep-on-track actions</h2><p>Critical and caution items appear first. Favorable controls remain visible with the actions required to preserve them.</p></div><select value={status} onChange={event => setStatus(event.target.value as InsightStatus | "ALL")}><option value="ALL">All decision statuses</option>{Object.entries(STATUS_LABEL).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select></header><div className="liveDashboardGrid"><StatusChart results={decisionResults.filter(item => status === "ALL" || item.status === status)} onSelect={openStatus}/><FamilyChart results={decisionResults.filter(item => status === "ALL" || item.status === status)} onSelect={openFamily}/></div><ResultTable results={decisionResults.filter(item => status === "ALL" || item.status === status)} title="Decision control table" note="Every decision remains tied to its metric, evidence and current status"/><div className="liveDecisionGrid">{decisionResults.filter(item => status === "ALL" || item.status === status).map(result => <DecisionCard key={`${result.projectId}-${result.componentId}`} result={result}/>)}</div></div>}
     {view === "evidence" && <div className="liveEvidencePage"><div className="liveFilters"><select value={family} onChange={event => setFamily(event.target.value)}><option value="ALL">All families</option>{families.map(item => <option key={item}>{item}</option>)}</select><select value={kind} onChange={event => setKind(event.target.value as InsightKind | "ALL")}><option value="ALL">All component types</option>{["kpi", "chart", "table", "scenario", "assurance"].map(item => <option key={item}>{item}</option>)}</select><select value={status} onChange={event => setStatus(event.target.value as InsightStatus | "ALL")}><option value="ALL">All statuses</option>{Object.entries(STATUS_LABEL).map(([key, label]) => <option value={key} key={key}>{label}</option>)}</select><span>{shown.length} of {results.length} components · full datasets; pagination never limits analysis</span></div><div className="liveDashboardGrid"><EvidenceConfidenceChart results={shown}/><FamilyChart results={shown} onSelect={openFamily}/></div><ResultTable results={shown} title="Source and evidence audit table" note="Current source, confidence, period and management interpretation"/><div className="liveResults">{shown.length ? shown.map(result => <InsightCard key={`${result.projectId}-${result.componentId}`} result={result}/>) : <div className="liveEmpty"><b>No assessable business components in this scope.</b><span>Raw source tables, embedded workbook visuals, media and report previews remain evidence-only.</span></div>}</div></div>}
   </div></section>;
