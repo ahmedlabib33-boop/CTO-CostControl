@@ -412,13 +412,13 @@ button:active {
   left: var(--bubble-x, 50%);
   top: var(--bubble-y, 58%);
   transform: translate(-50%, calc(-100% - 26px));
-  width: min(360px, calc(100vw - 28px));
+  width: min(390px, calc(100vw - 28px));
   padding: 14px 16px;
   border-radius: 22px;
   color: #172016;
   background: linear-gradient(145deg, #fffdf3, #e9f8e9);
   border: 2px solid rgba(83, 193, 124, 0.78);
-  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.34), 0 0 28px rgba(89, 213, 139, 0.22);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.42), 0 0 34px rgba(89, 213, 139, 0.34);
   pointer-events: none;
   animation: thoughtPop 0.28s cubic-bezier(0.2, 1.5, 0.5, 1);
 }
@@ -432,7 +432,7 @@ button:active {
 }
 .thought-bubble b {
   display: block;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.45;
 }
 .thought-bubble i {
@@ -451,7 +451,12 @@ button:active {
   right: 12px;
   top: 88px !important;
   transform: none;
-  width: min(300px, calc(100vw - 24px));
+  width: min(390px, calc(100vw - 24px));
+  max-height: min(220px, 30vh);
+  overflow: auto;
+  pointer-events: auto;
+  border-color: #65d98f;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.58), 0 0 42px rgba(89, 213, 139, 0.45);
 }
 .modal-question-open .thought-bubble i {
   left: auto;
@@ -762,7 +767,9 @@ button:active {
   position: absolute;
   z-index: 70;
   inset: 0;
-  background: rgba(0, 0, 0, 0.58);
+  background: rgba(0, 0, 0, 0.38);
+  backdrop-filter: blur(2px) saturate(1.16);
+  -webkit-backdrop-filter: blur(2px) saturate(1.16);
   display: grid;
   place-items: end center;
   padding: 12px;
@@ -777,6 +784,8 @@ button:active {
   border-radius: 25px;
   padding: 18px 18px max(22px, env(safe-area-inset-bottom));
   position: relative;
+  border: 1px solid rgba(124, 211, 255, 0.32);
+  box-shadow: 0 26px 80px rgba(0, 0, 0, 0.62), 0 0 42px rgba(73, 177, 213, 0.15);
 }
 .status {
   display: inline-block;

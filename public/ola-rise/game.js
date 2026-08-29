@@ -1025,6 +1025,7 @@ function restoreTrophies() {
     if (state.trophies[project.id]) createTrophy(project, index, false);
   });
 }
+let thoughtPersistent = false;
 function showThought(text, duration = 6500, persistent = false) {
   const bubble = $("#thoughtBubble");
   if (!bubble) return;
@@ -1529,7 +1530,7 @@ function openDecision(p, i) {
     orderedOptions = m[4].map((option, originalIndex) => ({ option, originalIndex })).slice(rotation).concat(m[4].map((option, originalIndex) => ({ option, originalIndex })).slice(0, rotation));
   $("#decisionHint").textContent = hint;
   document.body.classList.add("modal-question-open");
-  showThought(hint, 4200);
+  showThought(hint, 0, true);
   $("#decisionOptions").innerHTML = orderedOptions
     .map(
       ({ option, originalIndex }, displayIndex) =>
@@ -1562,7 +1563,7 @@ function choose(p, i, opt) {
   } else {
     state.patience = Math.max(0, state.patience - 10);
     toast("That decision increased exposure");
-    showThought(decisionHint(p, mission), 6500);
+    showThought(decisionHint(p, mission), 0, true);
     visualReaction(p, false);
   }
   save();
@@ -1609,7 +1610,7 @@ function guideAnswer(p, i) {
   useHelp(
     `بصي يا علا… الإجابة الصح من غير لف ودوران: ${m[4][correctIndex]}. واعتبري إني ما قلتش حاجة.`,
   );
-  showThought(decisionHint(p, m), 6500);
+  showThought(decisionHint(p, m), 0, true);
   $("#guideModal").classList.remove("hidden");
 }
 $("#goToBtn").onclick = () => {
@@ -1726,7 +1727,7 @@ function renderExamQuestion() {
     button.onclick = () => answerExam(Number(button.dataset.examOpt));
   });
   $("#examHintBtn").onclick = () => showThought(question.hint, 6500);
-  showThought(question.hint, 4200);
+  showThought(question.hint, 0, true);
 }
 function answerExam(selected) {
   if (!activeExam) return;
@@ -1738,7 +1739,7 @@ function answerExam(selected) {
     state.fun = Math.max(0, state.fun - 2);
     save();
     toast("Not controlled yet—use Eng. Ola's thought bubble");
-    showThought(question.hint, 6500);
+    showThought(question.hint, 0, true);
     return;
   }
   buttons.forEach((button) => (button.disabled = true));
