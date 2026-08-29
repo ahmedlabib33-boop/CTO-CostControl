@@ -61,6 +61,9 @@ function setupMusic() {
   if (!audio) return;
   setMusicVolume(0.5);
   loadMusicTrack(0);
+  addEventListener("pointerdown", () => {
+    if (audio.paused) audio.play().catch(() => {});
+  }, { passive: true });
   audio.addEventListener("ended", () => loadMusicTrack(musicIndex + 1, true));
   $("#musicToggle").onclick = () => {
     if (audio.paused) audio.play().then(() => { $("#musicToggle").textContent = "❚❚ Pause music"; }).catch(() => toast("The browser blocked audio; press Play again"));
@@ -114,11 +117,11 @@ $("#storyNext").onclick = async () => {
     const button = $("#storyNext");
     button.disabled = true;
     button.textContent = "Reading the current app snapshot…";
+    const audio = $("#musicPlayer");
+    if (audio?.paused) audio.play().catch(() => {});
     try {
       await ensureLiveProjects();
       show("game");
-      const audio = $("#musicPlayer");
-      if (audio?.paused) audio.play().catch(() => {});
       init3D();
     } catch (error) {
       console.error(error);

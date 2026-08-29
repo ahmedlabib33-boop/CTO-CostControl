@@ -1,4 +1,4 @@
-const CACHE = "ola-rise-v10-live-sims-academy";
+const CACHE = "ola-rise-v11-live-sims-academy";
 const CORE = [
   "./",
   "./index.html",
