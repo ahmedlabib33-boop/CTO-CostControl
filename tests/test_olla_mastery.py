@@ -73,6 +73,8 @@ class EngOllaMasteryTests(unittest.TestCase):
         self.assertIn('Charts & Explanations', live)
         self.assertIn('function ExplainedApplicationChart', live)
         self.assertIn('function ApplicationChart', live)
+        self.assertIn('function SupportingApplicationCharts', live)
+        self.assertEqual(live.count('<SupportingApplicationCharts'), 3)
         self.assertIn('GroupedBarChart', live)
         self.assertIn('LineChart', live)
         self.assertIn('BubbleChart', live)
