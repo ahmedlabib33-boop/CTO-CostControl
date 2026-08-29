@@ -366,7 +366,7 @@ function renderStageRail() {
   const rail = $("#stageRail");
   if (!rail || !PROJECTS.length) return;
   const signature = PROJECTS.map((project) => `${project.id}:${projectIsControlled(project, state.resolved[project.id] || {})}:${Boolean(state.trophies[project.id])}`).join("|");
-  if (signature === lastStageRender) return;
+  if (signature === lastStageRender && rail.children.length) return;
   lastStageRender = signature;
   rail.innerHTML = PROJECTS.map((project, index) => {
     const controlled = projectIsControlled(project, state.resolved[project.id] || {}),
@@ -388,7 +388,7 @@ function renderTrophyShelf() {
   const shelf = $("#trophyShelf");
   if (!shelf || !PROJECTS.length) return;
   const renderSignature = PROJECTS.map((project) => `${project.id}:${Boolean(state.trophies[project.id])}`).join("|");
-  if (renderSignature === lastTrophyRender) return;
+  if (renderSignature === lastTrophyRender && shelf.children.length) return;
   lastTrophyRender = renderSignature;
   const summary = trophySummary(PROJECTS, state.trophies);
   shelf.innerHTML = `<div class="trophy-count"><b>${summary.earned}/${summary.total}</b><small>stage trophies</small></div>${PROJECTS.map((project) => `<button data-trophy-project="${escapeHtml(project.id)}" class="${state.trophies[project.id] ? "earned" : "locked"}"><span>${state.trophies[project.id] ? "🏆" : "◇"}</span><small>${escapeHtml(project.name)}</small></button>`).join("")}`;
