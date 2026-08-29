@@ -74,8 +74,16 @@ class EngOllaMasteryTests(unittest.TestCase):
         self.assertIn('function ExplainedMetricChart', live)
         self.assertIn('What this chart measures', live)
         self.assertIn('Recommended decision', live)
+        self.assertIn('Main app Charts · second-layer reading', live)
+        self.assertIn('Main app CTO Analysis · interpreted', live)
+        self.assertIn('Main app Risk · actions and mitigation', live)
+        self.assertIn('function ResultTable', live)
+        self.assertGreaterEqual(live.count('<ResultTable'), 4)
+        self.assertIn('function EvidenceConfidenceChart', live)
+        self.assertIn('openingLiveView(context)', live)
         self.assertIn('.ollaPrimaryTabs', CSS)
         self.assertIn('.liveChartExplanation', CSS)
+        self.assertIn('.liveDashboardTable', CSS)
 
     def test_responsive_and_motion_accessibility_rules_exist(self):
         self.assertIn("@media(max-width:760px)", CSS)
