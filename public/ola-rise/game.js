@@ -60,7 +60,7 @@ function loadMusicTrack(index, autoplay = false) {
 function setupMusic() {
   const audio = $("#musicPlayer");
   if (!audio) return;
-  setMusicVolume(0.5);
+  setMusicVolume(0.7);
   loadMusicTrack(0);
   addEventListener("pointerdown", () => {
     if (audio.paused) audio.play().catch(() => {});
@@ -77,7 +77,7 @@ function setupMusic() {
   addEventListener("keydown", (event) => {
     if (event.key === "AudioVolumeDown") { event.preventDefault(); setMusicVolume(audio.volume - 0.1); }
     if (event.key === "AudioVolumeUp") { event.preventDefault(); setMusicVolume(audio.volume + 0.1); }
-    if (event.key === "AudioVolumeMute") { event.preventDefault(); setMusicVolume(audio.volume ? 0 : 0.5); }
+    if (event.key === "AudioVolumeMute") { event.preventDefault(); setMusicVolume(audio.volume ? 0 : 0.7); }
   });
 }
 

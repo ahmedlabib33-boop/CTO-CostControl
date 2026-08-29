@@ -114,6 +114,7 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn('id="musicPlayer"', html)
         self.assertIn('id="volumeDown"', html)
         self.assertIn('id="volumeUp"', html)
+        self.assertIn("setMusicVolume(0.7)", script)
         self.assertIn('assets/intro.mp3', script)
         self.assertIn('assets/crystalised.mp3', script)
         self.assertIn('assets/track-3.mp3', script)
