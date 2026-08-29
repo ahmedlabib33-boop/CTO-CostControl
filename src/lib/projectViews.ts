@@ -40,6 +40,7 @@ export const PROJECT_FAMILIES = [
     label: "Source & Assurance",
     pages: [
       { id: "assurance-quality", label: "Data Quality" },
+      { id: "assurance-mapping", label: "Data Mapping" },
       { id: "assurance-workbooks", label: "Workbook Sources" },
       { id: "assurance-visuals", label: "Source Visuals" },
     ],

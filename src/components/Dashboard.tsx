@@ -4,11 +4,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { IdentityConflict, ProjectRegistryItem } from "@/lib/types";
 import ProjectWorkspace from "@/components/ProjectWorkspace";
 import { DEFAULT_PROJECT_VIEW, normalizeProjectView, type ProjectView } from "@/lib/projectViews";
-import { IdentityConflictAlerts, MonthlyHistory, PortfolioCommandCenter, PortfolioQuality, ProjectCards } from "@/components/PortfolioWorkspace";
+import { IdentityConflictAlerts, MonthlyHistory, PortfolioCommandCenter, PortfolioQuality, ProjectCards, usePortfolioModels } from "@/components/PortfolioWorkspace";
+import { PortfolioDataMapping } from "@/components/DataMapping";
 import { money } from "@/lib/normalized";
 import OutputStudio from "@/components/OutputStudio";
 import EngOllaMastery from "@/components/EngOllaMastery";
 import DeploymentIndicator from "@/components/DeploymentIndicator";
+import RepoLastModified from "@/components/RepoLastModified";
 import { INTELLIGENCE_CONTEXT_EVENT, publishIntelligenceContext, type DashboardIntelligenceContext } from "@/lib/liveIntelligence";
 
 type Tab="portfolio"|"projects"|"intelligence"|"output";
@@ -34,7 +36,8 @@ function OlaOverlay(){
 }
 
 export default function Dashboard({initialProjectId,initialProjectView=DEFAULT_PROJECT_VIEW}:{initialProjectId?:string;initialProjectView?:ProjectView}){
- const [projects,setProjects]=useState<ProjectRegistryItem[]>([]),[conflicts,setConflicts]=useState<IdentityConflict[]>([]),[,setPortfolio]=useState<any>(null),[tab,setTab]=useState<Tab>("portfolio"),[projectId,setProjectId]=useState(initialProjectId||""),[projectView,setProjectView]=useState<ProjectView>(initialProjectView),[clock,setClock]=useState("");
+ const [projects,setProjects]=useState<ProjectRegistryItem[]>([]),[conflicts,setConflicts]=useState<IdentityConflict[]>([]),[,setPortfolio]=useState<any>(null),[tab,setTab]=useState<Tab>("portfolio"),[qualityView,setQualityView]=useState<"overview"|"mapping">("overview"),[projectId,setProjectId]=useState(initialProjectId||""),[projectView,setProjectView]=useState<ProjectView>(initialProjectView),[clock,setClock]=useState("");
+ const portfolioModels=usePortfolioModels(projects);
  useEffect(()=>{Promise.all([fetch("/generated/projects.json").then(r=>r.json()),fetch("/generated/portfolio/latest.json").then(r=>r.json()),fetch("/generated/identity-conflicts.json").then(r=>r.ok?r.json():[]).catch(()=>[])]).then(([p,po,c])=>{setProjects(p);setPortfolio(po);setConflicts(Array.isArray(c)?c:[])}).catch(()=>{})},[]);
  useEffect(()=>{const t=()=>setClock(new Intl.DateTimeFormat("en-GB",{timeZone:"Africa/Cairo",hour:"2-digit",minute:"2-digit",day:"2-digit",month:"2-digit",year:"numeric"}).format(new Date()));t();const id=setInterval(t,30000);return()=>clearInterval(id)},[]);
  useEffect(()=>{const pop=()=>{const m=location.pathname.match(/^\/project\/([^/]+)(?:\/([^/]+))?/);setProjectId(m?decodeURIComponent(m[1]):"");setProjectView(normalizeProjectView(m?.[2]))};window.addEventListener("popstate",pop);return()=>window.removeEventListener("popstate",pop)},[]);
@@ -43,5 +46,5 @@ export default function Dashboard({initialProjectId,initialProjectView=DEFAULT_P
  const navigateProject=(view:ProjectView)=>{setProjectView(view);history.pushState({},"",`/project/${encodeURIComponent(projectId)}/${view}`);window.scrollTo({top:0,behavior:"smooth"})};
  const back=()=>{setProjectId("");history.pushState({},"","/");setTab("portfolio");window.scrollTo({top:0,behavior:"smooth"})};
  if(projectId)return <main className="shell"><DeploymentIndicator/><OlaOverlay/><ProjectWorkspace projectId={projectId} view={projectView} onNavigate={navigateProject} onBack={back}/></main>;
- return <main className="shell"><DeploymentIndicator/><OlaOverlay/><header className="top"><div className="brandrow"><div><div className="title">CTO <em>Cost Intelligence</em> Command Center</div><div className="subtitle">Technical Director · Adaptive Workbook Intelligence · Cairo {clock}</div></div><div className="approval">Designed &amp; Created | Eng. Ahmed Labib</div></div><nav className="nav">{NAV.map(n=><button key={n.id} className={tab===n.id?"active":""} onClick={()=>setTab(n.id)}>{n.label}</button>)}</nav></header>{tab==="portfolio"&&<PortfolioCommandCenter projects={projects} onOpen={open}/>} {tab==="projects"&&<ProjectCards projects={projects} onOpen={open}/>} {tab==="intelligence"&&<><IdentityConflictAlerts conflicts={conflicts}/><MonthlyHistory projects={projects}/><PortfolioQuality projects={projects} onOpen={open}/><SourceRegistry projects={projects} onOpen={open}/></>} {tab==="output"&&<OutputStudio projects={projects}/>}</main>;
+ return <main className="shell"><DeploymentIndicator/><OlaOverlay/><header className="top"><div className="brandrow"><div><div className="title">CTO <em>Cost Intelligence</em> Command Center</div><div className="subtitle">Technical Director · Adaptive Workbook Intelligence · Cairo {clock}<RepoLastModified/></div></div><div className="approval">Designed &amp; Created | Eng. Ahmed Labib</div></div><nav className="nav">{NAV.map(n=><button key={n.id} className={tab===n.id?"active":""} onClick={()=>setTab(n.id)}>{n.label}</button>)}</nav></header>{tab==="portfolio"&&<PortfolioCommandCenter projects={projects} onOpen={open}/>} {tab==="projects"&&<ProjectCards projects={projects} onOpen={open}/>} {tab==="intelligence"&&<section className="qualityWorkspace"><nav className="qualityTabNav" aria-label="Data quality views"><button type="button" className={qualityView==="overview"?"active":""} aria-pressed={qualityView==="overview"} onClick={()=>setQualityView("overview")}><b>Quality Overview</b><span>History, findings and source registry</span></button><button type="button" className={qualityView==="mapping"?"active":""} aria-pressed={qualityView==="mapping"} onClick={()=>setQualityView("mapping")}><b>Data Mapping</b><span>Projects → JSON → Command Center</span></button></nav>{qualityView==="overview"?<><IdentityConflictAlerts conflicts={conflicts}/><MonthlyHistory projects={projects}/><PortfolioQuality projects={projects} onOpen={open}/><SourceRegistry projects={projects} onOpen={open}/></>:<PortfolioDataMapping models={portfolioModels} onOpen={open}/>}</section>} {tab==="output"&&<OutputStudio projects={projects}/>}</main>;
 }

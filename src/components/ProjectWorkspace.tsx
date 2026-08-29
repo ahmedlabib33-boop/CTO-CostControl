@@ -7,6 +7,7 @@ import { BubbleChart, ChartShell, DonutChart, ExcelSourceChart, GroupedBarChart,
 import { DataTable, PlainMatrix, SourceSnapshot, type Col } from "@/components/Tables";
 import { PROJECT_FAMILIES, familyForView, type ProjectView } from "@/lib/projectViews";
 import { publishIntelligenceContext } from "@/lib/liveIntelligence";
+import { ProjectDataMapping } from "@/components/DataMapping";
 
 export type { ProjectView } from "@/lib/projectViews";
 
@@ -157,6 +158,7 @@ export default function ProjectWorkspace({projectId,view,onNavigate,onBack}:{pro
  {view==="ledger-transactions"&&<ExpenseTransactions norm={standardNorm} initialCode={ledgerCode}/>}
  {view==="ledger-codes"&&<><SectionTitle id="cost-code-register" title="Cost code register" description="Searchable controlled lookup kept separate from transaction analysis."/><div className="card"><DataTable title={`Cost Code Lookup — all ${standardNorm?.cost_codes?.length||0} codes`} rows={standardNorm?.cost_codes||[]} columns={COST_CODE_COLS} searchKeys={["code","description","account_type","type"]}/></div></>}
  {view==="assurance-quality"&&<><AssuranceQuality data={data} norm={standardNorm}/>{adaptive}</>}
+ {view==="assurance-mapping"&&<ProjectDataMapping data={data} norm={standardNorm}/>}
  {view==="assurance-workbooks"&&<><SectionTitle id="workbook-sources" title="Workbook sources" description="Complete project-isolated workbook evidence and detected tables."/><AdaptiveSourceExplorer data={data}/>{norm&&<ApprovedSourceSheetExplorer norm={norm}/>}</>}
  {view==="assurance-visuals"&&<><SectionTitle id="source-visuals" title="Source visuals" description="Embedded workbook charts and retained source media."/><SourceCharts data={data} norm={standardNorm}/><SourceMedia norm={standardNorm}/></>}
  </>;

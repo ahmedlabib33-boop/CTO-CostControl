@@ -5,7 +5,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class UniversalDashboardTests(unittest.TestCase):
-    def test_every_project_uses_five_families_with_three_focused_pages_each(self):
+    def test_every_project_uses_five_families_with_focused_pages(self):
         views = (ROOT / "src/lib/projectViews.ts").read_text(encoding="utf-8")
         project = (ROOT / "src/components/ProjectWorkspace.tsx").read_text(encoding="utf-8")
         families = ["Executive", "Forecast Engineering", "Cost Structure", "Ledger & Controls", "Source & Assurance"]
@@ -16,7 +16,7 @@ class UniversalDashboardTests(unittest.TestCase):
             "forecast-performance", "forecast-boq-actual", "forecast-boq-outlook",
             "structure-direct", "structure-indirect", "structure-allocation",
             "ledger-analytics", "ledger-transactions", "ledger-codes",
-            "assurance-quality", "assurance-workbooks", "assurance-visuals",
+            "assurance-quality", "assurance-mapping", "assurance-workbooks", "assurance-visuals",
         ]
         for page_id in page_ids:
             self.assertIn(page_id, views)
@@ -25,7 +25,7 @@ class UniversalDashboardTests(unittest.TestCase):
         self.assertIn('className="pageNav"', project)
         self.assertIn('view.startsWith("forecast-")', project)
         self.assertIn('view.startsWith("structure-")', project)
-        for page_id in ["executive-overview", "executive-commercial", "executive-resources", "ledger-analytics", "ledger-transactions", "ledger-codes", "assurance-quality", "assurance-workbooks", "assurance-visuals"]:
+        for page_id in ["executive-overview", "executive-commercial", "executive-resources", "ledger-analytics", "ledger-transactions", "ledger-codes", "assurance-quality", "assurance-mapping", "assurance-workbooks", "assurance-visuals"]:
             self.assertIn(page_id, project)
 
     def test_missing_data_keeps_standard_shells_and_renders_professional_empty_state(self):
