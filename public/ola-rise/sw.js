@@ -1,58 +1,21 @@
-const CACHE = "ola-rise-v21-decision-academy";
-const CORE = [
-  "./",
-  "./index.html",
-  "./style.css",
-  "./game.js",
-  "./systems.js",
-  "./live-data.js",
-  "./manifest.webmanifest",
-  "./assets/layer_1.jpg",
-  "./assets/layer_2.jpg",
-  "./assets/layer_3.jpg",
-  "./assets/layer_4.jpg",
-  "./assets/layer_5.jpg",
-  "./assets/intro.mp3",
-  "./assets/crystalised.mp3",
-  "./assets/track-3.mp3",
-];
-self.addEventListener("install", (e) =>
-  e.waitUntil(
-    caches
-      .open(CACHE)
-      .then((c) => c.addAll(CORE))
-      .then(() => self.skipWaiting()),
-  ),
-);
+self.addEventListener("install", (event) => {
+  event.waitUntil(self.skipWaiting());
+});
+
 self.addEventListener("activate", (e) =>
   e.waitUntil(
     caches
       .keys()
-      .then((k) =>
-        Promise.all(k.filter((x) => x !== CACHE).map((x) => caches.delete(x))),
-      )
+      .then((keys) => Promise.all(keys.filter((key) => key.startsWith("ola-rise-")).map((key) => caches.delete(key))))
       .then(() => self.clients.claim()),
   ),
 );
+
 self.addEventListener("fetch", (e) => {
-  const url = new URL(e.request.url);
-  if (url.pathname.includes("/generated/")) {
-    e.respondWith(fetch(e.request, { cache: "no-store" }));
+  if (e.request.method !== "GET") return;
+  const request = new Request(e.request, { cache: "no-store" });
+  if (new URL(e.request.url).origin === self.location.origin) {
+    e.respondWith(fetch(request));
     return;
   }
-  e.respondWith(
-    caches.match(e.request).then(
-      (r) =>
-        r ||
-        fetch(e.request)
-          .then((resp) => {
-            if (e.request.method === "GET") {
-              const cp = resp.clone();
-              caches.open(CACHE).then((c) => c.put(e.request, cp));
-            }
-            return resp;
-          })
-          .catch(() => r),
-    ),
-  );
 });

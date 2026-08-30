@@ -18,8 +18,8 @@ import {
   timePhaseFor,
   trainingSummary,
   trophySummary,
-} from "./systems.js";
-import { loadLiveGameProjects } from "./live-data.js";
+} from "./systems.js?release=20260830-v22";
+import { loadLiveGameProjects } from "./live-data.js?release=20260830-v22";
 
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
@@ -1440,7 +1440,7 @@ function foodCourt() {
     block.position.set(x, 0, z);
     court.add(block);
   };
-  shopBlock(-7.2, -6.3, 7.8, 0xd7c3a4, "SHAABIYAT LABIB");
+  shopBlock(-7.2, -6.3, 7.8, 0xd7c3a4, "FOOD COURT");
   shopBlock(1.2, -6.3, 7.6, 0xc8b08e, "KARAK · TAMEEZ");
   shopBlock(8.4, -6.3, 5.8, 0xe0cfb3, "PIZZA · BURGER");
 
@@ -1458,7 +1458,7 @@ function foodCourt() {
   const gateLeft = box(0.68, 3.4, 0.72, 0xd8c3a1),
     gateRight = box(0.68, 3.4, 0.72, 0xd8c3a1),
     gateBeam = box(10.7, 0.52, 0.72, 0xb89362),
-    gateSign = textSprite("WELCOME · SHAABIYAT LABIB", "#fff1bb");
+    gateSign = textSprite("WELCOME · FOOD COURT", "#fff1bb");
   gateLeft.position.set(-5.1, 1.7, 8.0);
   gateRight.position.set(5.1, 1.7, 8.0);
   gateBeam.position.set(0, 3.3, 8.0);
@@ -2014,7 +2014,7 @@ function init3D() {
   animate();
   if (isBedtime(state.hour) && !state.nightSocial) setTimeout(openBedtimeGate, 0);
   if ("serviceWorker" in navigator)
-    navigator.serviceWorker.register("./sw.js").catch(() => {});
+    navigator.serviceWorker.register("./sw.js?release=20260830-v22", { updateViaCache: "none" }).catch(() => {});
 }
 function resize() {
   if (!renderer) return;
