@@ -1,79 +1,79 @@
 {
-    "projects":  [
-                     {
-                         "project_id":  "gloria-hospital",
-                         "project_name":  "Gloria Hospital",
-                         "identity":  {
-                                          "status":  "existing",
-                                          "project_sap_id":  "SAP_001",
-                                          "project_code":  "GLR01",
-                                          "project_name":  "Gloria Hospital",
-                                          "report_start":  "2026-06-01",
-                                          "report_finish":  "2026-06-30",
-                                          "project_start":  "2024-09-12",
-                                          "project_finish":  "2025-10-12",
-                                          "project_finish_eot":  "2026-07-15",
-                                          "effective_project_finish":  "2026-07-15",
-                                          "metadata_sheet_state":  "visible",
-                                          "identity_source":  "metadata_sheet"
-                                      },
-                         "reporting_period":  "2026-06-01_to_2026-06-30",
-                         "source_fingerprint":  "6ea29fbea49e95029210192c7c78aeffcfa504875b5dc2aecd4de63a2814b9fc",
-                         "normalized_path":  "/generated/projects/gloria-hospital/enriched/2026-06-01_to_2026-06-30/6ea29fbea49e9502/normalized.json",
-                         "approved_parity":  false,
-                         "metrics":  {
-                                         "contract_value":  391923909.0,
-                                         "budget":  292494173.23875,
-                                         "earned_value":  114020708.8413002,
-                                         "actual_cost":  120872948.33780092,
-                                         "cost_variance":  -6852239.496500716,
-                                         "revenue":  150899942.235,
-                                         "gross_profit":  6743132.810338587,
-                                         "direct_cost":  90903685.75007446,
-                                         "indirect_cost":  29969262.58772646,
-                                         "cpi":  0.9433103966542545
-                                     },
-                         "capabilities":  {
-                                              "overview":  true,
-                                              "project_summary":  true,
-                                              "cashflow":  true,
-                                              "direct_cost":  true,
-                                              "indirect_cost":  true,
-                                              "boq":  true,
-                                              "forecast":  true,
-                                              "ledger":  true,
-                                              "cost_codes":  true,
-                                              "waste":  true,
-                                              "wages":  true,
-                                              "reallocation":  true,
-                                              "assets":  true,
-                                              "balance":  true
-                                          },
-                         "quality_count":  0,
-                         "sheet_count":  52,
-                         "chart_count":  6,
-                         "history":  [
-                                         {
-                                             "reporting_period":  "2026-06-01_to_2026-06-30",
-                                             "source_fingerprint":  "6ea29fbea49e95029210192c7c78aeffcfa504875b5dc2aecd4de63a2814b9fc",
-                                             "metrics":  {
-                                                             "contract_value":  391923909.0,
-                                                             "budget":  292494173.23875,
-                                                             "earned_value":  114020708.8413002,
-                                                             "actual_cost":  120872948.33780092,
-                                                             "cost_variance":  -6852239.496500716,
-                                                             "revenue":  150899942.235,
-                                                             "gross_profit":  6743132.810338587,
-                                                             "direct_cost":  90903685.75007446,
-                                                             "indirect_cost":  29969262.58772646,
-                                                             "cpi":  0.9433103966542545
-                                                         },
-                                             "normalized_path":  "/generated/projects/gloria-hospital/enriched/2026-06-01_to_2026-06-30/6ea29fbea49e9502/normalized.json"
-                                         }
-                                     ]
-                     }
-                 ],
-    "project_count":  1,
-    "generated_at":  "2026-08-30T13:22:06.3489718Z",
-    "registry_fingerprint":  "50db47057d1a087ac043497f66bff6dd099e560f482e091edff72e4e26831bf5"
+  "generated_at": "2026-08-30T13:29:49.156198+00:00",
+  "registry_fingerprint": "04aa4cf2cf7f7fe3fa2e5c1899bce93dc8cc2a18b973756c05907fd2ab199d82",
+  "project_count": 1,
+  "projects": [
+    {
+      "project_id": "gloria-hospital",
+      "project_name": "Gloria Hospital",
+      "identity": {
+        "status": "existing",
+        "project_sap_id": "SAP_001",
+        "project_code": "GLR01",
+        "project_name": "Gloria Hospital",
+        "report_start": "2026-06-01",
+        "report_finish": "2026-06-30",
+        "project_start": "2024-09-12",
+        "project_finish": "2025-10-12",
+        "project_finish_eot": "2026-07-15",
+        "effective_project_finish": "2026-07-15",
+        "metadata_sheet_state": "visible",
+        "identity_source": "metadata_sheet"
+      },
+      "reporting_period": "2026-06-01_to_2026-06-30",
+      "source_fingerprint": "6ea29fbea49e95029210192c7c78aeffcfa504875b5dc2aecd4de63a2814b9fc",
+      "normalized_path": "/generated/projects/gloria-hospital/enriched/2026-06-01_to_2026-06-30/6ea29fbea49e9502/normalized.json",
+      "approved_parity": false,
+      "metrics": {
+        "contract_value": 391923909.0,
+        "budget": 292494173.23875,
+        "earned_value": 114020708.8413002,
+        "actual_cost": 120872948.33780092,
+        "cost_variance": -6852239.496500716,
+        "revenue": 150899942.235,
+        "gross_profit": 6743132.810338587,
+        "direct_cost": 90903685.75007446,
+        "indirect_cost": 29969262.58772646,
+        "cpi": 0.9433103966542545
+      },
+      "capabilities": {
+        "overview": true,
+        "project_summary": true,
+        "cashflow": true,
+        "direct_cost": true,
+        "indirect_cost": true,
+        "boq": true,
+        "forecast": true,
+        "ledger": true,
+        "cost_codes": true,
+        "waste": true,
+        "wages": true,
+        "reallocation": true,
+        "assets": true,
+        "balance": true
+      },
+      "quality_count": 0,
+      "sheet_count": 52,
+      "chart_count": 6,
+      "history": [
+        {
+          "reporting_period": "2026-06-01_to_2026-06-30",
+          "source_fingerprint": "6ea29fbea49e95029210192c7c78aeffcfa504875b5dc2aecd4de63a2814b9fc",
+          "metrics": {
+            "contract_value": 391923909.0,
+            "budget": 292494173.23875,
+            "earned_value": 114020708.8413002,
+            "actual_cost": 120872948.33780092,
+            "cost_variance": -6852239.496500716,
+            "revenue": 150899942.235,
+            "gross_profit": 6743132.810338587,
+            "direct_cost": 90903685.75007446,
+            "indirect_cost": 29969262.58772646,
+            "cpi": 0.9433103966542545
+          },
+          "normalized_path": "/generated/projects/gloria-hospital/enriched/2026-06-01_to_2026-06-30/6ea29fbea49e9502/normalized.json"
+        }
+      ]
+    }
+  ]
 }
