@@ -12,7 +12,7 @@ type CommitStatus = {
 
 const allowedStates = new Set<VercelState>(["pending", "success", "failure", "error"]);
 const FAST_POLL_MS = 10_000;
-const PUBLIC_POLL_MS = 60_000;
+const PUBLIC_POLL_MS = 10_000;
 
 function unknownResponse(error?: string) {
   return NextResponse.json(
@@ -60,14 +60,18 @@ export async function GET() {
     const rawState = String(vercel?.state || "").toLowerCase();
     const state: VercelState = allowedStates.has(rawState as VercelState) ? rawState as VercelState : "unknown";
     const isNewerCommit = Boolean(latestSha && deployedSha && latestSha !== deployedSha);
+    const showUploading = Boolean(
+      state === "pending"
+      || (isNewerCommit && state !== "failure" && state !== "error"),
+    );
 
     return NextResponse.json(
       {
-        ok: state !== "unknown",
+        ok: Boolean(latestSha),
         state,
         latest_sha: latestSha || null,
         deployed_sha: deployedSha || null,
-        show_uploading: state === "pending",
+        show_uploading: showUploading,
         ready_to_reload: state === "success" && isNewerCommit,
         poll_after_ms: token ? FAST_POLL_MS : PUBLIC_POLL_MS,
         checked_at: new Date().toISOString(),

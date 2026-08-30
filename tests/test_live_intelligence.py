@@ -7,6 +7,9 @@ MASTERY = (ROOT / "src/components/EngOllaMastery.tsx").read_text(encoding="utf-8
 LIVE = (ROOT / "src/components/LiveProjectIntelligence.tsx").read_text(encoding="utf-8")
 ENGINE = (ROOT / "src/lib/liveIntelligence.ts").read_text(encoding="utf-8")
 WORKER = (ROOT / "src/workers/intelligence.worker.ts").read_text(encoding="utf-8")
+PORTFOLIO = (ROOT / "src/components/PortfolioWorkspace.tsx").read_text(encoding="utf-8")
+RISK = (ROOT / "src/components/PortfolioRisk.tsx").read_text(encoding="utf-8")
+RISK_ENGINE = (ROOT / "src/lib/portfolioRisk.ts").read_text(encoding="utf-8")
 CSS = (ROOT / "src/app/globals.css").read_text(encoding="utf-8")
 
 
@@ -48,6 +51,29 @@ class LiveIntelligenceIntegrationTests(unittest.TestCase):
         self.assertIn('Export JSON', LIVE)
         self.assertIn('Import JSON', LIVE)
         self.assertIn('Reset defaults', LIVE)
+
+    def test_portfolio_risk_is_a_peer_tab_with_controlled_data(self):
+        self.assertIn('setPortfolioTab("risk")', PORTFOLIO)
+        self.assertIn('<PortfolioRisk', PORTFOLIO)
+        self.assertIn('view:"risk"', PORTFOLIO)
+        self.assertIn('buildPortfolioRiskReport(context, policy)', RISK)
+        self.assertIn('No adverse risk detected from available evidence', RISK)
+
+    def test_management_settings_require_clear_then_save(self):
+        self.assertIn('Using default risk policy', RISK)
+        self.assertIn('Clear for Replacement', RISK)
+        self.assertIn('Save Settings', RISK)
+        self.assertIn('The old saved settings remain active until Save Settings.', RISK)
+        self.assertIn('localStorage.setItem(PORTFOLIO_RISK_SETTINGS_KEY', RISK)
+        self.assertIn('riskPolicyFromAnswers', RISK_ENGINE)
+
+    def test_project_risk_is_not_hidden_and_scenarios_are_separate(self):
+        self.assertIn('buildSelectedProjectDescriptors', RISK_ENGINE)
+        self.assertIn('const projectDescriptors = buildSelectedProjectDescriptors(context)', RISK_ENGINE)
+        self.assertIn('Scenario Exposure — What-if, not source risk', RISK)
+        self.assertIn('item.semanticType === "scenario"', RISK_ENGINE)
+        self.assertIn('.portfolioTabNav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))', CSS)
+        self.assertIn('@media(max-width:780px)', CSS)
 
 
 if __name__ == "__main__":

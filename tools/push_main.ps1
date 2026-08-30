@@ -2,6 +2,12 @@ $ErrorActionPreference = "Stop"
 $Host.UI.RawUI.WindowTitle = "CTO CostControl - Review and Push Main"
 
 $RepoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
+$TokenFilePath = Join-Path $RepoRoot ".runtime\github-token.txt"
+$script:GitHubToken = $env:GITHUB_TOKEN
+if ([string]::IsNullOrWhiteSpace($script:GitHubToken) -and (Test-Path -LiteralPath $TokenFilePath -PathType Leaf)) {
+    $storedToken = (Get-Content -LiteralPath $TokenFilePath -Raw).Trim()
+    if ($storedToken -and $storedToken -ne "PASTE_GITHUB_TOKEN_HERE") { $script:GitHubToken = $storedToken }
+}
 $OriginalIndex = $env:GIT_INDEX_FILE
 $TempIndex = Join-Path ([IO.Path]::GetTempPath()) ("cto-push-main-index-" + [guid]::NewGuid().ToString("N"))
 $BlockedPattern = '(^|/)(INPUT|Old workbooks)(/|$)|\.(xlsx|xlsm|xlsb|xls|otf|xsf|xdf)$|(^|/)\.env($|\.)|\.(pem|pfx|p12|key)$'
@@ -16,8 +22,8 @@ function Write-Title([string]$Text) {
 function Run-Git {
     param([Parameter(Mandatory=$true)][string[]]$Arguments, [switch]$Network)
     $prefix = @()
-    if ($Network -and -not [string]::IsNullOrWhiteSpace($env:GITHUB_TOKEN)) {
-        $prefix = @("-c", "http.extraHeader=Authorization: Bearer $($env:GITHUB_TOKEN)")
+    if ($Network -and -not [string]::IsNullOrWhiteSpace($script:GitHubToken)) {
+        $prefix = @("-c", "http.extraHeader=Authorization: Bearer $($script:GitHubToken)")
     }
     # Keep stderr separate so harmless Git warnings can never be mistaken for
     # filenames while a preview is being assembled.

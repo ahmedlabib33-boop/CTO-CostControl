@@ -70,6 +70,85 @@ def load_json(path: Path, default):
         return default
 
 
+def aggregate_signature(rows) -> list[tuple[str, str, str]] | None:
+    if not isinstance(rows, list):
+        return None
+    signature: list[tuple[str, str, str]] = []
+    for row in rows:
+        if not isinstance(row, dict) or not row.get("project_id"):
+            return None
+        signature.append((
+            str(row.get("project_id") or ""),
+            str(row.get("reporting_period") or ""),
+            str(row.get("source_fingerprint") or ""),
+        ))
+    return sorted(signature)
+
+
+def latest_project_signature() -> list[tuple[str, str, str]]:
+    signature: list[tuple[str, str, str]] = []
+    projects_root = OUTPUT / "projects"
+    if not projects_root.exists():
+        return signature
+    for latest in sorted(projects_root.glob("*/latest.json")):
+        data = load_json(latest, None)
+        if not isinstance(data, dict) or not data.get("project_id"):
+            continue
+        signature.append((
+            str(data.get("project_id") or ""),
+            str(data.get("reporting_period") or ""),
+            str(data.get("source", {}).get("sha256") or ""),
+        ))
+    return sorted(signature)
+
+
+def aggregate_index_findings() -> tuple[list[str], int]:
+    expected = latest_project_signature()
+    findings: list[str] = []
+    registry_path = OUTPUT / "projects.json"
+    registry = load_json(registry_path, None)
+    if aggregate_signature(registry) != expected:
+        findings.append("public/generated/projects.json is missing, malformed, or out of sync")
+
+    portfolio_path = OUTPUT / "portfolio" / "latest.json"
+    portfolio = load_json(portfolio_path, None)
+    portfolio_rows = portfolio.get("projects") if isinstance(portfolio, dict) else None
+    if aggregate_signature(portfolio_rows) != expected:
+        findings.append("public/generated/portfolio/latest.json is missing, malformed, or out of sync")
+    elif int(portfolio.get("project_count", -1)) != len(expected):
+        findings.append("public/generated/portfolio/latest.json has an incorrect project count")
+    return findings, len(expected)
+
+
+def offer_aggregate_repair() -> tuple[bool, bool]:
+    findings, project_count = aggregate_index_findings()
+    if not findings:
+        print(f"\nGlobal JSON indexes are consistent with {project_count} current project(s).")
+        return False, False
+
+    print("\nGLOBAL JSON INDEX REPAIR REQUIRED:")
+    for finding in findings:
+        print(f"  - {finding}")
+    print(f"  - Current per-project latest JSON found: {project_count}")
+    print("  - No workbook will be reprocessed and no project/history/raw JSON will be recreated by this repair.")
+    print("  - projects.json is the navigation registry; portfolio/latest.json is the required Command Center aggregate.")
+    while True:
+        answer = input("Type REPAIR to rebuild only those two indexes, N to leave them, or Q to stop: ").strip().upper()
+        if answer == "Q":
+            return False, True
+        if answer in {"N", "NO", "SKIP"}:
+            print("Global indexes were left unchanged.")
+            return False, False
+        if answer == "REPAIR":
+            result = regenerate_portfolio(OUTPUT)
+            after, _ = aggregate_index_findings()
+            if after:
+                raise RuntimeError("Global JSON index repair could not be verified.")
+            print(f"CONFIRMED: global indexes now contain exactly {result['project_count']} current project(s).")
+            return True, False
+        print("Type REPAIR, N, or Q.")
+
+
 def find_revision(fingerprint: str) -> Path | None:
     projects_root = OUTPUT / "projects"
     if not projects_root.exists():
@@ -250,11 +329,24 @@ def main() -> int:
     print(f"Historical source files: {OLD_DIR}")
     print("LOCAL JSON ONLY - nothing is uploaded to GitHub or Vercel by this script.")
     print("Every source is previewed. Nothing is written without your choice.")
+    print("projects.json is the project registry; portfolio/latest.json is the Command Center aggregate.")
     print("=" * 78)
+
+    try:
+        repaired_indexes, stop_after_repair_prompt = offer_aggregate_repair()
+    except Exception as exc:
+        print(f"\nFAILED TO REPAIR GLOBAL INDEXES: {exc}")
+        return 1
+    if stop_after_repair_prompt:
+        print("Stopped by user. No workbook was processed.")
+        return 0
 
     sources = collect_sources()
     if not sources:
-        print("\nNO SUPPORTED SOURCE FILES FOUND. No JSON was changed.")
+        if repaired_indexes:
+            print("\nNO SUPPORTED SOURCE FILES FOUND. Only the approved global index repair was written.")
+        else:
+            print("\nNO SUPPORTED SOURCE FILES FOUND. No JSON was changed.")
         return 0
 
     print(f"\nDetected {len(sources)} supported source file(s). Inspecting metadata and fingerprints...")

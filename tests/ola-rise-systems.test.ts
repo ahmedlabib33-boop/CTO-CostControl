@@ -3,10 +3,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   applySimAction,
+  buildDecisionLesson,
+  buildLifePractice,
   buildStageExam,
   decisionHint,
+  evaluateDecisionChoice,
+  evaluateLifePractice,
+  findCollisionSafeRoute,
   moodFor,
   normalizeGameState,
+  recordDecisionAttempt,
+  trainingSummary,
   projectIsControlled,
   isBedtime,
   sleepUntilMorning,
@@ -148,4 +155,61 @@ test("missing chart evidence becomes an explicit unavailable question", () => {
   const project = buildLiveProject({ ...julyProject, metrics: {} }, {}, 0, 1);
   assert.ok(project.missions.some((mission) => mission[0] === "UNABLE"));
   assert.ok(project.missions.every((mission) => !mission[2].includes("undefined")));
+});
+
+test("every live mission becomes a teach-practice-reflect decision lesson", () => {
+  const project = buildLiveProject(julyProject, julyNormalized, 0, 1);
+  const mission = project.missions[0];
+  const lesson = buildDecisionLesson(project, mission);
+  assert.equal(lesson.family, "cost-performance");
+  assert.match(lesson.principle, /evidence|performance/i);
+  assert.deepEqual(lesson.steps.map((step) => step.id), ["observe", "diagnose", "decide", "protect"]);
+  assert.match(lesson.reflectionPrompt, /why/i);
+  assert.match(lesson.sourceBasis, /2026-07-01_to_2026-07-31/);
+});
+
+test("decision evaluation separates correctness, confidence calibration, and reflection", () => {
+  const mission = ["CRITICAL", "Cost Performance", "CPI is 0.84.", "Recover cost performance.", ["Recover cost performance.", "Ignore the variance", "Hide the period"], 0, "July evidence"];
+  const wrong = evaluateDecisionChoice(mission, 1, 3);
+  assert.equal(wrong.correct, false);
+  assert.equal(wrong.calibration, "overconfident");
+  assert.match(wrong.consequence, /exposure|control/i);
+  const right = evaluateDecisionChoice(mission, 0, 2);
+  assert.equal(right.correct, true);
+  assert.equal(right.requiresReflection, true);
+  assert.match(right.reason, /evidence|controlled/i);
+});
+
+test("training state records attempts, review due items, reflections, and mastery without inventing project values", () => {
+  let state = normalizeGameState({ day: 3 });
+  state.training = recordDecisionAttempt(state.training, { key: "p:0", correct: false, confidence: 3, day: 3 });
+  state.training = recordDecisionAttempt(state.training, { key: "p:0", correct: true, confidence: 2, day: 3, reflected: true });
+  const summary = trainingSummary(state.training, 3);
+  assert.equal(summary.attempts, 2);
+  assert.equal(summary.correct, 1);
+  assert.equal(summary.reflections, 1);
+  assert.equal(summary.reviewDue, 1);
+  assert.ok(summary.xp > 0);
+  assert.equal(state.training.attempts["p:0"].length, 2);
+});
+
+test("life practice adapts to Ola's current needs and applies only the selected real Sims action", () => {
+  const tired = normalizeGameState({ day: 5, hour: 18, energy: 22, focus: 50, patience: 50 });
+  const challenge = buildLifePractice(tired);
+  assert.equal(challenge.correctAction, "rest");
+  assert.match(challenge.situation, /energy|tired/i);
+  const wrong = evaluateLifePractice(challenge, "coffee");
+  assert.equal(wrong.correct, false);
+  const right = evaluateLifePractice(challenge, "rest");
+  assert.equal(right.correct, true);
+  assert.match(right.feedback, /recover|rest|judgment/i);
+});
+
+test("food-court navigation finds a route around building collisions", () => {
+  const blocked = (x, z) => x >= 3 && x <= 7 && z >= -4 && z <= 4;
+  const route = findCollisionSafeRoute({ x: 0, z: 0 }, { x: 10, z: 0 }, blocked, { step: 1, limit: 20 });
+  assert.ok(route.length >= 3);
+  assert.deepEqual(route.at(-1), { x: 10, z: 0 });
+  assert.ok(route.some((point) => Math.abs(point.z) > 4));
+  assert.ok(route.every((point) => !blocked(point.x, point.z)));
 });

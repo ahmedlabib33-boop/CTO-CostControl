@@ -1,0 +1,37 @@
+PATCH: tests/test_olla_mastery.py
+
+The existing test currently assumes only Module 1 and Module 2 and exactly 24 question IDs.
+After adding Module 03 there will be 66 questions total:
+- Module 1 = 12
+- Module 2 = 12
+- Module 3 = 42
+
+Replace the exact-count test with:
+
+def test_content_is_data_driven_and_has_exact_question_count(self):
+    base_ids = re.findall(r'id: "(M[12]-Q\d{2})"', CONTENT)
+    ceo_content = (ROOT / "src/lib/ollaCeoMasteryContent.ts").read_text(encoding="utf-8")
+    ceo_ids = re.findall(r'id: "(M3-Q\d{2})"', ceo_content)
+    ids = base_ids + ceo_ids
+    self.assertEqual(66, len(ids))
+    self.assertEqual(66, len(set(ids)))
+    self.assertEqual(12, len([item for item in ids if item.startswith("M1-")]))
+    self.assertEqual(12, len([item for item in ids if item.startswith("M2-")]))
+    self.assertEqual(42, len([item for item in ids if item.startswith("M3-")]))
+    self.assertIn("export const MAX_QUESTIONS_PER_PAGE = 3", CONTENT)
+    self.assertIn("slice(page*MAX_QUESTIONS_PER_PAGE", MASTERY)
+
+Add this test:
+
+def test_ceo_visual_module_is_wired_without_replacing_existing_layer(self):
+    modules = (ROOT / "src/lib/ollaMasteryModules.ts").read_text(encoding="utf-8")
+    visual = (ROOT / "src/components/OllaMasteryVisual.tsx").read_text(encoding="utf-8")
+    visual_data = (ROOT / "src/lib/ollaCeoVisuals.ts").read_text(encoding="utf-8")
+    self.assertIn("CEO_COST_CONTROL_MASTERY", modules)
+    self.assertIn("...BASE_OLLA_MODULES", modules)
+    self.assertIn("OllaMasteryVisual", MASTERY)
+    self.assertIn('questionId={item.id}', MASTERY)
+    self.assertIn("CEO_VISUALS", visual)
+    self.assertIn('"M3-Q42"', visual_data)
+
+Keep all current access-mechanism preservation tests unchanged.

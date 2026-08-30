@@ -1,0 +1,276 @@
+[CmdletBinding()]
+param(
+    [string]$RepoRoot = "",
+    [string]$Owner = "ahmedlabib33-boop",
+    [string]$Repository = "CTO-CostControl",
+    [string]$Branch = "main",
+    [string]$CommitMessage = "chore(data): publish changed generated JSON",
+    [string]$DeleteProjectId = "",
+    [string]$DeletePeriod = "",
+    [switch]$PlanOnly,
+    [switch]$MirrorGenerated,
+    [switch]$SelfTest,
+    [ValidateRange(1, 8)][int]$MaxAttempts = 4
+)
+
+$ErrorActionPreference = "Stop"
+$GeneratedPrefix = "public/generated/"
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+[Net.ServicePointManager]::Expect100Continue = $false
+[Net.ServicePointManager]::DefaultConnectionLimit = 20
+
+function Get-GitBlobSha([string]$Path) {
+    $stream = [IO.File]::OpenRead($Path)
+    $sha1 = [Security.Cryptography.SHA1]::Create()
+    try {
+        $header = [Text.Encoding]::UTF8.GetBytes("blob $($stream.Length)`0")
+        [void]$sha1.TransformBlock($header, 0, $header.Length, $null, 0)
+        $buffer = New-Object byte[] (1024 * 1024)
+        while (($read = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+            [void]$sha1.TransformBlock($buffer, 0, $read, $null, 0)
+        }
+        [void]$sha1.TransformFinalBlock([byte[]]::new(0), 0, 0)
+        return (($sha1.Hash | ForEach-Object { $_.ToString("x2") }) -join "")
+    }
+    finally {
+        $stream.Dispose()
+        $sha1.Dispose()
+    }
+}
+
+function Get-DeltaPlan([hashtable]$Local, [hashtable]$Remote) {
+    $changes = [System.Collections.Generic.List[object]]::new()
+    $unchanged = 0
+    foreach ($path in @($Local.Keys | Sort-Object)) {
+        $remoteSha = if ($Remote.ContainsKey($path)) { [string]$Remote[$path] } else { "" }
+        if ($remoteSha -eq [string]$Local[$path].Sha) {
+            $unchanged++
+        }
+        else {
+            $changes.Add([pscustomobject]@{
+                Path = $path
+                Kind = if ($remoteSha) { "UPDATE" } else { "NEW" }
+                Sha = [string]$Local[$path].Sha
+                File = $Local[$path].File
+            })
+        }
+    }
+    $remoteOnly = @($Remote.Keys | Where-Object { -not $Local.ContainsKey($_) } | Sort-Object)
+    return [pscustomobject]@{ Changes = @($changes); Unchanged = $unchanged; RemoteOnly = $remoteOnly }
+}
+
+if ($SelfTest) {
+    $temporary = Join-Path ([IO.Path]::GetTempPath()) ("cto-git-blob-" + [guid]::NewGuid().ToString("N") + ".txt")
+    try {
+        [IO.File]::WriteAllBytes($temporary, [Text.Encoding]::ASCII.GetBytes("hello`n"))
+        if ((Get-GitBlobSha $temporary) -ne "ce013625030ba8dba906f756967f9e9ca394464a") { throw "Git blob hash self-test failed." }
+        $local = @{ "public/generated/a.json" = [pscustomobject]@{ Sha = "same"; File = "a" }; "public/generated/b.json" = [pscustomobject]@{ Sha = "new"; File = "b" } }
+        $remote = @{ "public/generated/a.json" = "same"; "public/generated/remote-only.json" = "keep" }
+        $plan = Get-DeltaPlan $local $remote
+        if ($plan.Changes.Count -ne 1 -or $plan.Changes[0].Path -ne "public/generated/b.json") { throw "Delta classification self-test failed." }
+        if ($plan.RemoteOnly.Count -ne 1 -or $plan.RemoteOnly[0] -ne "public/generated/remote-only.json") { throw "Remote preservation self-test failed." }
+        Write-Host "SELF-TEST PASS: exact Git hashes, changed-only planning, and remote-only preservation." -ForegroundColor Green
+        exit 0
+    }
+    finally {
+        Remove-Item -LiteralPath $temporary -Force -ErrorAction SilentlyContinue
+    }
+}
+
+if ([string]::IsNullOrWhiteSpace($RepoRoot)) { $RepoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..")) }
+$RepoRoot = [IO.Path]::GetFullPath($RepoRoot)
+$folder = Join-Path $RepoRoot "public\generated"
+if (-not (Test-Path -LiteralPath $folder -PathType Container)) { throw "Generated folder not found: $folder" }
+
+$tokenFilePath = Join-Path $RepoRoot ".runtime\github-token.txt"
+$token = $env:GITHUB_TOKEN
+if ([string]::IsNullOrWhiteSpace($token) -and (Test-Path -LiteralPath $tokenFilePath -PathType Leaf)) {
+    $storedToken = (Get-Content -LiteralPath $tokenFilePath -Raw).Trim()
+    if ($storedToken -and $storedToken -ne "PASTE_GITHUB_TOKEN_HERE") { $token = $storedToken }
+}
+if (-not $PlanOnly -and ([string]::IsNullOrWhiteSpace($token) -or $token -eq "PASTE_YOUR_TOKEN_HERE")) {
+    Write-Host "GitHub token is required to publish changed generated JSON." -ForegroundColor Yellow
+    Write-Host "You can save it once in: $tokenFilePath" -ForegroundColor DarkGray
+    $secureToken = Read-Host "Paste GITHUB_TOKEN (input is hidden)" -AsSecureString
+    $tokenPointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureToken)
+    try { $token = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($tokenPointer) }
+    finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($tokenPointer) }
+    if ([string]::IsNullOrWhiteSpace($token)) { throw "No GitHub token was entered. Nothing was uploaded." }
+}
+$headers = @{
+    Accept = "application/vnd.github+json"
+    "X-GitHub-Api-Version" = "2022-11-28"
+    "User-Agent" = "CTO-CostControl-Delta-Publisher"
+}
+if (-not [string]::IsNullOrWhiteSpace($token)) { $headers.Authorization = "Bearer $token" }
+$api = "https://api.github.com/repos/$Owner/$Repository"
+
+function Invoke-GitHub([string]$Method, [string]$Uri, $Body = $null) {
+    $arguments = @{ Method = $Method; Headers = $headers; Uri = $Uri }
+    if ($null -ne $Body) {
+        $arguments.ContentType = "application/json"
+        $arguments.Body = ($Body | ConvertTo-Json -Depth 12 -Compress)
+    }
+    $arguments.TimeoutSec = 120
+    for ($requestAttempt = 1; $requestAttempt -le $MaxAttempts; $requestAttempt++) {
+        try { return Invoke-RestMethod @arguments }
+        catch {
+            $caught = $_
+            $statusCode = 0
+            try { $statusCode = [int]$caught.Exception.Response.StatusCode } catch { }
+            if ($statusCode -eq 401) { throw "GitHub rejected the token (401 Unauthorized). Nothing was committed. Use a valid fine-grained token with Contents: Read and write." }
+            if ($statusCode -eq 403) { throw "GitHub refused repository access (403 Forbidden). Nothing was committed. Check repository access and Contents: Read and write." }
+            $transient = $statusCode -eq 0 -or $statusCode -in @(408, 429, 500, 502, 503, 504)
+            if ($transient -and $requestAttempt -lt $MaxAttempts) {
+                $delay = [Math]::Min(8, [Math]::Pow(2, $requestAttempt - 1))
+                Write-Host "Temporary GitHub connection failure during $Method. Retrying in $delay second(s) ($requestAttempt/$MaxAttempts)..." -ForegroundColor Yellow
+                Start-Sleep -Seconds $delay
+                continue
+            }
+            if ($transient) { throw "GitHub $Method failed after $MaxAttempts attempts. No branch commit was created. $($caught.Exception.Message)" }
+            throw $caught
+        }
+    }
+}
+
+function Get-RemoteSnapshot {
+    $ref = Invoke-GitHub "GET" "$api/git/ref/heads/$Branch"
+    $parentSha = [string]$ref.object.sha
+    $commit = Invoke-GitHub "GET" "$api/git/commits/$parentSha"
+    $rootTreeSha = [string]$commit.tree.sha
+    $remote = @{}
+    $remoteHashes = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+
+    $rootTree = Invoke-GitHub "GET" "$api/git/trees/$rootTreeSha"
+    $publicEntry = @($rootTree.tree | Where-Object { $_.type -eq "tree" -and $_.path -eq "public" } | Select-Object -First 1)
+    if ($publicEntry) {
+        $publicTree = Invoke-GitHub "GET" "$api/git/trees/$($publicEntry.sha)"
+        $generatedEntry = @($publicTree.tree | Where-Object { $_.type -eq "tree" -and $_.path -eq "generated" } | Select-Object -First 1)
+        if ($generatedEntry) {
+            $generatedTree = Invoke-GitHub "GET" "$api/git/trees/$($generatedEntry.sha)?recursive=1"
+            if ($generatedTree.truncated) { throw "GitHub truncated public/generated. Upload stopped safely." }
+            foreach ($entry in $generatedTree.tree) {
+                if ($entry.type -ne "blob") { continue }
+                $path = "$GeneratedPrefix$($entry.path)"
+                $remote[$path] = [string]$entry.sha
+                [void]$remoteHashes.Add([string]$entry.sha)
+            }
+        }
+    }
+    return [pscustomobject]@{ ParentSha = $parentSha; RootTreeSha = $rootTreeSha; Files = $remote; Hashes = $remoteHashes }
+}
+
+Write-Host "Scanning local public/generated and calculating exact Git blob hashes..." -ForegroundColor Cyan
+$local = @{}
+$files = @(Get-ChildItem -LiteralPath $folder -Recurse -File)
+if (-not $files.Count) { throw "No generated files were found." }
+foreach ($file in $files) {
+    $relative = $file.FullName.Substring($folder.Length).TrimStart([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar).Replace("\", "/")
+    $path = "$GeneratedPrefix$relative"
+    $local[$path] = [pscustomobject]@{ Sha = Get-GitBlobSha $file.FullName; File = $file.FullName }
+}
+
+$uploadedHashes = @{}
+for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+    Write-Host "Reading latest GitHub main tree (attempt $attempt of $MaxAttempts)..." -ForegroundColor Cyan
+    $snapshot = Get-RemoteSnapshot
+    $plan = Get-DeltaPlan $local $snapshot.Files
+    $deletions = @()
+    if ($MirrorGenerated) {
+        $deletions = @($plan.RemoteOnly)
+    }
+    elseif (-not [string]::IsNullOrWhiteSpace($DeleteProjectId)) {
+        $projectPrefix = "$GeneratedPrefix" + "projects/$DeleteProjectId/"
+        if ([string]::IsNullOrWhiteSpace($DeletePeriod)) {
+            $deletions = @($plan.RemoteOnly | Where-Object { $_.StartsWith($projectPrefix, [StringComparison]::OrdinalIgnoreCase) })
+        }
+        else {
+            $periodPrefixes = @(
+                "$projectPrefix" + "history/$DeletePeriod/",
+                "$projectPrefix" + "raw/$DeletePeriod/",
+                "$projectPrefix" + "enriched/$DeletePeriod/"
+            )
+            $deletions = @($plan.RemoteOnly | Where-Object {
+                $candidate = [string]$_
+                @($periodPrefixes | Where-Object { $candidate.StartsWith($_, [StringComparison]::OrdinalIgnoreCase) }).Count -gt 0
+            })
+        }
+    }
+    $preservedRemoteOnly = $plan.RemoteOnly.Count - $deletions.Count
+
+    Write-Host "Local generated files: $($local.Count)"
+    Write-Host "Unchanged in GitHub:    $($plan.Unchanged)" -ForegroundColor Green
+    Write-Host "New or changed:        $($plan.Changes.Count)" -ForegroundColor Yellow
+    Write-Host "Remote-only preserved: $preservedRemoteOnly" -ForegroundColor DarkGray
+    if ($plan.Changes.Count) {
+        $plan.Changes | ForEach-Object { Write-Host ("  {0,-6} {1}" -f $_.Kind, $_.Path) }
+    }
+    if ($deletions.Count) {
+        $deletions | ForEach-Object { Write-Host ("  DELETE {0}" -f $_) -ForegroundColor Red }
+        Write-Host "Deletion scope is explicit: only these remote generated files will be deleted." -ForegroundColor Yellow
+    }
+    if ($preservedRemoteOnly -gt 0) {
+        Write-Host "Remote-only files are intentionally preserved. Clean_Vercel.bat handles deliberate deletion." -ForegroundColor DarkGray
+    }
+    $deleteCount = $deletions.Count
+    if (-not $plan.Changes.Count -and -not $deleteCount) {
+        Write-Host "NO CHANGES: every local generated file already matches GitHub exactly. No commit was created." -ForegroundColor Green
+        exit 0
+    }
+    if ($PlanOnly) {
+        Write-Host "PLAN ONLY: GitHub was not changed." -ForegroundColor Green
+        exit 0
+    }
+
+    $entries = [System.Collections.Generic.List[object]]::new()
+    foreach ($change in $plan.Changes) {
+        $blobSha = [string]$change.Sha
+        if ($snapshot.Hashes.Contains($blobSha)) {
+            Write-Host "Reusing existing GitHub content for $($change.Path)"
+        }
+        elseif ($uploadedHashes.ContainsKey($blobSha)) {
+            $blobSha = [string]$uploadedHashes[$blobSha]
+        }
+        else {
+            Write-Host "Uploading changed content $($change.Path)" -ForegroundColor Yellow
+            $bytes = [IO.File]::ReadAllBytes([string]$change.File)
+            $blob = Invoke-GitHub "POST" "$api/git/blobs" @{ content = [Convert]::ToBase64String($bytes); encoding = "base64" }
+            $blobSha = [string]$blob.sha
+            if ($blobSha -ne [string]$change.Sha) { throw "GitHub blob verification failed for $($change.Path)." }
+            $uploadedHashes[[string]$change.Sha] = $blobSha
+        }
+        $entries.Add(@{ path = [string]$change.Path; mode = "100644"; type = "blob"; sha = $blobSha })
+    }
+    foreach ($remotePath in $deletions) {
+        $entries.Add(@{ path = [string]$remotePath; mode = "100644"; type = "blob"; sha = $null })
+    }
+
+    $freshRef = Invoke-GitHub "GET" "$api/git/ref/heads/$Branch"
+    if ([string]$freshRef.object.sha -ne $snapshot.ParentSha) {
+        Write-Host "GitHub main changed during comparison. Rechecking against the new main without forcing..." -ForegroundColor Yellow
+        continue
+    }
+
+    $newTree = Invoke-GitHub "POST" "$api/git/trees" @{ base_tree = $snapshot.RootTreeSha; tree = @($entries) }
+    $newCommit = Invoke-GitHub "POST" "$api/git/commits" @{ message = $CommitMessage; tree = [string]$newTree.sha; parents = @($snapshot.ParentSha) }
+    try {
+        [void](Invoke-GitHub "PATCH" "$api/git/refs/heads/$Branch" @{ sha = [string]$newCommit.sha; force = $false })
+    }
+    catch {
+        $statusCode = 0
+        try { $statusCode = [int]$_.Exception.Response.StatusCode } catch { }
+        if ($statusCode -eq 422 -and $attempt -lt $MaxAttempts) {
+            Write-Host "GitHub main moved before commit. Retrying safely; no force push will be used." -ForegroundColor Yellow
+            continue
+        }
+        throw
+    }
+
+    $verified = Invoke-GitHub "GET" "$api/git/ref/heads/$Branch"
+    if ([string]$verified.object.sha -ne [string]$newCommit.sha) { throw "GitHub commit verification failed." }
+    Write-Host "SUCCESS: GitHub commit $($newCommit.sha)" -ForegroundColor Green
+    Write-Host "Committed $($plan.Changes.Count) new or changed generated file(s) and $deleteCount deliberate deletion(s). Vercel publishing should start automatically." -ForegroundColor Green
+    exit 0
+}
+
+throw "GitHub main kept changing. Nothing was force-pushed; run powershell.bat again."

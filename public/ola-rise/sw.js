@@ -1,4 +1,4 @@
-const CACHE = "ola-rise-v20-khobar-food-district";
+const CACHE = "ola-rise-v21-decision-academy";
 const CORE = [
   "./",
   "./index.html",

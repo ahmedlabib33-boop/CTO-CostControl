@@ -11,6 +11,8 @@ class DeploymentIndicatorTests(unittest.TestCase):
         self.assertIn("↑ uploading", component)
         self.assertIn('status.context || "").trim().toLowerCase() === "vercel"', route)
         self.assertIn('state === "pending"', route)
+        self.assertIn("showUploading", route)
+        self.assertIn("isNewerCommit", route)
         self.assertNotIn("NEXT_PUBLIC_GITHUB", component + route)
 
     def test_token_is_server_only_and_unknown_never_uploads(self):
@@ -19,7 +21,7 @@ class DeploymentIndicatorTests(unittest.TestCase):
         self.assertIn("process.env.GITHUB_STATUS_TOKEN", route)
         self.assertNotIn("GITHUB_STATUS_TOKEN", component)
         self.assertIn("revalidate: 8", route)
-        self.assertIn("token ? FAST_POLL_MS : PUBLIC_POLL_MS", route)
+        self.assertIn("PUBLIC_POLL_MS = 10_000", route)
         self.assertIn("poll_after_ms", component)
         self.assertIn("show_uploading: false", route)
         self.assertIn("A network/API failure must never create a false uploading state.", component)
@@ -34,7 +36,7 @@ class DeploymentIndicatorTests(unittest.TestCase):
         self.assertIn('localStorage.setItem(DEPLOYMENT_STORAGE_KEY', component)
         self.assertIn('status.deployed_sha === status.latest_sha', component)
         self.assertIn('window.addEventListener("storage", storageChanged)', component)
-        self.assertIn("NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA", component)
+        self.assertIn("__CTO_PAGE_DEPLOYMENT_SHA__", component)
         self.assertIn("visibilitychange", component)
         self.assertIn(".deploymentUploading", css)
         self.assertIn("html.deployment-in-progress .deploymentUploading", css)
@@ -44,6 +46,8 @@ class DeploymentIndicatorTests(unittest.TestCase):
         layout = (ROOT / "src/app/layout.tsx").read_text(encoding="utf-8")
         self.assertIn('localStorage.getItem("cto-deployment-in-progress-v1")', layout)
         self.assertIn('classList.add("deployment-in-progress")', layout)
+        self.assertIn("VERCEL_GIT_COMMIT_SHA", layout)
+        self.assertIn("__CTO_PAGE_DEPLOYMENT_SHA__", layout)
         self.assertIn("suppressHydrationWarning", layout)
 
 

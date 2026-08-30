@@ -172,4 +172,3 @@ export function buildPortfolioDataMappings(models:PortfolioModel[]):DataMappingR
     return {id:`portfolio-${outputIndex}-${projectIndex}`,scope:"portfolio",projectId:r.project_id,projectName:r.project_name,period:r.reporting_period,outputFamily:binding.family,outputPage:binding.page,outputComponent:binding.component,outputField:`${r.project_name} contribution`,jsonPaths:["/generated/portfolio/latest.json#/projects",...inputs],sourceFile:"Project JSON",inputLocations:inputs,sourceRecords:records.length,confidence:null,status:available?"derived":"unavailable",transform:binding.transform||"Portfolio aggregation",currentValue:finite(value)?display(value):binding.component==="Selected Projects"?"Included":records.length?`${records.length.toLocaleString()} records`:available?"Available":"Unavailable"};
   }));
 }
-

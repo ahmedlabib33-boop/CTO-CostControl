@@ -7,6 +7,7 @@ import {
   buildPortfolioDescriptors,
   buildProjectDescriptors,
   buildWholeProjectDescriptors,
+  cashflowTrendMetrics,
   evaluateDescriptor,
   validateIntelligencePolicy,
   type IntelligenceDescriptor,
@@ -44,6 +45,7 @@ test("profit, cashflow, waste, reconciliation and concentration rules are eviden
   assert.equal(evaluateDescriptor(descriptor("cumulative_cashflow", { cumulativeCashIn: 100, cumulativeCashOut: 120, cumulativeNet: -20 }), policy).status, "critical");
   assert.equal(evaluateDescriptor(descriptor("cumulative_cashflow", { cumulativeCashIn: 120, cumulativeCashOut: 100, cumulativeNet: 20 }), policy).status, "favorable");
   assert.equal(evaluateDescriptor(descriptor("cumulative_cashflow", { cumulativeCashIn: 0, cumulativeCashOut: 0, cumulativeNet: 0 }), policy).status, "unavailable");
+  assert.equal(evaluateDescriptor(descriptor("cumulative_cashflow", { cumulativeCashIn: 0, cumulativeCashOut: 100, cumulativeNet: -100 }), policy).status, "critical");
   assert.equal(evaluateDescriptor(descriptor("waste", { steelActual: .08, steelBudget: .02, concreteActual: .01, concreteBudget: .01 }), policy).status, "critical");
   assert.equal(evaluateDescriptor(descriptor("waste", { steelActual: .01, steelBudget: .02, concreteActual: .01, concreteBudget: .01 }), policy).status, "favorable");
   assert.equal(evaluateDescriptor(descriptor("reconciliation", { accounting: 110, reported: 100 }), policy).status, "critical");
@@ -51,6 +53,20 @@ test("profit, cashflow, waste, reconciliation and concentration rules are eviden
   assert.equal(evaluateDescriptor(descriptor("reconciliation", { accounting: 0, reported: 0 }), policy).status, "unavailable");
   assert.equal(evaluateDescriptor(descriptor("concentration", { top: 50, total: 100 }), policy).status, "critical");
   assert.equal(evaluateDescriptor(descriptor("concentration", { top: 20, total: 100 }), policy).status, "favorable");
+  assert.equal(evaluateDescriptor(descriptor("concentration", { top: 100, total: 1 }), policy).status, "unavailable");
+});
+
+test("cashflow trend is guarded against stable deficits and insufficient history", () => {
+  const negative = cashflowTrendMetrics([
+    { cash_in_cum: 0, cash_out_cum: 100 },
+    { cash_in_cum: 10, cash_out_cum: 110 },
+    { cash_in_cum: 20, cash_out_cum: 120 },
+  ]);
+  const result = evaluateDescriptor(descriptor("cashflow_trend", negative), policy);
+  assert.equal(result.status, "critical");
+  assert.match(result.reason, /never classified as favorable/i);
+  const short = cashflowTrendMetrics([{ cash_in_cum: 10, cash_out_cum: 5 }, { cash_in_cum: 20, cash_out_cum: 10 }]);
+  assert.equal(evaluateDescriptor(descriptor("cashflow_trend", short), policy).status, "unavailable");
 });
 
 test("forecast, data quality and scenario rules do not mix scenario and source facts", () => {
@@ -77,6 +93,7 @@ test("policy import validates ordering and finite values", () => {
   assert.equal(validateIntelligencePolicy({ ...policy, cpiCaution: 2 }), null);
   assert.equal(validateIntelligencePolicy({ ...policy, concentrationCriticalPct: Number.NaN }), null);
   assert.equal(validateIntelligencePolicy({ ...policy, minimumTrendPeriods: 1 }), null);
+  assert.equal(validateIntelligencePolicy({ ...policy, trendAnomalyCautionZ: 4, trendAnomalyCriticalZ: 3 }), null);
 });
 
 test("actual project contract covers all business dashboard families without cross-project identity", () => {
@@ -88,7 +105,7 @@ test("actual project contract covers all business dashboard families without cro
   const current = buildProjectDescriptors(context);
   assert.deepEqual(current.map(item => item.componentName), ["Executive KPI cards", "Budget vs Earned Value vs Actual Cost — by division", "Cost Performance Map"]);
   const all = buildWholeProjectDescriptors(context);
-  const expected = ["Monthly Cashflow — Cash In vs Cash Out", "Waste Efficiency", "Detailed BOQ Forecast Analysis table", "Direct Details table", "Indirect Cost Detail table", "Ledger Reconciliation", "Actual Expense Ledger table", "Cost Code Lookup table", "Data Quality findings"];
+  const expected = ["Monthly Cashflow — Cash In vs Cash Out", "Cashflow Trend Forecast", "Waste Efficiency", "Detailed BOQ Forecast Analysis table", "Direct Details table", "Indirect Cost Detail table", "Ledger Reconciliation", "Actual Expense Ledger table", "Cost Code Lookup table", "Data Quality findings"];
   for (const title of expected) assert.ok(all.some(item => item.componentName === title), `missing ${title}`);
   assert.ok(all.length >= 25);
   assert.ok(all.every(item => item.projectId === data.project_id && item.period === data.reporting_period && item.revision === data.source.sha256));

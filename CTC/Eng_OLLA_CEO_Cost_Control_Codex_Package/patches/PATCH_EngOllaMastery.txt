@@ -1,0 +1,24 @@
+PATCH: src/components/EngOllaMastery.tsx
+
+1) REPLACE the existing content import:
+
+BEFORE:
+import { MAX_QUESTIONS_PER_PAGE, OLLA_MODULES, type ExecutiveQuestion } from "@/lib/ollaMasteryContent";
+
+AFTER:
+import { MAX_QUESTIONS_PER_PAGE, OLLA_MODULES, type ExecutiveQuestion } from "@/lib/ollaMasteryModules";
+import { OllaMasteryVisual } from "@/components/OllaMasteryVisual";
+
+2) Inside OllaQuestion(), insert the visual illustration in the revealed answer.
+Keep all existing structure, controls, wording, hero, navigation and motion.
+
+Find this sequence:
+<section><span className="ollaAnswerLabel">Core answer</span><p className="ollaCore"><Lines text={item.answer}/></p></section>
+<section><span className="ollaAnswerLabel">Plain English</span><p><Lines text={item.plainEnglish}/></p></section>
+
+Change it to:
+<section><span className="ollaAnswerLabel">Core answer</span><p className="ollaCore"><Lines text={item.answer}/></p></section>
+<OllaMasteryVisual questionId={item.id}/>
+<section><span className="ollaAnswerLabel">Plain English</span><p><Lines text={item.plainEnglish}/></p></section>
+
+DO NOT alter any other behavior in EngOllaMastery.tsx.

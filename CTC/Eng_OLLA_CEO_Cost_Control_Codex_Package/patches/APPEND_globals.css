@@ -1,0 +1,86 @@
+/* ============================================================
+   ENG. OLLA — CEO COST-CONTROL MASTERY VISUALS
+   IMPORTANT:
+   - intentionally does NOT set font-family
+   - intentionally does NOT replace overlay/page background
+   - inherits the existing hidden/trick-layer typography,
+     black background, spacing language, and motion system
+   ============================================================ */
+
+#olaTrickOverlay{
+  --olla-ceo-gold:var(--olla-gold,#d9b86c);
+  --olla-ceo-gold-soft:color-mix(in srgb,var(--olla-ceo-gold) 62%,transparent);
+  --olla-ceo-text:var(--olla-text,#f5f0e6);
+  --olla-ceo-muted:var(--olla-muted,rgba(245,240,230,.60));
+  --olla-ceo-line:color-mix(in srgb,var(--olla-ceo-gold) 24%,transparent);
+  --olla-ceo-panel:rgba(255,255,255,.024);
+  --olla-ceo-good:#74c69d;
+  --olla-ceo-warn:#d8aa5b;
+  --olla-ceo-bad:#d97878;
+  --olla-v1:#d9b86c;
+  --olla-v2:#8f7a4c;
+  --olla-v3:#665a3d;
+  --olla-v4:#cbb98c;
+  --olla-v5:#8c8474;
+}
+.ollaVisualFrame{margin:18px 0 20px;border:1px solid var(--olla-ceo-line);border-radius:18px;padding:16px;background:var(--olla-ceo-panel);overflow:hidden}
+.ollaVisualFrame figcaption{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;margin-bottom:12px}
+.ollaVisualFrame figcaption span,.ollaVisualMiniLabel{font-size:10px;letter-spacing:.15em;text-transform:uppercase;color:var(--olla-ceo-gold);font-weight:800}
+.ollaVisualFrame figcaption strong{font-size:13px;font-weight:700;color:var(--olla-ceo-text);text-align:right}
+.ollaVisualFoot{margin:10px 0 0;color:var(--olla-ceo-muted);font-size:11px;line-height:1.45}
+.ollaVisualChart svg{width:100%;height:auto;display:block}
+.ollaVisualGrid{stroke:var(--olla-ceo-line);stroke-width:1}
+.ollaVisualAxis{stroke:var(--olla-ceo-gold-soft);stroke-width:1.2}
+.ollaVisualTick{fill:var(--olla-ceo-muted);font-size:10px}
+.ollaVisualSeries polyline{stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.ollaVisualSeries circle{stroke-width:1.5;fill:#070707}
+.ollaVisualSeries.is-gold polyline,.ollaVisualSeries.is-gold circle{stroke:var(--olla-ceo-gold)}
+.ollaVisualSeries.is-good polyline,.ollaVisualSeries.is-good circle{stroke:var(--olla-ceo-good)}
+.ollaVisualSeries.is-bad polyline,.ollaVisualSeries.is-bad circle{stroke:var(--olla-ceo-bad)}
+.ollaVisualSeries.is-muted polyline,.ollaVisualSeries.is-muted circle{stroke:#aaa18d}
+.ollaVisualLegend{display:flex;flex-wrap:wrap;gap:12px;margin-top:8px}
+.ollaVisualLegendItem{display:inline-flex;align-items:center;gap:6px;color:var(--olla-ceo-muted);font-size:10px}
+.ollaVisualLegendItem i{width:8px;height:8px;border-radius:999px;background:var(--olla-ceo-gold)}
+.ollaVisualLegendItem.is-good i{background:var(--olla-ceo-good)}.ollaVisualLegendItem.is-bad i{background:var(--olla-ceo-bad)}
+.ollaVisualLegendItem.is-muted i{background:#aaa18d}
+.ollaVisualBars{display:flex;flex-direction:column;gap:9px}
+.ollaVisualBarRow{display:grid;grid-template-columns:minmax(105px,1.05fr) minmax(130px,3fr) 42px;align-items:center;gap:10px}
+.ollaVisualBarRow>span{font-size:11px;color:var(--olla-ceo-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ollaVisualBarRow>em{font-size:10px;color:var(--olla-ceo-muted);font-style:normal;text-align:right}
+.ollaVisualBarTrack{height:13px;border:1px solid var(--olla-ceo-line);border-radius:999px;position:relative;background:rgba(255,255,255,.015);overflow:visible}
+.ollaVisualBarTrack>i{position:absolute;left:0;top:0;bottom:0;border-radius:999px;background:linear-gradient(90deg,var(--olla-ceo-gold-soft),var(--olla-ceo-gold))}
+.ollaVisualBarTrack>i.is-good{background:linear-gradient(90deg,color-mix(in srgb,var(--olla-ceo-good) 38%,transparent),var(--olla-ceo-good))}
+.ollaVisualBarTrack>i.is-bad{background:linear-gradient(90deg,color-mix(in srgb,var(--olla-ceo-bad) 38%,transparent),var(--olla-ceo-bad))}
+.ollaVisualBarTrack>i.is-muted{background:linear-gradient(90deg,rgba(170,161,141,.24),#aaa18d)}
+.ollaVisualBarTrack>b{position:absolute;top:-5px;width:2px;height:21px;background:var(--olla-ceo-text);transform:translateX(-1px);opacity:.85}
+.ollaQuadrantGrid{height:250px;position:relative;border-left:1px solid var(--olla-ceo-gold-soft);border-bottom:1px solid var(--olla-ceo-gold-soft);margin:16px 28px 26px 40px;background:
+ linear-gradient(90deg,transparent calc(50% - .5px),var(--olla-ceo-line) 50%,transparent calc(50% + .5px)),
+ linear-gradient(0deg,transparent calc(50% - .5px),var(--olla-ceo-line) 50%,transparent calc(50% + .5px))}
+.ollaQuadrantX{position:absolute;right:0;bottom:-25px;color:var(--olla-ceo-muted);font-size:10px}.ollaQuadrantY{position:absolute;left:-40px;top:-12px;color:var(--olla-ceo-muted);font-size:10px}
+.ollaBubble{position:absolute;transform:translate(-50%,-50%);border-radius:999px;display:flex;align-items:center;justify-content:center;border:1px solid var(--olla-ceo-gold-soft);background:rgba(217,184,108,.12);box-shadow:0 0 30px rgba(217,184,108,.06)}
+.ollaBubble.is-s{width:48px;height:48px}.ollaBubble.is-m{width:70px;height:70px}.ollaBubble.is-l{width:94px;height:94px}
+.ollaBubble b{font-size:9px;line-height:1.15;text-align:center;max-width:80%;font-weight:700}
+.ollaBubble.is-good{border-color:var(--olla-ceo-good);background:color-mix(in srgb,var(--olla-ceo-good) 14%,transparent)}
+.ollaBubble.is-warn{border-color:var(--olla-ceo-warn);background:color-mix(in srgb,var(--olla-ceo-warn) 14%,transparent)}
+.ollaBubble.is-bad{border-color:var(--olla-ceo-bad);background:color-mix(in srgb,var(--olla-ceo-bad) 14%,transparent)}
+.ollaDonutLayout{display:grid;grid-template-columns:180px 1fr;gap:18px;align-items:center}
+.ollaDonut{width:160px;height:160px;border-radius:50%;display:grid;place-items:center;position:relative}
+.ollaDonut:after{content:"";position:absolute;inset:28px;border-radius:50%;background:#050505;border:1px solid var(--olla-ceo-line)}
+.ollaDonut>div{position:relative;z-index:2;text-align:center}.ollaDonut b{display:block;color:var(--olla-ceo-text);font-size:15px}.ollaDonut span{display:block;color:var(--olla-ceo-muted);font-size:10px;margin-top:3px}
+.ollaDonutLegend{display:flex;flex-direction:column;gap:8px}.ollaDonutLegend div{display:grid;grid-template-columns:9px 1fr auto;gap:8px;align-items:center;font-size:10px}.ollaDonutLegend i{width:8px;height:8px;border-radius:50%}.ollaDonutLegend .v1{background:var(--olla-v1)}.ollaDonutLegend .v2{background:var(--olla-v2)}.ollaDonutLegend .v3{background:var(--olla-v3)}.ollaDonutLegend .v4{background:var(--olla-v4)}.ollaDonutLegend .v5{background:var(--olla-v5)}
+.ollaDonutLegend span{color:var(--olla-ceo-muted)}.ollaDonutLegend b{color:var(--olla-ceo-text);font-size:10px}
+.ollaVisualTableWrap{overflow:auto;border:1px solid var(--olla-ceo-line);border-radius:12px}.ollaVisualTable{border-collapse:collapse;width:100%;min-width:460px;font-size:10px}
+.ollaVisualTable th,.ollaVisualTable td{padding:8px 9px;border-bottom:1px solid var(--olla-ceo-line);text-align:left}
+.ollaVisualTable th{color:var(--olla-ceo-gold);background:rgba(217,184,108,.035);font-weight:700}.ollaVisualTable td{color:var(--olla-ceo-muted)}
+.ollaBridge{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ollaBridgeStep{display:flex;align-items:center;gap:8px}.ollaBridgeStep span{padding:10px 12px;border:1px solid var(--olla-ceo-line);border-radius:12px;color:var(--olla-ceo-text);font-size:10px;background:rgba(255,255,255,.015)}.ollaBridgeStep b{color:var(--olla-ceo-gold);font-weight:400}
+.ollaMetricGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.ollaMetricCard{border:1px solid var(--olla-ceo-line);border-radius:13px;padding:11px;background:rgba(255,255,255,.012)}
+.ollaMetricCard strong{display:block;color:var(--olla-ceo-gold);font-size:12px}.ollaMetricCard code{display:inline-block;margin:6px 0 0;padding:4px 6px;border:1px solid var(--olla-ceo-line);border-radius:7px;color:var(--olla-ceo-text);font-size:10px;background:rgba(255,255,255,.015)}
+.ollaMetricCard p{margin:7px 0 0;color:var(--olla-ceo-muted);font-size:10px;line-height:1.4}.ollaMetricCard small{display:block;margin-top:6px;color:var(--olla-ceo-text);font-size:9px}
+.ollaScenarioVisual{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center}.ollaScenarioColumn{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.ollaScenarioColumn>.ollaVisualMiniLabel{grid-column:1/-1}
+.ollaScenarioMetric{border:1px solid var(--olla-ceo-line);border-radius:11px;padding:9px;background:rgba(255,255,255,.012)}.ollaScenarioMetric span{display:block;color:var(--olla-ceo-muted);font-size:9px}.ollaScenarioMetric b{display:block;color:var(--olla-ceo-text);font-size:13px;margin-top:4px}
+.ollaScenarioMetric.is-good{border-color:color-mix(in srgb,var(--olla-ceo-good) 55%,transparent)}.ollaScenarioMetric.is-warn{border-color:color-mix(in srgb,var(--olla-ceo-warn) 55%,transparent)}.ollaScenarioMetric.is-bad{border-color:color-mix(in srgb,var(--olla-ceo-bad) 60%,transparent)}
+.ollaScenarioMetric.is-good b{color:var(--olla-ceo-good)}.ollaScenarioMetric.is-warn b{color:var(--olla-ceo-warn)}.ollaScenarioMetric.is-bad b{color:var(--olla-ceo-bad)}
+.ollaScenarioArrow{color:var(--olla-ceo-gold);font-size:25px}.ollaScenarioChain{grid-column:1/-1;display:flex;gap:7px;flex-wrap:wrap;margin-top:7px}.ollaScenarioChain span,.ollaCeoFlow span{display:inline-flex;align-items:center;gap:7px;padding:7px 9px;border:1px solid var(--olla-ceo-line);border-radius:999px;color:var(--olla-ceo-text);font-size:9px}.ollaScenarioChain b,.ollaCeoFlow b{color:var(--olla-ceo-gold);font-weight:400}
+.ollaCeoFlow{display:flex;flex-wrap:wrap;gap:7px}.ollaNoData{min-height:150px;display:grid;place-items:center;align-content:center;gap:8px;border:1px dashed var(--olla-ceo-line);border-radius:14px;color:var(--olla-ceo-muted);text-align:center}.ollaNoData>span{font-size:28px;color:var(--olla-ceo-gold)}.ollaNoData strong{font-size:12px;font-weight:600}
+@media(max-width:760px){.ollaMetricGrid{grid-template-columns:1fr}.ollaDonutLayout{grid-template-columns:1fr;justify-items:center}.ollaDonutLegend{width:100%}.ollaScenarioVisual{grid-template-columns:1fr}.ollaScenarioArrow{transform:rotate(90deg);text-align:center}.ollaVisualBarRow{grid-template-columns:90px 1fr 34px}.ollaQuadrantGrid{height:220px}}
+@media(prefers-reduced-motion:reduce){.ollaVisualFrame *{scroll-behavior:auto!important;transition:none!important;animation:none!important}}

@@ -2,14 +2,21 @@ import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.m
 import {
   NEED_KEYS,
   applySimAction,
+  buildDecisionLesson,
+  buildLifePractice,
   buildStageExam,
   decisionHint,
+  evaluateDecisionChoice,
+  evaluateLifePractice,
+  findCollisionSafeRoute,
   moodFor,
   normalizeGameState,
   projectIsControlled,
+  recordDecisionAttempt,
   isBedtime,
   sleepUntilMorning,
   timePhaseFor,
+  trainingSummary,
   trophySummary,
 } from "./systems.js";
 import { loadLiveGameProjects } from "./live-data.js";
@@ -165,6 +172,10 @@ function positionAmbientConversations() {
     return;
   }
   container.classList.remove("hidden");
+  if (performance.now() - conversationChangedAt > 9000) {
+    conversationCycle = (conversationCycle + 1) % BAHRAINI_CONVERSATIONS.length;
+    renderAmbientConversations();
+  }
   $$('[data-chat-actor]').forEach((button) => {
     const actor = ambientActors[Number(button.dataset.chatActor)];
     if (!actor) return;
@@ -525,6 +536,10 @@ async function ensureLiveProjects() {
 let state = normalizeGameState({});
 let gameFinished = false,
   gameOutcome = null;
+let currentDecisionPractice = null,
+  selectedDecisionConfidence = 2,
+  activeLifePractice = null,
+  lastLifePracticeSignature = "";
 function save() {
   localStorage.setItem(stateStorageKey, JSON.stringify(state));
 }
@@ -570,6 +585,88 @@ function updateHUD() {
   maybeShowWellbeingPrompt();
   renderStageRail();
   renderTrophyShelf();
+  renderDecisionTraining();
+  renderLifePractice();
+}
+
+function renderDecisionTraining() {
+  const summary = trainingSummary(state.training, state.day);
+  if (!$("#decisionTrainingStats")) return;
+  $("#trainingXp").textContent = `${summary.xp} XP`;
+  $("#trainingAccuracy").textContent = summary.attempts ? `${summary.accuracy}%` : "—";
+  $("#trainingReflections").textContent = String(summary.reflections);
+  $("#trainingReviewDue").textContent = String(summary.dueNow || summary.reviewDue);
+  $("#decisionTrainingStats").title = `${summary.correct}/${summary.attempts} choices correct · ${summary.streak} current streak · ${summary.lifeCompleted} life decisions practiced`;
+}
+
+function renderLifePractice() {
+  const root = $("#lifePractice");
+  if (!root) return;
+  const challenge = buildLifePractice(state),
+    signature = `${challenge.id}:${state.day}:${Math.floor(state.hour)}:${Math.round(state.energy / 5)}:${Math.round(state.focus / 5)}:${Math.round(state.patience / 5)}:${Math.round(state.social / 5)}`;
+  activeLifePractice = challenge;
+  if (signature === lastLifePracticeSignature && $("#lifePracticeOptions").children.length) return;
+  lastLifePracticeSignature = signature;
+  $("#lifePracticeTitle").textContent = challenge.prompt;
+  $("#lifePracticeSituation").textContent = challenge.situation;
+  $("#lifePracticePrinciple").textContent = challenge.principle;
+  $("#lifePracticePrompt").textContent = "Choose the action that addresses the real constraint:";
+  $("#lifePracticeBadge").textContent = `DAY ${state.day}`;
+  $("#lifePracticeFeedback").classList.add("hidden");
+  $("#lifePracticeOptions").innerHTML = challenge.options
+    .map((option) => `<button type="button" data-life-action="${escapeHtml(option.action)}">${escapeHtml(option.label)}</button>`)
+    .join("");
+  $$('[data-life-action]').forEach((button) => {
+    button.onclick = () => handleLifePractice(button.dataset.lifeAction);
+  });
+}
+
+function handleLifePractice(action) {
+  if (!activeLifePractice) return;
+  const evaluation = evaluateLifePractice(activeLifePractice, action),
+    key = `life:${activeLifePractice.id}`,
+    feedback = $("#lifePracticeFeedback");
+  $$('[data-life-action]').forEach((button) => {
+    button.classList.remove("correct", "wrong");
+    if (button.dataset.lifeAction === action) button.classList.add(evaluation.correct ? "correct" : "wrong");
+  });
+  feedback.classList.remove("hidden", "correct", "wrong");
+  feedback.classList.add(evaluation.correct ? "correct" : "wrong");
+  feedback.innerHTML = `<b>${evaluation.correct ? "Controlled life decision" : "Pause and diagnose again"}</b><p>${escapeHtml(evaluation.feedback)}</p><small>${escapeHtml(evaluation.principle)}</small>`;
+  if (!evaluation.correct) {
+    state.training = recordDecisionAttempt(state.training, {
+      key,
+      correct: false,
+      confidence: 2,
+      day: state.day,
+      reflected: false,
+    });
+    state.patience = Math.max(0, state.patience - 2);
+    save();
+    renderDecisionTraining();
+    toast("Useful mistake recorded—try the real constraint again");
+    return;
+  }
+  state.training = recordDecisionAttempt(state.training, {
+    key,
+    correct: true,
+    confidence: 2,
+    day: state.day,
+    reflected: true,
+  });
+  state.training.lifeCompleted += 1;
+  lastLifePracticeSignature = "";
+  if (action === "sleep") {
+    save();
+    wakeToMorning();
+    return;
+  }
+  const result = applySimAction(state, action);
+  state = result.state;
+  save();
+  updateHUD();
+  playSimAction(action, result.line);
+  toast("Life decision practiced · +20 XP");
 }
 
 let lastStageRender = "",
@@ -649,7 +746,12 @@ const move = { x: 0, y: 0 },
   walkTarget = new THREE.Vector3();
 let hasWalkTarget = false,
   nightFoodTravel = false,
-  walkBlockedFrames = 0;
+  walkBlockedFrames = 0,
+  walkRoute = [],
+  walkRouteIndex = 0,
+  nightFoodReplans = 0,
+  nightFoodFallbackTimer = 0;
+const FOOD_COURT_ARRIVAL = { x: 35, z: 32.5 };
 function mat(c, metal = 0.05, rough = 0.75) {
   return new THREE.MeshStandardMaterial({
     color: c,
@@ -711,6 +813,61 @@ function moveOlaWithCollision(direction, distance) {
   const changed = moved.x !== ola.position.x || moved.z !== ola.position.z;
   if (changed) ola.position.copy(moved);
   return changed;
+}
+function planFoodCourtRoute() {
+  walkRoute = findCollisionSafeRoute(
+    { x: ola.position.x, z: ola.position.z },
+    FOOD_COURT_ARRIVAL,
+    (x, z) => blockedAt(x, z, 0.62),
+    { step: 1.5, limit: 72 },
+  );
+  walkRouteIndex = 0;
+  const first = walkRoute[0] || FOOD_COURT_ARRIVAL;
+  walkTarget.set(first.x, 0, first.z);
+  hasWalkTarget = true;
+  walkBlockedFrames = 0;
+  drawNavigationLine(walkTarget);
+}
+function advanceFoodCourtRoute() {
+  if (!nightFoodTravel || walkRouteIndex >= walkRoute.length - 1) return false;
+  walkRouteIndex += 1;
+  const next = walkRoute[walkRouteIndex];
+  walkTarget.set(next.x, 0, next.z);
+  hasWalkTarget = true;
+  walkBlockedFrames = 0;
+  drawNavigationLine(walkTarget);
+  return true;
+}
+function foodCourtArrivalPoint() {
+  const candidates = [
+    FOOD_COURT_ARRIVAL,
+    { x: 35, z: 34.5 },
+    { x: 32.5, z: 32.5 },
+    { x: 38, z: 32.5 },
+  ];
+  return candidates.find((point) => !blockedAt(point.x, point.z, 0.62)) || FOOD_COURT_ARRIVAL;
+}
+function arriveAtFoodCourt({ cinematic = false } = {}) {
+  if (!nightFoodTravel) return;
+  clearTimeout(nightFoodFallbackTimer);
+  nightFoodFallbackTimer = 0;
+  const arrival = foodCourtArrivalPoint();
+  if (cinematic) ola.position.set(arrival.x, 0, arrival.z);
+  hasWalkTarget = false;
+  nightFoodTravel = false;
+  walkRoute = [];
+  clearNavigationLine();
+  camYaw = Math.PI / 2;
+  camPitch = 1.25;
+  camDist = 29;
+  document.body.classList.add("food-court-arrival");
+  setTimeout(() => document.body.classList.remove("food-court-arrival"), 900);
+  setTimeout(() => {
+    $("#drawer").classList.add("open");
+    $(".food-menu")?.scrollIntoView({ behavior: "auto", block: "center" });
+  }, cinematic ? 720 : 350);
+  showThought("Welcome to the Food Court. The night street is open for food, snowfall, and Bahraini conversation.", 6500);
+  toast(cinematic ? "Arrived safely via the city route" : "Arrived at the Food Court");
 }
 function emissive(color, intensity = 0.8) {
   return new THREE.MeshStandardMaterial({
@@ -1294,7 +1451,7 @@ function foodCourt() {
   counter.position.set(0, 0.95, 4.25);
   canopy.position.set(0, 2.92, 3.12);
   court.add(stall, counter, canopy);
-  const mainSign = textSprite("SHAABIYAT LABIB · AL KHOBAR AL SHAMALIA", "#fff0bd");
+  const mainSign = textSprite("FOOD COURT", "#fff0bd");
   mainSign.scale.set(8.4, 1.2, 1);
   mainSign.position.set(0, 3.75, 4.15);
   court.add(mainSign);
@@ -2006,10 +2163,15 @@ function updateDayLight() {
     });
   });
 }
+function simulationPausedByUI() {
+  return ["decisionSheet", "examSheet", "trophyModal", "guideModal", "bedtimeGate"]
+    .some((id) => $("#" + id)?.classList.contains("hidden") === false) || $("#drawer")?.classList.contains("open");
+}
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock3d.getDelta(), 0.04);
-  if (!gameFinished && state.speed > 0) {
+  const uiPaused = simulationPausedByUI();
+  if (!gameFinished && !uiPaused && state.speed > 0) {
     state.hour += dt * state.speed * 0.2;
     if (state.hour >= 21) {
       state.hour = 21;
@@ -2034,7 +2196,7 @@ function animate() {
   const forward = new THREE.Vector3(-Math.cos(camYaw), 0, -Math.sin(camYaw));
   const right = new THREE.Vector3(-forward.z, 0, forward.x);
   let dir = forward.multiplyScalar(move.y).add(right.multiplyScalar(move.x));
-  if (isBedtime(state.hour) && !state.nightSocial) dir.set(0, 0, 0);
+  if (uiPaused || (isBedtime(state.hour) && !state.nightSocial)) dir.set(0, 0, 0);
   let characterMoving = false;
   if (dir.lengthSq() > 0.01) {
     guidedProject = null;
@@ -2049,35 +2211,33 @@ function animate() {
     const d = walkTarget.clone().sub(ola.position);
     d.y = 0;
     if (d.length() < 0.28) {
-      hasWalkTarget = false;
-      if (guidedProject) {
+      if (advanceFoodCourtRoute()) {
+        // The next collision-safe segment is now active.
+      } else if (guidedProject) {
+        hasWalkTarget = false;
         const arrived = guidedProject;
         guidedProject = null;
         clearNavigationLine();
         openProject(arrived);
         updateGoToPrompt();
       } else if (nightFoodTravel) {
-        nightFoodTravel = false;
-        clearNavigationLine();
-        camYaw = Math.PI / 2;
-        camPitch = 1.25;
-        camDist = 29;
-        setTimeout(() => {
-          $("#drawer").classList.add("open");
-          $(".food-menu")?.scrollIntoView({ behavior: "auto", block: "center" });
-        }, 1800);
-        showThought("Welcome to شعبيات لبيب. The northern Khobar-inspired street is open for food, snowfall, and Bahraini conversation.", 6500);
-        toast("Arrived at شعبيات لبيب");
+        arriveAtFoodCourt();
       }
     } else {
       d.normalize();
       const moved = moveOlaWithCollision(d, dt * (guidedProject || nightFoodTravel ? 12 : 4.6));
       walkBlockedFrames = moved ? 0 : walkBlockedFrames + 1;
       if (walkBlockedFrames > 24) {
-        const detour = new THREE.Vector3(-d.z, 0, d.x).multiplyScalar((walkBlockedFrames % 2 ? 1 : -1) * 2.6);
-        walkTarget.add(detour);
-        walkBlockedFrames = 0;
-        drawNavigationLine(walkTarget);
+        if (nightFoodTravel) {
+          nightFoodReplans += 1;
+          planFoodCourtRoute();
+          toast(nightFoodReplans > 1 ? "Route adjusted around another building" : "Route adjusted around the building");
+        } else {
+          const detour = new THREE.Vector3(-d.z, 0, d.x).multiplyScalar((walkBlockedFrames % 2 ? 1 : -1) * 2.6);
+          walkTarget.add(detour);
+          walkBlockedFrames = 0;
+          drawNavigationLine(walkTarget);
+        }
       }
       ola.rotation.y = Math.atan2(d.x, d.z);
       characterMoving = moved;
@@ -2237,7 +2397,10 @@ function openProject(p) {
 }
 function openDecision(p, i) {
   if (!requireAwake()) return;
-  const m = p.missions[i];
+  const m = p.missions[i],
+    lesson = buildDecisionLesson(p, m);
+  currentDecisionPractice = { project: p, missionIndex: i, lesson, correctPending: false };
+  selectedDecisionConfidence = 2;
   $("#decisionStatus").textContent = m[0];
   $("#decisionTitle").textContent = m[1];
   $("#decisionReading").textContent = m[2];
@@ -2246,6 +2409,20 @@ function openDecision(p, i) {
     rotation = (i + p.id.length) % m[4].length,
     orderedOptions = m[4].map((option, originalIndex) => ({ option, originalIndex })).slice(rotation).concat(m[4].map((option, originalIndex) => ({ option, originalIndex })).slice(0, rotation));
   $("#decisionHint").textContent = hint;
+  $("#decisionPrinciple").textContent = lesson.principle;
+  $("#decisionFramework").innerHTML = lesson.steps
+    .map((step) => `<article><small>${escapeHtml(step.label)}</small><p>${escapeHtml(step.text)}</p></article>`)
+    .join("");
+  $$('[data-confidence]').forEach((button) => {
+    button.classList.toggle("selected", button.dataset.confidence === "2");
+    button.onclick = () => {
+      selectedDecisionConfidence = Number(button.dataset.confidence);
+      $$('[data-confidence]').forEach((item) => item.classList.toggle("selected", item === button));
+    };
+  });
+  $("#decisionFeedback").classList.add("hidden");
+  $("#decisionReflection").classList.add("hidden");
+  $("#decisionReflectionOptions").innerHTML = "";
   document.body.classList.add("modal-question-open");
   showThought(hint, 0, true);
   $("#decisionOptions").innerHTML = orderedOptions
@@ -2264,26 +2441,97 @@ function choose(p, i, opt) {
   state.energy = Math.max(0, state.energy - 6);
   state.focus = Math.max(0, state.focus - 8);
   const mission = p.missions[i],
-    correctIndex = Number.isInteger(mission[5]) ? mission[5] : 0;
-  if (opt === correctIndex) {
-    state.resolved[p.id] ??= {};
-    state.resolved[p.id][i] = true;
-    state.patience = Math.min(100, state.patience + 3);
-    state.fun = Math.min(100, state.fun + 2);
-    toast("Correct management decision ✓");
-    showThought("That is the controlled decision. Tiny trophy energy activated. ✦", 3200);
-    $("#decisionSheet").classList.add("hidden");
-    document.body.classList.remove("modal-question-open");
-    openProject(p);
-    visualReaction(p, true);
-    checkWin();
-  } else {
+    evaluation = evaluateDecisionChoice(mission, opt, selectedDecisionConfidence),
+    lesson = currentDecisionPractice?.lesson || buildDecisionLesson(p, mission),
+    attemptKey = `${p.id}:${i}`,
+    buttons = $$('[data-opt]');
+  buttons.forEach((button) => {
+    button.classList.remove("correct", "wrong");
+    if (Number(button.dataset.opt) === opt) button.classList.add(evaluation.correct ? "correct" : "wrong");
+  });
+  $("#decisionFeedback").classList.remove("hidden");
+  $("#decisionCalibration").textContent = `CONFIDENCE CHECK · ${evaluation.calibration.toUpperCase()}`;
+  $("#decisionFeedbackTitle").textContent = evaluation.correct ? "The control choice is sound" : "This choice leaves exposure open";
+  $("#decisionFeedbackReason").textContent = evaluation.reason;
+  $("#decisionConsequence").textContent = evaluation.consequence;
+  $("#decisionNextAction").textContent = evaluation.nextAction;
+  if (!evaluation.correct) {
+    state.training = recordDecisionAttempt(state.training, {
+      key: attemptKey,
+      correct: false,
+      confidence: selectedDecisionConfidence,
+      day: state.day,
+      reflected: false,
+    });
     state.patience = Math.max(0, state.patience - 10);
-    toast("That decision increased exposure");
+    toast("Exposure identified · this item entered the review queue");
     showThought(decisionHint(p, mission), 0, true);
     visualReaction(p, false);
+    save();
+    updateHUD();
+    return;
   }
+  currentDecisionPractice = { project: p, missionIndex: i, lesson, correctPending: true };
+  buttons.forEach((button) => (button.disabled = true));
+  $("#decisionReflectionPrompt").textContent = lesson.reflectionPrompt;
+  $("#decisionReflectionOptions").innerHTML = lesson.reflectionOptions
+    .map((option, index) => `<button type="button" data-reflection-opt="${index}">${String.fromCharCode(65 + index)}. ${escapeHtml(option)}</button>`)
+    .join("");
+  $("#decisionReflection").classList.remove("hidden");
+  $$('[data-reflection-opt]').forEach((button) => {
+    button.onclick = () => completeDecisionReflection(p, i, Number(button.dataset.reflectionOpt));
+  });
+  toast("Choice controlled—now explain why it is safe");
+  showThought("Good choice. Now prove the reasoning so the lesson transfers to the next project.", 0, true);
   save();
+  updateHUD();
+}
+
+function completeDecisionReflection(p, i, selectedIndex) {
+  const lesson = currentDecisionPractice?.lesson || buildDecisionLesson(p, p.missions[i]),
+    buttons = $$('[data-reflection-opt]');
+  buttons.forEach((button) => {
+    button.classList.remove("correct", "wrong");
+    if (Number(button.dataset.reflectionOpt) === selectedIndex) {
+      button.classList.add(selectedIndex === lesson.correctReflectionIndex ? "correct" : "wrong");
+    }
+  });
+  if (selectedIndex !== lesson.correctReflectionIndex) {
+    state.patience = Math.max(0, state.patience - 2);
+    $("#decisionFeedbackTitle").textContent = "The choice was right, but the reasoning is not protected yet";
+    $("#decisionFeedbackReason").textContent = lesson.riskIfRushed;
+    $("#decisionNextAction").textContent = "Try the reflection again: protect evidence, traceability, ownership, and the next check.";
+    showThought("A correct answer is not enough. Choose the reason that would still work when the numbers change.", 0, true);
+    save();
+    return;
+  }
+  buttons.forEach((button) => (button.disabled = true));
+  state.training = recordDecisionAttempt(state.training, {
+    key: `${p.id}:${i}`,
+    correct: true,
+    confidence: selectedDecisionConfidence,
+    day: state.day,
+    reflected: true,
+  });
+  state.resolved[p.id] ??= {};
+  state.resolved[p.id][i] = true;
+  state.patience = Math.min(100, state.patience + 4);
+  state.fun = Math.min(100, state.fun + 3);
+  $("#decisionFeedbackTitle").textContent = "Decision transferred into a reusable skill";
+  $("#decisionFeedbackReason").textContent = lesson.principle;
+  $("#decisionNextAction").textContent = "Reflection stored · +20 decision mastery XP";
+  visualReaction(p, true);
+  save();
+  updateHUD();
+  toast("Decision mastered · reflection stored · +20 XP");
+  showThought("Exactly. Evidence, ownership, and a next check—that is a decision you can reuse. ✦", 3600);
+  setTimeout(() => {
+    $("#decisionSheet").classList.add("hidden");
+    document.body.classList.remove("modal-question-open");
+    currentDecisionPractice = null;
+    openProject(p);
+    checkWin();
+  }, 650);
 }
 function visualReaction(p, good) {
   const g = projectMeshes.find((x) => x.userData.project.id === p.id);
@@ -2352,6 +2600,7 @@ $("#guideClose").onclick = () => $("#guideModal").classList.add("hidden");
 $("#closeDecision").onclick = () => {
   $("#decisionSheet").classList.add("hidden");
   document.body.classList.remove("modal-question-open");
+  currentDecisionPractice = null;
   hideThought();
 };
 $("#closeProject").onclick = () => $("#projectSheet").classList.remove("open");
@@ -2447,15 +2696,17 @@ $("#goNightFoodCourt").onclick = () => {
   document.body.classList.add("night-social-mode");
   guidedProject = null;
   nightFoodTravel = true;
-  walkTarget.set(35, 0, 32.5);
-  hasWalkTarget = true;
-  walkBlockedFrames = 0;
-  drawNavigationLine(walkTarget);
+  nightFoodReplans = 0;
+  planFoodCourtRoute();
+  clearTimeout(nightFoodFallbackTimer);
+  nightFoodFallbackTimer = setTimeout(() => {
+    if (nightFoodTravel) arriveAtFoodCourt({ cinematic: true });
+  }, 6500);
   $("#drawer").classList.remove("open");
   save();
   updateHUD();
-  showThought("Eng. Ola, شعبيات لبيب is open. Tonight is for food, warm conversation, and rest—not management fields.", 6000);
-  toast("GO TO شعبيات لبيب · night social mode");
+  showThought("Eng. Ola, the Food Court is open. Tonight is for food, warm conversation, and rest—not management fields.", 6000);
+  toast("GO TO FOOD COURT · night social mode");
 };
 $("#coffeeBtn").onclick = () => runSimAction("coffee");
 $("#restBtn").onclick = () => runSimAction("rest");
@@ -2478,10 +2729,10 @@ function runFoodAction(food) {
   updateHUD();
   save();
   const nightLines = {
-    pizza: "Pizza, snowfall, and a quiet night at شعبيات لبيب. 🍕",
+    pizza: "Pizza, snowfall, and a quiet night at the Food Court. 🍕",
     burger: "A warm burger break while the city slows down. 🍔",
     tameez: "تميس دافئ وسوالف هادية قبل النوم. 🫓",
-    shaabiyat: "شعبيات لبيب جمعت اللمة والضحكة قبل النوم. 🍲",
+    shaabiyat: "The Food Court brought everyone together for a warm meal before sleep. 🍲",
     karak: "شاي كرك دافئ، سوالف بحرينية، وليلة أهدى. 🫖",
   };
   playSimAction(`food-${food}`, nightLines[food] || result.line);

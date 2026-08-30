@@ -491,6 +491,40 @@ body[data-time-phase="night"] #game::before {
   overflow-x: auto;
   scrollbar-width: none;
 }
+.decision-training-stats {
+  position: absolute;
+  z-index: 22;
+  top: 255px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(590px, calc(100% - 30px));
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  padding: 5px;
+  border-radius: 14px;
+  pointer-events: none;
+  background: rgba(7, 19, 34, .76);
+}
+.decision-training-stats > div {
+  min-width: 0;
+  padding: 5px 9px;
+  border-right: 1px solid rgba(255,255,255,.08);
+}
+.decision-training-stats > div:last-child { border-right: 0; }
+.decision-training-stats small {
+  display: block;
+  color: #83a5ba;
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: .11em;
+}
+.decision-training-stats b {
+  display: block;
+  margin-top: 2px;
+  color: #8ff5b6;
+  font-size: 12px;
+}
 .stage-node {
   display: grid;
   grid-template-columns: 30px auto;
@@ -844,6 +878,65 @@ body[data-time-phase="night"] #game::before {
   color: var(--gold);
   margin: 18px 0 8px;
 }
+.life-practice {
+  margin: 14px 0 18px;
+  padding: 14px;
+  border: 1px solid rgba(86, 223, 151, .3);
+  border-radius: 18px;
+  background: linear-gradient(145deg, rgba(40, 133, 88, .16), rgba(18, 47, 75, .55));
+  box-shadow: inset 0 1px rgba(255,255,255,.04);
+}
+.life-practice-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.life-practice-head small,
+.life-principle small {
+  color: #65e89e;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+.life-practice-head h3 {
+  margin: 3px 0 0;
+  color: #f4f7f2;
+  font-size: 16px;
+  line-height: 1.25;
+}
+#lifePracticeBadge {
+  flex: 0 0 auto;
+  padding: 5px 7px;
+  border: 1px solid rgba(101,232,158,.3);
+  border-radius: 999px;
+  color: #8ff5b6;
+  font-size: 8px;
+  font-weight: 900;
+}
+.life-practice > p { color: #c6d5de; line-height: 1.5; }
+.life-principle {
+  padding: 10px;
+  border-left: 3px solid #5de49a;
+  border-radius: 0 10px 10px 0;
+  background: rgba(0,0,0,.18);
+}
+.life-principle b { display: block; margin-top: 4px; line-height: 1.45; }
+.life-practice-prompt { margin-bottom: 7px; font-weight: 800; }
+.life-practice-options { display: grid; gap: 7px; }
+.life-practice-options button { min-height: 46px; text-align: left; }
+.life-practice-options button.correct { border-color: var(--green); background: rgba(56,159,101,.24); }
+.life-practice-options button.wrong { border-color: var(--red); background: rgba(166,55,55,.22); }
+.life-practice-feedback {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(0,0,0,.2);
+}
+.life-practice-feedback.correct { border-left: 3px solid var(--green); }
+.life-practice-feedback.wrong { border-left: 3px solid var(--red); }
+.life-practice-feedback p { margin: 5px 0; color: #e4edf2; }
+.life-practice-feedback small { color: var(--muted); line-height: 1.4; }
 .sims-note {
   margin-top: 9px;
   color: var(--muted);
@@ -1098,6 +1191,26 @@ body[data-time-phase="night"] #game::before {
   place-items: end center;
   padding: 12px;
 }
+body.food-court-arrival::after {
+  content: "CITY ROUTE  ·  FOOD COURT";
+  position: fixed;
+  z-index: 200;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #ffe4a1;
+  font-size: clamp(16px, 3vw, 28px);
+  font-weight: 900;
+  letter-spacing: .16em;
+  background: radial-gradient(circle at 50% 70%, rgba(126,89,45,.76), rgba(3,10,20,.96) 58%);
+  pointer-events: none;
+  animation: cityRouteArrival .9s ease both;
+}
+@keyframes cityRouteArrival {
+  0% { opacity: 0; }
+  28%, 68% { opacity: 1; }
+  100% { opacity: 0; }
+}
 .decision,
 .guide-box,
 .exam-box,
@@ -1111,6 +1224,69 @@ body[data-time-phase="night"] #game::before {
   border: 1px solid rgba(124, 211, 255, 0.32);
   box-shadow: 0 26px 80px rgba(0, 0, 0, 0.62), 0 0 42px rgba(73, 177, 213, 0.15);
 }
+.decision { width: min(900px, 100%); }
+.decision-learning {
+  margin: 12px 0;
+  padding: 13px;
+  border: 1px solid rgba(97, 226, 157, .25);
+  border-radius: 17px;
+  background: linear-gradient(145deg, rgba(42, 127, 82, .13), rgba(11, 31, 52, .56));
+}
+.decision-principle {
+  padding: 11px 12px;
+  border-left: 3px solid #62e49d;
+  border-radius: 0 12px 12px 0;
+  background: rgba(0,0,0,.2);
+}
+.decision-principle small,
+.decision-reflection > small,
+.decision-feedback small {
+  display: block;
+  color: #78eeb0;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+.decision-principle b { display: block; margin-top: 5px; font-size: 15px; line-height: 1.5; }
+.decision-framework {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 10px;
+}
+.decision-framework article {
+  padding: 10px;
+  border: 1px solid rgba(255,255,255,.09);
+  border-radius: 12px;
+  background: rgba(255,255,255,.035);
+}
+.decision-framework small { color: var(--gold); font-size: 9px; font-weight: 900; letter-spacing: .05em; }
+.decision-framework p { margin: 5px 0 0; color: #c7d5df; font-size: 12px; line-height: 1.42; }
+.decision-confidence {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+  margin: 12px 0;
+  padding: 10px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 14px;
+}
+.decision-confidence legend { padding: 0 7px; color: #c7d5df; font-size: 12px; font-weight: 800; }
+.decision-confidence button { min-height: 40px; }
+.decision-confidence button.selected { border-color: var(--gold); color: #ffe7a8; background: rgba(196,143,36,.2); }
+.decision-feedback,
+.decision-reflection {
+  margin: 12px 0;
+  padding: 13px;
+  border-radius: 15px;
+  background: rgba(255,255,255,.055);
+  border: 1px solid rgba(255,255,255,.1);
+}
+.decision-feedback b { display: block; margin-top: 3px; font-size: 17px; }
+.decision-feedback p { margin: 8px 0; color: #d4e0e7; line-height: 1.48; }
+.decision-feedback strong { display: block; color: var(--gold); line-height: 1.45; }
+.decision-reflection { border-color: rgba(240,201,111,.34); }
+.decision-reflection h3 { margin: 6px 0 9px; font-size: 17px; line-height: 1.38; }
 .status {
   display: inline-block;
   padding: 5px 9px;
@@ -1386,6 +1562,7 @@ body[data-time-phase="night"] #game::before {
   .stage-rail {
     top: 196px;
   }
+  .decision-training-stats { top: 246px; }
 }
 @media (max-width: 620px) {
   .campaign-progress { display: none; }
@@ -1422,6 +1599,16 @@ body[data-time-phase="night"] #game::before {
     top: 284px;
     justify-content: flex-start;
   }
+  .decision-training-stats {
+    top: 336px;
+    width: calc(100% - 24px);
+  }
+  .decision-training-stats > div { padding: 4px 5px; }
+  .decision-training-stats small { font-size: 6px; }
+  .decision-training-stats b { font-size: 10px; }
+  .decision-framework { grid-template-columns: 1fr 1fr; }
+  .decision { max-height: 92vh; padding: 15px 12px max(18px, env(safe-area-inset-bottom)); }
+  .decision-confidence { grid-template-columns: 1fr; }
   .stage-node {
     min-width: 104px;
   }

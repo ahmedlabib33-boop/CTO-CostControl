@@ -28,8 +28,16 @@ $IdentityIndex = Join-Path $GeneratedRoot "identity-registry.json"
 $InputRoot = [IO.Path]::GetFullPath((Join-Path $RepoRoot "INPUT"))
 $WatcherStatePath = Join-Path $RepoRoot ".runtime\watcher-state.json"
 $BackupRoot = Join-Path $RepoRoot ".runtime\clean-vercel-backup"
+$TokenFilePath = Join-Path $RepoRoot ".runtime\github-token.txt"
 $Utf8NoBom = [Text.UTF8Encoding]::new($false)
 $script:Token = $env:GITHUB_TOKEN
+
+if (-not $script:Token -and (Test-Path -LiteralPath $TokenFilePath -PathType Leaf)) {
+    $storedToken = (Get-Content -LiteralPath $TokenFilePath -Raw).Trim()
+    if ($storedToken -and $storedToken -ne "PASTE_GITHUB_TOKEN_HERE") {
+        $script:Token = $storedToken
+    }
+}
 
 function Read-JsonFile([string]$Path, $Default = $null) {
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $Default }
@@ -53,6 +61,7 @@ function Get-GitHubToken {
     if ($script:Token) { return $script:Token }
     Write-Host ""
     Write-Host "GitHub token is required only to publish the deletion." -ForegroundColor Yellow
+    Write-Host "You can save it once in: $TokenFilePath" -ForegroundColor DarkGray
     $secure = Read-Host "Paste GITHUB_TOKEN (input is hidden)" -AsSecureString
     $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
     try { $script:Token = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr) }
@@ -61,9 +70,81 @@ function Get-GitHubToken {
     return $script:Token
 }
 
+function Get-GitHubHeaders {
+    return @{
+        Authorization = "Bearer $(Get-GitHubToken)"
+        Accept = "application/vnd.github+json"
+        "X-GitHub-Api-Version" = "2022-11-28"
+        "User-Agent" = "CTO-CostControl-Clean-Vercel"
+    }
+}
+
+function Assert-GitHubAuthorization {
+    $headers = Get-GitHubHeaders
+    $api = "https://api.github.com/repos/$GitHubOwner/$GitHubRepo"
+    try {
+        $repository = Invoke-RestMethod -Headers $headers -Uri $api -TimeoutSec 20
+        [void](Invoke-RestMethod -Headers $headers -Uri "$api/git/ref/heads/$GitHubBranch" -TimeoutSec 20)
+        if ($repository.permissions -and $repository.permissions.push -eq $false) {
+            throw "The token can read the repository but cannot write repository contents."
+        }
+    }
+    catch {
+        $statusCode = 0
+        try { $statusCode = [int]$_.Exception.Response.StatusCode } catch { }
+        if ($statusCode -eq 401) {
+            throw "GitHub rejected the token before cleaning (401 Unauthorized). NOTHING WAS DELETED. Set a valid fine-grained token with Contents: Read and write, then run Clean_Vercel.bat again."
+        }
+        if ($statusCode -eq 403) {
+            throw "GitHub refused repository write access before cleaning (403 Forbidden). NOTHING WAS DELETED. Check token repository access and Contents: Read and write."
+        }
+        throw "GitHub authorization preflight failed before cleaning. NOTHING WAS DELETED. $($_.Exception.Message)"
+    }
+    Write-Host "GitHub authorization confirmed before local cleaning." -ForegroundColor Green
+}
+
+function Backup-CleanTransaction([string]$RunBackupRoot) {
+    $snapshotRoot = Join-Path $RunBackupRoot "LOCAL_STATE"
+    [void](New-Item -ItemType Directory -Path $snapshotRoot -Force)
+    if (Test-Path -LiteralPath $GeneratedRoot -PathType Container) {
+        Copy-Item -LiteralPath $GeneratedRoot -Destination (Join-Path $snapshotRoot "generated") -Recurse -Force
+    }
+    if (Test-Path -LiteralPath $WatcherStatePath -PathType Leaf) {
+        Copy-Item -LiteralPath $WatcherStatePath -Destination (Join-Path $snapshotRoot "watcher-state.json") -Force
+    }
+}
+
+function Restore-CleanTransaction([string]$RunBackupRoot) {
+    $snapshotRoot = Join-Path $RunBackupRoot "LOCAL_STATE"
+    $generatedSnapshot = Join-Path $snapshotRoot "generated"
+    if (Test-Path -LiteralPath $generatedSnapshot -PathType Container) {
+        [void](New-Item -ItemType Directory -Path $GeneratedRoot -Force)
+        Copy-Item -Path (Join-Path $generatedSnapshot "*") -Destination $GeneratedRoot -Recurse -Force
+    }
+    $watcherSnapshot = Join-Path $snapshotRoot "watcher-state.json"
+    if (Test-Path -LiteralPath $watcherSnapshot -PathType Leaf) {
+        [void](New-Item -ItemType Directory -Path (Split-Path -Parent $WatcherStatePath) -Force)
+        Copy-Item -LiteralPath $watcherSnapshot -Destination $WatcherStatePath -Force
+    }
+    $inputSnapshot = Join-Path $RunBackupRoot "INPUT"
+    if (Test-Path -LiteralPath $inputSnapshot -PathType Container) {
+        foreach ($file in Get-ChildItem -LiteralPath $inputSnapshot -Recurse -File) {
+            $relative = $file.FullName.Substring($inputSnapshot.TrimEnd('\').Length).TrimStart('\')
+            $destination = Join-Path $InputRoot $relative
+            [void](New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force)
+            Copy-Item -LiteralPath $file.FullName -Destination $destination -Force
+        }
+    }
+    Write-Host "LOCAL ROLLBACK COMPLETED: generated JSON, watcher memory, and INPUT sources were restored." -ForegroundColor Yellow
+}
+
 function Get-AvailableProjects {
     $items = [ordered]@{}
-    foreach ($item in @(Read-JsonFile $ProjectsIndex @())) {
+    # Windows PowerShell 5.1 can return a top-level JSON array as one nested
+    # pipeline object. Enumerate it explicitly so two projects can never be
+    # cast into one synthetic "project-a project-b" menu entry.
+    $registry = Read-JsonFile $ProjectsIndex @()
+    foreach ($item in @($registry | ForEach-Object { $_ })) {
         $id = [string]$item.project_id
         if ($id) {
             $items[$id] = [pscustomobject]@{ project_id=$id; project_name=$(if($item.project_name){[string]$item.project_name}else{$id}); source_file=$null }
@@ -138,19 +219,19 @@ function Clear-WatcherStateMonth([string]$ProjectId, [string]$Period) {
     return $removed
 }
 
+function Regenerate-GlobalIndexes {
+    $env:CLEAN_OUTPUT_ROOT = $GeneratedRoot
+    & python -c "import os; from pathlib import Path; from watcher.xlsx_engine import regenerate_portfolio; regenerate_portfolio(Path(os.environ['CLEAN_OUTPUT_ROOT']))"
+    if ($LASTEXITCODE -ne 0) { throw "Python failed to regenerate the global project indexes." }
+    return Read-JsonFile $PortfolioIndex $null
+}
+
 function Set-EmptyGeneratedIndexes {
-    Write-JsonFile $ProjectsIndex @()
-    $portfolio = Read-JsonFile $PortfolioIndex ([pscustomobject]@{})
-    $portfolio | Add-Member -NotePropertyName projects -NotePropertyValue @() -Force
-    $portfolio | Add-Member -NotePropertyName project_count -NotePropertyValue 0 -Force
-    $portfolio | Add-Member -NotePropertyName generated_at -NotePropertyValue ([DateTime]::UtcNow.ToString("o")) -Force
-    $portfolio | Add-Member -NotePropertyName registry_fingerprint -NotePropertyValue (Get-Sha256Text "[]") -Force
-    Write-JsonFile $PortfolioIndex $portfolio
     $identity = Read-JsonFile $IdentityIndex ([pscustomobject]@{schema_version=1})
-    $identity | Add-Member -NotePropertyName projects -NotePropertyValue @() -Force
+    $identity | Add-Member -NotePropertyName projects -NotePropertyValue ([object[]]@()) -Force
     $identity | Add-Member -NotePropertyName updated_at -NotePropertyValue ([DateTime]::UtcNow.ToString("o")) -Force
     Write-JsonFile $IdentityIndex $identity
-    return $portfolio
+    return Regenerate-GlobalIndexes
 }
 
 function Remove-OneProject([string]$ProjectId) {
@@ -158,22 +239,12 @@ function Remove-OneProject([string]$ProjectId) {
     $prefix = $ProjectsRoot.TrimEnd('\') + '\'
     if (-not $projectPath.StartsWith($prefix, [StringComparison]::OrdinalIgnoreCase)) { throw "Unsafe deletion path rejected: $projectPath" }
     if (Test-Path -LiteralPath $projectPath) { Remove-Item -LiteralPath $projectPath -Recurse -Force }
-    $remaining = @(@(Read-JsonFile $ProjectsIndex @()) | Where-Object { [string]$_.project_id -ne $ProjectId })
-    Write-JsonFile $ProjectsIndex $remaining
-    $portfolio = Read-JsonFile $PortfolioIndex ([pscustomobject]@{})
-    $portfolioProjects = @(@($portfolio.projects) | Where-Object { [string]$_.project_id -ne $ProjectId })
-    $portfolio | Add-Member -NotePropertyName projects -NotePropertyValue $portfolioProjects -Force
-    $portfolio | Add-Member -NotePropertyName project_count -NotePropertyValue $portfolioProjects.Count -Force
-    $portfolio | Add-Member -NotePropertyName generated_at -NotePropertyValue ([DateTime]::UtcNow.ToString("o")) -Force
-    $canonical = if ($portfolioProjects.Count -eq 0) { "[]" } else { ConvertTo-Json $portfolioProjects -Depth 100 -Compress }
-    $portfolio | Add-Member -NotePropertyName registry_fingerprint -NotePropertyValue (Get-Sha256Text $canonical) -Force
-    Write-JsonFile $PortfolioIndex $portfolio
     $identity = Read-JsonFile $IdentityIndex ([pscustomobject]@{schema_version=1;projects=@()})
     $identityProjects = @(@($identity.projects) | Where-Object { [string]$_.internal_project_id -ne $ProjectId })
     $identity | Add-Member -NotePropertyName projects -NotePropertyValue $identityProjects -Force
     $identity | Add-Member -NotePropertyName updated_at -NotePropertyValue ([DateTime]::UtcNow.ToString("o")) -Force
     Write-JsonFile $IdentityIndex $identity
-    return $portfolio
+    return Regenerate-GlobalIndexes
 }
 
 function Remove-AllProjects {
@@ -228,45 +299,25 @@ function Remove-OneMonth([string]$ProjectId, [string]$Period) {
     $identity | Add-Member -NotePropertyName updated_at -NotePropertyValue ([DateTime]::UtcNow.ToString("o")) -Force
     Write-JsonFile $IdentityIndex $identity
 
-    $env:CLEAN_OUTPUT_ROOT = $GeneratedRoot
-    & python -c "import os; from pathlib import Path; from watcher.xlsx_engine import regenerate_portfolio; regenerate_portfolio(Path(os.environ['CLEAN_OUTPUT_ROOT']))"
-    if ($LASTEXITCODE -ne 0) { throw "Portfolio regeneration failed after removing $Period." }
-    return Read-JsonFile $PortfolioIndex $null
+    return Regenerate-GlobalIndexes
 }
 
-function Publish-GeneratedDataToGitHub([string]$CommitMessage) {
-    $headers = @{ Authorization="Bearer $(Get-GitHubToken)"; Accept="application/vnd.github+json"; "X-GitHub-Api-Version"="2022-11-28"; "User-Agent"="CTO-CostControl-Clean-Vercel" }
+function Publish-GeneratedDataToGitHub([string]$CommitMessage, [string]$DeleteProjectId = "", [string]$DeletePeriod = "", [switch]$MirrorGenerated) {
+    $publisher = Join-Path $RepoRoot "tools\publish_generated_delta.ps1"
+    if (-not (Test-Path -LiteralPath $publisher -PathType Leaf)) { throw "Changed-only publisher was not found: $publisher" }
+    Write-Host "Publishing only changed generated files and deliberate deletions to GitHub..." -ForegroundColor Cyan
+    $arguments = @("-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $publisher, "-RepoRoot", $RepoRoot, "-Owner", $GitHubOwner, "-Repository", $GitHubRepo, "-Branch", $GitHubBranch, "-CommitMessage", $CommitMessage)
+    if ($MirrorGenerated) { $arguments += "-MirrorGenerated" }
+    elseif ($DeleteProjectId) {
+        $arguments += @("-DeleteProjectId", $DeleteProjectId)
+        if ($DeletePeriod) { $arguments += @("-DeletePeriod", $DeletePeriod) }
+    }
+    & powershell.exe @arguments
+    if ($LASTEXITCODE -ne 0) { throw "Changed-only GitHub publisher failed with exit code $LASTEXITCODE." }
+    $headers = Get-GitHubHeaders
     $api = "https://api.github.com/repos/$GitHubOwner/$GitHubRepo"
-    Write-Host "Publishing the cleaned generated data to GitHub..." -ForegroundColor Cyan
-    $ref = Invoke-RestMethod -Headers $headers -Uri "$api/git/ref/heads/$GitHubBranch"
-    $parentSha = [string]$ref.object.sha
-    $parentCommit = Invoke-RestMethod -Headers $headers -Uri "$api/git/commits/$parentSha"
-    $baseTreeSha = [string]$parentCommit.tree.sha
-    $remoteTree = Invoke-RestMethod -Headers $headers -Uri "$api/git/trees/$baseTreeSha`?recursive=1"
-    if ($remoteTree.truncated) { throw "GitHub returned a truncated repository tree." }
-    $entries = [Collections.Generic.List[object]]::new()
-    $localPaths = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-    foreach ($file in Get-ChildItem -LiteralPath $GeneratedRoot -Recurse -File) {
-        $relative = $file.FullName.Substring($GeneratedRoot.Length).TrimStart('\').Replace('\','/')
-        $repoPath = "public/generated/$relative"
-        [void]$localPaths.Add($repoPath)
-        $body = @{content=[Convert]::ToBase64String([IO.File]::ReadAllBytes($file.FullName));encoding="base64"} | ConvertTo-Json -Compress
-        $blob = Invoke-RestMethod -Method Post -Headers $headers -ContentType "application/json" -Uri "$api/git/blobs" -Body $body
-        $entries.Add(@{path=$repoPath;mode="100644";type="blob";sha=[string]$blob.sha})
-    }
-    foreach ($remote in @($remoteTree.tree)) {
-        if ($remote.type -eq "blob" -and $remote.path.StartsWith("public/generated/",[StringComparison]::OrdinalIgnoreCase) -and -not $localPaths.Contains([string]$remote.path)) {
-            $entries.Add(@{path=[string]$remote.path;mode="100644";type="blob";sha=$null})
-        }
-    }
-    $treeBody = @{base_tree=$baseTreeSha;tree=$entries} | ConvertTo-Json -Depth 10 -Compress
-    $newTree = Invoke-RestMethod -Method Post -Headers $headers -ContentType "application/json" -Uri "$api/git/trees" -Body $treeBody
-    if ([string]$newTree.sha -eq $baseTreeSha) { return [pscustomobject]@{changed=$false;commit_sha=$parentSha} }
-    $commitBody = @{message=$CommitMessage;tree=[string]$newTree.sha;parents=@($parentSha)} | ConvertTo-Json -Depth 10 -Compress
-    $commit = Invoke-RestMethod -Method Post -Headers $headers -ContentType "application/json" -Uri "$api/git/commits" -Body $commitBody
-    $refBody = @{sha=[string]$commit.sha;force=$false} | ConvertTo-Json -Compress
-    Invoke-RestMethod -Method Patch -Headers $headers -ContentType "application/json" -Uri "$api/git/refs/heads/$GitHubBranch" -Body $refBody | Out-Null
-    return [pscustomobject]@{changed=$true;commit_sha=[string]$commit.sha}
+    $ref = Invoke-RestMethod -Headers $headers -Uri "$api/git/ref/heads/$GitHubBranch" -TimeoutSec 20
+    return [pscustomobject]@{changed=$true;commit_sha=[string]$ref.object.sha}
 }
 
 function Get-HttpStatus([string]$Url) {
@@ -302,11 +353,19 @@ function Invoke-OneProjectClean($Project) {
     Write-Host "Generated data: DELETE | Watcher memory: CLEAR | Matching INPUT files: $($files.Count)" -ForegroundColor Yellow
     $files|ForEach-Object{Write-Host "  $($_.FullName)" -ForegroundColor DarkYellow}
     if((Read-Host "Type CLEAN to continue").Trim() -cne "CLEAN"){Write-Host "Cancelled. Nothing changed." -ForegroundColor DarkYellow;return}
+    Assert-GitHubAuthorization
     $runBackup=Join-Path $BackupRoot "$([DateTime]::Now.ToString('yyyyMMdd-HHmmss'))-$($Project.project_id)"
-    $moved=@(Backup-InputFiles $files $runBackup)
-    $stateRemoved=Clear-WatcherState @($Project.project_id)
-    $portfolio=Remove-OneProject $Project.project_id
-    $published=Publish-GeneratedDataToGitHub "chore(data): fully clean project $($Project.project_id)"
+    Backup-CleanTransaction $runBackup
+    try {
+        $moved=@(Backup-InputFiles $files $runBackup)
+        $stateRemoved=Clear-WatcherState @($Project.project_id)
+        $portfolio=Remove-OneProject $Project.project_id
+        $published=Publish-GeneratedDataToGitHub "chore(data): fully clean project $($Project.project_id)" $Project.project_id
+    }
+    catch {
+        Restore-CleanTransaction $runBackup
+        throw "Clean was cancelled because publishing failed; local data was restored. $($_.Exception.Message)"
+    }
     Write-Host "Local generated data deleted. Watcher entries removed: $stateRemoved" -ForegroundColor Green
     if($moved.Count){Write-Host "INPUT backup: $runBackup" -ForegroundColor Green}
     Write-Host "GitHub commit: $($published.commit_sha)" -ForegroundColor Green
@@ -344,11 +403,19 @@ function Invoke-OneMonthClean($Project) {
     Write-Host "Only this month's history, raw JSON, enriched JSON and matching watcher memory will be removed." -ForegroundColor Yellow
     Write-Host "Matching INPUT workbooks: $($files.Count) (they will be backed up)" -ForegroundColor Yellow
     if ((Read-Host "Type CLEAN MONTH to continue").Trim() -cne "CLEAN MONTH") { Write-Host "Cancelled. Nothing changed." -ForegroundColor DarkYellow; return }
+    Assert-GitHubAuthorization
     $runBackup = Join-Path $BackupRoot "$([DateTime]::Now.ToString('yyyyMMdd-HHmmss'))-$($Project.project_id)-$Period"
-    $moved = @(Backup-InputFiles $files $runBackup)
-    $stateRemoved = Clear-WatcherStateMonth $Project.project_id $Period
-    $portfolio = Remove-OneMonth $Project.project_id $Period
-    $published = Publish-GeneratedDataToGitHub "chore(data): remove $Period from $($Project.project_id)"
+    Backup-CleanTransaction $runBackup
+    try {
+        $moved = @(Backup-InputFiles $files $runBackup)
+        $stateRemoved = Clear-WatcherStateMonth $Project.project_id $Period
+        $portfolio = Remove-OneMonth $Project.project_id $Period
+        $published = Publish-GeneratedDataToGitHub "chore(data): remove $Period from $($Project.project_id)" $Project.project_id $Period
+    }
+    catch {
+        Restore-CleanTransaction $runBackup
+        throw "Month clean was cancelled because publishing failed; local data was restored. $($_.Exception.Message)"
+    }
     Write-Host "Month removed. Watcher entries removed: $stateRemoved" -ForegroundColor Green
     if ($moved.Count) { Write-Host "INPUT backup: $runBackup" -ForegroundColor Green }
     Write-Host "GitHub commit: $($published.commit_sha)" -ForegroundColor Green
@@ -377,11 +444,19 @@ function Invoke-AllProjectsClean {
     Write-Host ""
     Write-Host "TOTAL CLEAN: all generated projects, all watcher memory, and all $($files.Count) INPUT workbooks." -ForegroundColor Red
     if((Read-Host "Type CLEAN ALL to continue").Trim() -cne "CLEAN ALL"){Write-Host "Cancelled. Nothing changed." -ForegroundColor DarkYellow;return}
+    Assert-GitHubAuthorization
     $runBackup=Join-Path $BackupRoot "$([DateTime]::Now.ToString('yyyyMMdd-HHmmss'))-ALL"
-    $moved=@(Backup-InputFiles $files $runBackup)
-    $stateRemoved=Clear-WatcherState @() -All
-    $portfolio=Remove-AllProjects
-    $published=Publish-GeneratedDataToGitHub "chore(data): fully clean all generated projects"
+    Backup-CleanTransaction $runBackup
+    try {
+        $moved=@(Backup-InputFiles $files $runBackup)
+        $stateRemoved=Clear-WatcherState @() -All
+        $portfolio=Remove-AllProjects
+        $published=Publish-GeneratedDataToGitHub "chore(data): fully clean all generated projects" -MirrorGenerated
+    }
+    catch {
+        Restore-CleanTransaction $runBackup
+        throw "Total clean was cancelled because publishing failed; local data was restored. $($_.Exception.Message)"
+    }
     Write-Host "All local generated projects deleted. Watcher entries removed: $stateRemoved" -ForegroundColor Green
     if($moved.Count){Write-Host "INPUT backup: $runBackup" -ForegroundColor Green}
     Write-Host "GitHub commit: $($published.commit_sha)" -ForegroundColor Green

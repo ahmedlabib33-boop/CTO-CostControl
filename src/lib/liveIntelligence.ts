@@ -248,7 +248,7 @@ export function buildProjectDescriptors(context: ProjectIntelligenceContext, req
 }
 
 export function buildWholeProjectDescriptors(context: ProjectIntelligenceContext) {
-  const views: ProjectView[] = ["executive-overview", "executive-commercial", "executive-resources", "forecast-performance", "forecast-boq-actual", "forecast-boq-outlook", "structure-direct", "structure-indirect", "structure-allocation", "ledger-analytics", "ledger-transactions", "ledger-codes", "assurance-quality"];
+  const views: ProjectView[] = ["executive-overview", "executive-commercial", "executive-resources", "forecast-performance", "forecast-boq-actual", "forecast-boq-outlook", "structure-direct", "structure-indirect", "structure-allocation", "ledger-analytics", "ledger-transactions", "ledger-codes", "assurance-quality", "assurance-mapping"];
   return views.flatMap(view => buildProjectDescriptors(context, view));
 }
 

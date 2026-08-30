@@ -107,6 +107,13 @@
 
         <div id="stageRail" class="stage-rail glass" aria-label="Game stages"></div>
 
+        <section id="decisionTrainingStats" class="decision-training-stats glass" aria-label="Decision mastery progress">
+          <div><small>DECISION MASTERY</small><b id="trainingXp">0 XP</b></div>
+          <div><small>ACCURACY</small><b id="trainingAccuracy">—</b></div>
+          <div><small>REFLECTIONS</small><b id="trainingReflections">0</b></div>
+          <div><small>REVIEW DUE</small><b id="trainingReviewDue">0</b></div>
+        </section>
+
         <div id="thoughtBubble" class="thought-bubble hidden" role="status">
           <small>ENG. OLA · THINK ABOUT</small>
           <b id="thoughtText"></b>
@@ -158,7 +165,18 @@
             ><button id="siteBtn">🏗 Walk the live site</button>
           </div>
           <div class="sims-note management-control">Every action changes visible needs, advances game time, plays in the 3D world, and saves automatically.</div>
-          <h3>FOOD COURT · شعبيات لبيب</h3>
+          <section id="lifePractice" class="life-practice management-control">
+            <div class="life-practice-head">
+              <div><small>DAILY DECISION GYM</small><h3 id="lifePracticeTitle">Protect the next decision</h3></div>
+              <span id="lifePracticeBadge">LIVE</span>
+            </div>
+            <p id="lifePracticeSituation"></p>
+            <div class="life-principle"><small>PRINCIPLE</small><b id="lifePracticePrinciple"></b></div>
+            <p id="lifePracticePrompt" class="life-practice-prompt"></p>
+            <div id="lifePracticeOptions" class="life-practice-options"></div>
+            <div id="lifePracticeFeedback" class="life-practice-feedback hidden" role="status"></div>
+          </section>
+          <h3>FOOD COURT</h3>
           <div class="food-menu">
             <button data-food="pizza">🍕 Pizza</button>
             <button data-food="burger">🍔 Burger</button>
@@ -166,7 +184,7 @@
             <button data-food="shaabiyat">🍲 شعبيات</button>
             <button data-food="karak">🫖 شاي كرك</button>
           </div>
-          <div class="sims-note">Food restores selected needs and uses game time. At 21:00, شعبيات لبيب becomes the only open destination before sleep.</div>
+          <div class="sims-note">Food restores selected needs and uses game time. At 21:00, the Food Court becomes the only open destination before sleep.</div>
           <h3>SELF CARE</h3>
           <div class="wellbeing-panel">
             <div class="wellbeing-actions">
@@ -229,7 +247,31 @@
               <b>Eng. Ola, think about…</b>
               <p id="decisionHint"></p>
             </div>
+            <section id="decisionLearning" class="decision-learning">
+              <div class="decision-principle">
+                <small>CONTROL PRINCIPLE</small>
+                <b id="decisionPrinciple"></b>
+              </div>
+              <div id="decisionFramework" class="decision-framework"></div>
+            </section>
+            <fieldset id="decisionConfidence" class="decision-confidence">
+              <legend>Before choosing, how confident are you?</legend>
+              <button type="button" data-confidence="1">1 · Unsure</button>
+              <button type="button" data-confidence="2" class="selected">2 · Reasoned</button>
+              <button type="button" data-confidence="3">3 · Certain</button>
+            </fieldset>
             <div id="decisionOptions" class="decision-options"></div>
+            <section id="decisionFeedback" class="decision-feedback hidden" role="status">
+              <div><small id="decisionCalibration"></small><b id="decisionFeedbackTitle"></b></div>
+              <p id="decisionFeedbackReason"></p>
+              <p id="decisionConsequence"></p>
+              <strong id="decisionNextAction"></strong>
+            </section>
+            <section id="decisionReflection" class="decision-reflection hidden">
+              <small>LOCK THE LEARNING</small>
+              <h3 id="decisionReflectionPrompt"></h3>
+              <div id="decisionReflectionOptions" class="decision-options"></div>
+            </section>
             <button id="decisionGuide" class="gold full">
               ✦ Ask the Guide for the answer
             </button>
@@ -276,13 +318,13 @@
             <div class="moon-mark">☾</div>
             <div class="kicker">NIGHT ROUTINE · 21:00</div>
             <h2>Management is closed for the night.</h2>
-            <p>No project decisions are allowed after 21:00. Ola can visit شعبيات لبيب for food and conversation, or sleep now and return at 06:00.</p>
-            <button id="goNightFoodCourt" class="gold full">GO TO شعبيات لبيب →</button>
+            <p>No project decisions are allowed after 21:00. Ola can visit the Food Court for food and conversation, or sleep now and return at 06:00.</p>
+            <button id="goNightFoodCourt" class="gold full">GO TO FOOD COURT →</button>
             <button id="sleepUntilMorning" class="primary full">Sleep until 06:00 →</button>
           </div>
         </section>
         <section id="nightSocialDock" class="night-social-dock hidden glass">
-          <div><small>NIGHT SOCIAL MODE · 21:00</small><b>شعبيات لبيب</b><span>Management fields are closed. Food and conversations only.</span></div>
+          <div><small>NIGHT SOCIAL MODE · 21:00</small><b>FOOD COURT</b><span>Management fields are closed. Food and conversations only.</span></div>
           <button id="nightSleepNow" class="primary">Sleep until 06:00 →</button>
         </section>
       </section>

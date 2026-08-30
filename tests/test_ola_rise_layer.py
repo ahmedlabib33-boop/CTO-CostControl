@@ -92,7 +92,7 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn("LIVE MANAGEMENT OBJECTIVE", html)
         self.assertIn("objective-marker", html)
         self.assertIn("goToPulse", css)
-        self.assertIn("ola-rise-v20-khobar-food-district", service_worker)
+        self.assertIn("ola-rise-v21-decision-academy", service_worker)
         self.assertIn("self.skipWaiting()", service_worker)
         self.assertIn("self.clients.claim()", service_worker)
 
@@ -118,6 +118,36 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn("ENG. OLA · THINK ABOUT", html)
         self.assertIn(".thought-bubble", css)
         self.assertIn(".trophy-card", css)
+
+    def test_decision_academy_teaches_practices_reflects_and_tracks_life_management(self):
+        game_root = ROOT / "public/ola-rise"
+        html = (game_root / "index.html").read_text(encoding="utf-8")
+        script = (game_root / "game.js").read_text(encoding="utf-8")
+        systems = (game_root / "systems.js").read_text(encoding="utf-8")
+        css = (game_root / "style.css").read_text(encoding="utf-8")
+        service_worker = (game_root / "sw.js").read_text(encoding="utf-8")
+        for element_id in [
+            "decisionLearning", "decisionFramework", "decisionConfidence",
+            "decisionFeedback", "decisionReflection", "decisionTrainingStats",
+            "lifePractice", "lifePracticeOptions",
+        ]:
+            self.assertIn(f'id="{element_id}"', html)
+        for symbol in [
+            "buildDecisionLesson", "evaluateDecisionChoice", "recordDecisionAttempt",
+            "trainingSummary", "buildLifePractice", "evaluateLifePractice",
+        ]:
+            self.assertIn(symbol, systems)
+            self.assertIn(symbol, script)
+        self.assertIn("completeDecisionReflection", script)
+        self.assertIn("renderDecisionTraining", script)
+        self.assertIn("renderLifePractice", script)
+        self.assertIn("findCollisionSafeRoute", script)
+        self.assertIn("planFoodCourtRoute", script)
+        self.assertIn("arriveAtFoodCourt", script)
+        self.assertIn("nightFoodFallbackTimer", script)
+        self.assertIn(".decision-learning", css)
+        self.assertIn(".life-practice", css)
+        self.assertIn("ola-rise-v21-decision-academy", service_worker)
 
     def test_soundtrack_has_ordered_tracks_and_windows_volume_controls(self):
         game_root = ROOT / "public/ola-rise"
@@ -174,7 +204,8 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn('data-food="karak"', html)
         self.assertIn("شعبيات", html)
         self.assertIn("شاي كرك", html)
-        self.assertIn("شعبيات لبيب", html)
+        self.assertIn("GO TO FOOD COURT", html)
+        self.assertNotIn("شعبيات لبيب", html)
         self.assertIn("g.scale.setScalar(0.65)", script)
         self.assertIn("glassesMaterial", script)
         self.assertIn("bagFlap", script)
@@ -200,9 +231,12 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn("Food and conversations only", html)
         self.assertIn("function foodCourt", script)
         self.assertIn("shopBlock", script)
-        self.assertIn("AL KHOBAR AL SHAMALIA", script)
+        self.assertIn('textSprite("FOOD COURT"', script)
+        self.assertNotIn("AL KHOBAR AL SHAMALIA", script)
+        self.assertNotIn("Khobar-inspired", script)
         self.assertIn("court.position.set(35, 0, 25)", script)
-        self.assertIn("walkTarget.set(35, 0, 32.5)", script)
+        self.assertIn("FOOD_COURT_ARRIVAL = { x: 35, z: 32.5 }", script)
+        self.assertIn("planFoodCourtRoute", script)
         self.assertIn("nightFoodTravel", script)
         self.assertIn("qualified professional", html)
         self.assertIn('body[data-time-phase="night"]', css)

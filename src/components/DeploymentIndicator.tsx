@@ -12,8 +12,7 @@ type DeploymentStatus = {
   poll_after_ms: number;
 };
 
-const PAGE_DEPLOYMENT_SHA = process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA || "";
-const DEFAULT_POLL_MS = 60_000;
+const DEFAULT_POLL_MS = 10_000;
 const ACTIVE_POLL_MS = 10_000;
 const RELOAD_DELAY_MS = 2_500;
 const RELOAD_THROTTLE_MS = 15_000;
@@ -53,6 +52,7 @@ export default function DeploymentIndicator() {
       document.documentElement.classList.toggle("deployment-in-progress", value);
     };
     if (readPersistedDeployment()) setVisible(true);
+    const pageDeploymentSha = String((window as Window & { __CTO_PAGE_DEPLOYMENT_SHA__?: string }).__CTO_PAGE_DEPLOYMENT_SHA__ || "");
 
     const scheduleReload = (sha: string) => {
       if (!sha || reloadTimer.current !== null) return;
@@ -79,13 +79,13 @@ export default function DeploymentIndicator() {
         if (Number.isFinite(status.poll_after_ms) && status.poll_after_ms >= 10_000) nextPoll = status.poll_after_ms;
         if (stopped || !status.ok) return;
         const pageIsOld = Boolean(
-          PAGE_DEPLOYMENT_SHA
+          pageDeploymentSha
           && status.latest_sha
-          && PAGE_DEPLOYMENT_SHA !== status.latest_sha
+          && pageDeploymentSha !== status.latest_sha
           && status.state === "success",
         );
         const shouldReload = Boolean(status.ready_to_reload || pageIsOld);
-        if (status.state === "pending" && status.latest_sha) {
+        if (status.show_uploading && status.latest_sha) {
           persistDeployment(status.latest_sha);
           setVisible(true);
           nextPoll = Math.min(nextPoll, ACTIVE_POLL_MS);
