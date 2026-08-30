@@ -17,25 +17,10 @@
       "latest_validated_source_fingerprint": "6ea29fbea49e95029210192c7c78aeffcfa504875b5dc2aecd4de63a2814b9fc"
     },
     {
-      "internal_project_id": "bridge",
-      "identity_creation_source": "metadata_sheet",
-      "identity_history": [],
-      "created_at": "2026-08-28T16:08:01.238859+00:00",
-      "project_sap_id": "SAP_010",
-      "project_code": "LMD01",
-      "project_name": "Bridge",
-      "project_start": "2025-09-12",
-      "project_finish": "2027-10-12",
-      "project_finish_eot": null,
-      "effective_project_finish": "2027-10-12",
-      "latest_processed_reporting_period": "2026-06-01_to_2026-06-30",
-      "latest_validated_source_fingerprint": "f08174a4190e49c086b2ca2e85f9f374284912c2b38e2a7912efb57b062a27ee"
-    },
-    {
       "internal_project_id": "the-big",
       "identity_creation_source": "metadata_sheet",
       "identity_history": [],
-      "created_at": "2026-08-28T16:08:42.780877+00:00",
+      "created_at": "2026-08-30T12:36:29.382151+00:00",
       "project_sap_id": "SAP_002",
       "project_code": "BIG01",
       "project_name": "The BIG",
@@ -46,5 +31,5 @@
       "latest_validated_source_fingerprint": "c08d6bd3b461140d1ac5c89b576182e35db4fe2b93e84aa45e83c434a8572829"
     }
   ],
-  "updated_at": "2026-08-29T11:55:26.858165+00:00"
+  "updated_at": "2026-08-30T12:36:29.445688+00:00"
 }
