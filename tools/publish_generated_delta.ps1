@@ -19,7 +19,20 @@ $GeneratedPrefix = "public/generated/"
 [Net.ServicePointManager]::Expect100Continue = $false
 [Net.ServicePointManager]::DefaultConnectionLimit = 20
 
-function Get-GitBlobSha([string]$Path) {
+function Get-GitBlobSha([string]$Path, [string]$GitPath = "") {
+    if (-not [string]::IsNullOrWhiteSpace($GitPath)) {
+        Push-Location $RepoRoot
+        try {
+            $filteredSha = (& git hash-object "--path=$GitPath" -- $Path).Trim()
+            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($filteredSha)) {
+                throw "Git could not calculate the normalized blob hash for $GitPath."
+            }
+            return $filteredSha
+        }
+        finally {
+            Pop-Location
+        }
+    }
     $stream = [IO.File]::OpenRead($Path)
     $sha1 = [Security.Cryptography.SHA1]::Create()
     try {
@@ -57,6 +70,28 @@ function Get-DeltaPlan([hashtable]$Local, [hashtable]$Remote) {
     }
     $remoteOnly = @($Remote.Keys | Where-Object { -not $Local.ContainsKey($_) } | Sort-Object)
     return [pscustomobject]@{ Changes = @($changes); Unchanged = $unchanged; RemoteOnly = $remoteOnly }
+}
+
+function Remove-LineEndingFalsePositives($Plan, [hashtable]$Remote, [string]$RemoteHead) {
+    $localHead = (& git -C $RepoRoot rev-parse HEAD).Trim()
+    if ($LASTEXITCODE -ne 0 -or $localHead -ne $RemoteHead) { return $Plan }
+    $confirmed = [System.Collections.Generic.List[object]]::new()
+    $normalizedMatches = 0
+    foreach ($change in @($Plan.Changes)) {
+        $changePath = [string]$change.Path
+        if (-not $Remote.ContainsKey($changePath)) {
+            $confirmed.Add($change)
+            continue
+        }
+        $worktreeStatus = @(& git -C $RepoRoot status --porcelain --untracked-files=all -- $changePath)
+        if ($LASTEXITCODE -ne 0 -or $worktreeStatus.Count) { $confirmed.Add($change) }
+        else { $normalizedMatches++ }
+    }
+    return [pscustomobject]@{
+        Changes = @($confirmed)
+        Unchanged = [int]$Plan.Unchanged + $normalizedMatches
+        RemoteOnly = @($Plan.RemoteOnly)
+    }
 }
 
 if ($SelfTest) {
@@ -160,6 +195,62 @@ function Get-RemoteSnapshot {
     return [pscustomobject]@{ ParentSha = $parentSha; RootTreeSha = $rootTreeSha; Files = $remote; Hashes = $remoteHashes }
 }
 
+function Publish-WithNativeGit([object[]]$Changes, [string]$ExpectedRemoteSha) {
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw "Git is required for the safe generated-data publisher." }
+    $paths = @($Changes | ForEach-Object { [string]$_.Path })
+    if (-not $paths.Count) { return }
+
+    Push-Location $RepoRoot
+    $commitCreated = $false
+    try {
+        $branchName = (& git branch --show-current).Trim()
+        if ($LASTEXITCODE -ne 0 -or $branchName -ne $Branch) {
+            throw "Local Git branch must be '$Branch' before publishing generated data. Current branch: '$branchName'."
+        }
+        $localHead = (& git rev-parse HEAD).Trim()
+        if ($LASTEXITCODE -ne 0 -or $localHead -ne $ExpectedRemoteSha) {
+            throw "Local $Branch is not synchronized with GitHub $Branch. Pull the latest main first; nothing was committed."
+        }
+        $alreadyStaged = @(& git diff --cached --name-only)
+        if ($LASTEXITCODE -ne 0) { throw "Could not inspect the Git staging area." }
+        if ($alreadyStaged.Count) {
+            throw "The Git staging area already contains changes. Commit or unstage them before running powershell.bat; nothing was added."
+        }
+
+        Write-Host "Staging only the $($paths.Count) generated file(s) that differ from GitHub..." -ForegroundColor Cyan
+        & git add -- @paths
+        if ($LASTEXITCODE -ne 0) { throw "Git could not stage the changed generated files." }
+        $staged = @(& git diff --cached --name-only)
+        if ($LASTEXITCODE -ne 0 -or -not $staged.Count) { throw "No generated changes reached the staging area." }
+        $unexpected = @($staged | Where-Object { $_ -notin $paths })
+        if ($unexpected.Count) { throw "Safety stop: an unrelated file entered the generated-data commit: $($unexpected -join ', ')" }
+
+        & git commit -m $CommitMessage -- @paths
+        if ($LASTEXITCODE -ne 0) { throw "Git could not create the generated-data commit." }
+        $commitCreated = $true
+        $newCommit = (& git rev-parse HEAD).Trim()
+
+        $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("x-access-token:$token"))
+        & git -c "http.https://github.com/.extraheader=AUTHORIZATION: Basic $basic" push origin "HEAD:refs/heads/$Branch"
+        if ($LASTEXITCODE -ne 0) {
+            throw "GitHub push failed. The local commit $newCommit is preserved and can be pushed safely by running powershell.bat again."
+        }
+        $remoteHead = (& git ls-remote origin "refs/heads/$Branch" | ForEach-Object { ($_ -split "`t")[0] }).Trim()
+        if ($LASTEXITCODE -ne 0 -or $remoteHead -ne $newCommit) { throw "GitHub push completed but the remote commit could not be verified." }
+        Write-Host "SUCCESS: GitHub commit $newCommit" -ForegroundColor Green
+        Write-Host "Committed exactly $($paths.Count) new or changed generated file(s). Remote-only generated history was preserved." -ForegroundColor Green
+    }
+    catch {
+        if (-not $commitCreated) {
+            & git reset -q HEAD -- @paths 2>$null
+        }
+        throw
+    }
+    finally {
+        Pop-Location
+    }
+}
+
 Write-Host "Scanning local public/generated and calculating exact Git blob hashes..." -ForegroundColor Cyan
 $local = @{}
 $files = @(Get-ChildItem -LiteralPath $folder -Recurse -File)
@@ -167,7 +258,7 @@ if (-not $files.Count) { throw "No generated files were found." }
 foreach ($file in $files) {
     $relative = $file.FullName.Substring($folder.Length).TrimStart([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar).Replace("\", "/")
     $path = "$GeneratedPrefix$relative"
-    $local[$path] = [pscustomobject]@{ Sha = Get-GitBlobSha $file.FullName; File = $file.FullName }
+    $local[$path] = [pscustomobject]@{ Sha = Get-GitBlobSha $file.FullName $path; File = $file.FullName }
 }
 
 $uploadedHashes = @{}
@@ -175,6 +266,7 @@ for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
     Write-Host "Reading latest GitHub main tree (attempt $attempt of $MaxAttempts)..." -ForegroundColor Cyan
     $snapshot = Get-RemoteSnapshot
     $plan = Get-DeltaPlan $local $snapshot.Files
+    $plan = Remove-LineEndingFalsePositives -Plan $plan -Remote $snapshot.Files -RemoteHead $snapshot.ParentSha
     $deletions = @()
     if ($MirrorGenerated) {
         $deletions = @($plan.RemoteOnly)
@@ -221,6 +313,12 @@ for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
         Write-Host "PLAN ONLY: GitHub was not changed." -ForegroundColor Green
         exit 0
     }
+
+    if ($deletions.Count) {
+        throw "Native generated-data publishing does not delete remote files. Use Clean_Vercel.bat for the explicitly reviewed deletion plan."
+    }
+    Publish-WithNativeGit -Changes @($plan.Changes) -ExpectedRemoteSha $snapshot.ParentSha
+    exit 0
 
     $entries = [System.Collections.Generic.List[object]]::new()
     foreach ($change in $plan.Changes) {
