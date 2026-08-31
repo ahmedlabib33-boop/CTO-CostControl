@@ -12,11 +12,11 @@ CSS = (ROOT / "src/app/globals.css").read_text(encoding="utf-8")
 
 class EngOllaMasteryTests(unittest.TestCase):
     def test_original_hidden_triggers_are_preserved(self):
-        self.assertIn('const expected=String(seq.current+1)', DASHBOARD)
-        self.assertIn('if(e.key===expected)', DASHBOARD)
-        self.assertIn('if(seq.current===5)', DASHBOARD)
+        self.assertIn('const masteryExpected=mastery[masterySeq.current]', DASHBOARD)
+        self.assertIn('e.key===masteryExpected', DASHBOARD)
+        self.assertIn('masterySeq.current===mastery.length', DASHBOARD)
         self.assertIn('e.pointerType!=="touch"', DASHBOARD)
-        self.assertIn('taps.current.length>=3', DASHBOARD)
+        self.assertIn('masteryTaps.current.length>=3', DASHBOARD)
         self.assertIn('window.addEventListener("pointerup",touch', DASHBOARD)
 
     def test_content_is_data_driven_and_has_exact_question_count(self):
@@ -83,9 +83,9 @@ class EngOllaMasteryTests(unittest.TestCase):
         self.assertNotIn('function ExplainedMetricChart', live)
         self.assertIn('What this chart measures', live)
         self.assertIn('Recommended decision', live)
-        self.assertIn('Main app Charts · second-layer reading', live)
-        self.assertIn('Main app CTO Analysis · interpreted', live)
-        self.assertIn('Main app Risk · actions and mitigation', live)
+        self.assertIn('All app Charts · second-layer reading', live)
+        self.assertIn('All app analysis · interpreted', live)
+        self.assertIn('All app risks · actions and mitigation', live)
         self.assertIn('function ResultTable', live)
         self.assertGreaterEqual(live.count('<ResultTable'), 4)
         self.assertIn('function EvidenceConfidenceChart', live)

@@ -1,11 +1,13 @@
 import type { ProjectData, ProjectRegistryItem } from "@/lib/types";
-import type { ProjectView } from "@/lib/projectViews";
+import { PROJECT_FAMILIES, type ProjectView } from "@/lib/projectViews";
+import { buildProjectDataMappings } from "@/lib/dataMapping";
 import { aggregate, firstNum, portfolioBase, scoped, unpackExpenses } from "@/lib/normalized";
 
 export type InsightStatus = "critical" | "caution" | "favorable" | "mixed" | "informational" | "unavailable";
 export type InsightKind = "kpi" | "chart" | "table" | "scenario" | "assurance";
 export type SemanticType =
   | "cost_performance" | "profitability" | "cashflow" | "cumulative_cashflow"
+  | "profitability_methods"
   | "cashflow_trend"
   | "cost_mix" | "concentration" | "waste" | "reconciliation" | "forecast" | "indirect_variance"
   | "cost_table" | "ledger_trend" | "data_quality" | "scenario" | "inventory";
@@ -120,6 +122,14 @@ export type PortfolioIntelligenceContext = {
 };
 export type DashboardIntelligenceContext = ProjectIntelligenceContext | PortfolioIntelligenceContext;
 
+export const PORTFOLIO_INTELLIGENCE_VIEWS = ["charts", "analysis", "risk", "projects", "intelligence", "output"] as const;
+export const PROJECT_INTELLIGENCE_VIEWS = PROJECT_FAMILIES.flatMap(family => family.pages.map(page => page.id)) as ProjectView[];
+
+export type ApplicationIntelligenceContext = {
+  portfolio: PortfolioIntelligenceContext;
+  projects: ProjectIntelligenceContext[];
+};
+
 export const INTELLIGENCE_CONTEXT_EVENT = "cto:live-intelligence-context";
 export function publishIntelligenceContext(detail: DashboardIntelligenceContext) {
   if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(INTELLIGENCE_CONTEXT_EVENT, { detail }));
@@ -135,8 +145,67 @@ const descriptor = (data: ProjectData, view: ProjectView, componentId: string, c
   componentId, componentName, kind, semanticType, family: view.split("-")[0], projectId: data.project_id,
   projectName: data.project_name, period: data.reporting_period, revision: data.source.sha256,
   metrics, sourceEvidence: source(data, componentName), extractionConfidence: data.approved_parity?.matched ? 1 : .86,
-  assessmentBasis: "derived", ...extra,
+  assessmentBasis: "derived", filters: { surface: view }, ...extra,
 });
+
+const normalizeTitle = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+const PROJECT_MAPPING_ALIASES: Record<string, string> = {
+  "division-cost-position": "Budget vs Earned Value vs Actual Cost by division",
+  "cost-performance-map": "Cost Performance Map",
+  profitability: "Profitability",
+  "monthly-cashflow": "Monthly Cashflow Cash In vs Cash Out",
+  "cumulative-cashflow": "Cumulative Cashflow S Curve",
+  "resource-pareto": "Resource Cost Concentration",
+  "waste-efficiency": "Waste and Material Efficiency",
+  "classification-bridge": "Cost Classification Bridge",
+  "wbs-performance": "Project Summary WBS",
+  "project-total-rows": "Project Summary group total rows",
+  "boq-resource-chart": "Detailed BOQ Resource Explorer",
+  "boq-resource-table": "Detailed BOQ Resource Explorer",
+  "boq-forecast": "Detailed BOQ Forecast Analysis",
+  "direct-details": "Direct Details",
+  "indirect-details": "Indirect Cost Detail",
+  "indirect-pools": "Indirect cost pools granular vs official",
+  "direct-allocation": "Indirect Direct Breakdown",
+  "waste-report": "Waste Report",
+  "ledger-trend": "Actual Expense Trend",
+  "expense-source-mix": "Expense Source Mix",
+  "top-cost-codes": "Top Cost Codes",
+  "ledger-reconciliation": "Ledger Reconciliation",
+  "expense-ledger": "Expense Transactions",
+  "cost-code-register": "Cost Code Lookup",
+  "data-quality": "Data Quality",
+  "source-lineage": "Source Lineage",
+  "workbook-sources": "Workbook Sources and Detected Tables",
+  "source-visuals": "Workbook Charts and Source Media",
+};
+
+const PROJECT_MAPPING_CACHE = new WeakMap<object, { revision: string; rows: ReturnType<typeof buildProjectDataMappings> }>();
+
+function projectDataMappings(data: ProjectData, norm: Record<string, any>) {
+  const revision = String(data.source.sha256 || "");
+  const cached = PROJECT_MAPPING_CACHE.get(norm);
+  if (cached?.revision === revision) return cached.rows;
+  const mappingRows = buildProjectDataMappings(data, norm);
+  PROJECT_MAPPING_CACHE.set(norm, { revision, rows: mappingRows });
+  return mappingRows;
+}
+
+function attachProjectMappingEvidence(data: ProjectData, norm: Record<string, any>, descriptors: IntelligenceDescriptor[]) {
+  const mappings = projectDataMappings(data, norm);
+  return descriptors.map(item => {
+    const target = normalizeTitle(PROJECT_MAPPING_ALIASES[item.componentId] || item.componentName);
+    const mapping = mappings.find(row => normalizeTitle(row.outputComponent) === target);
+    if (!mapping) return item;
+    const evidence = [...item.sourceEvidence, ...mapping.inputLocations, ...mapping.jsonPaths].filter((value, index, all) => value && all.indexOf(value) === index);
+    return {
+      ...item,
+      sourceEvidence: evidence,
+      filters: { ...item.filters, mappingStatus: mapping.status, sourceRecords: String(mapping.sourceRecords) },
+      extractionConfidence: mapping.confidence != null ? Math.min(item.extractionConfidence, mapping.confidence) : item.extractionConfidence,
+    };
+  });
+}
 
 export function cashflowTrendMetrics(items: Record<string, any>[]) {
   const points = items.map(item => {
@@ -183,15 +252,33 @@ function projectCostMetrics(data: ProjectData, norm: Record<string, any>) {
 export function buildProjectDescriptors(context: ProjectIntelligenceContext, requestedView = context.view): IntelligenceDescriptor[] {
   const { data, normalized: norm } = context;
   const k = norm?.kpis || {}, base = projectCostMetrics(data, norm), out: IntelligenceDescriptor[] = [];
+  const preferred = (key: string) => finite((data.metrics?.[key] as any)?.preferred?.value);
   const add = (id: string, name: string, kind: InsightKind, semantic: SemanticType, metrics: Record<string, number | null>, extra: Partial<IntelligenceDescriptor> = {}) => out.push(descriptor(data, requestedView, id, name, kind, semantic, metrics, extra));
   const itemRows = rows(norm?.project_items), directRows = rows(norm?.direct_details), indirectRows = rows(norm?.indirect_details);
   if (requestedView === "executive-overview") {
-    add("executive-kpis", "Executive KPI cards", "kpi", "cost_performance", { ...base, contract: finite(k.contract_price_dashboard), directActual: finite(k.direct_actual), indirectActual: finite(k.indirect_actual), revenue: finite(k.revenue_gross_profit), ledger: finite(k.ledger_accounting_cost) });
+    const executiveKpis: { id: string; name: string; value: number | null; semantic?: SemanticType; metrics?: Record<string, number | null> }[] = [
+      { id: "contract-price", name: "Contract Price", value: finite(firstNum(k.contract_price_dashboard, preferred("contract_value"))) },
+      { id: "total-budget-cost", name: "Total Budget Cost", value: base.budget },
+      { id: "earned-value", name: "Earned Value", value: base.ev },
+      { id: "actual-cost", name: "Actual Cost", value: base.ac },
+      { id: "cost-variance", name: "Cost Variance", value: base.cv, semantic: "cost_performance", metrics: base },
+      { id: "cpi", name: "CPI", value: base.cpi, semantic: "cost_performance", metrics: base },
+      { id: "direct-actual", name: "Direct Actual", value: finite(firstNum(k.direct_actual, preferred("direct_cost"))) },
+      { id: "indirect-actual", name: "Indirect Actual", value: finite(firstNum(k.indirect_actual, preferred("indirect_cost"))) },
+      { id: "revenue", name: "Revenue", value: finite(firstNum(k.revenue_gross_profit, preferred("revenue"))) },
+      { id: "ledger-cost", name: "Ledger Cost", value: finite(k.ledger_accounting_cost) },
+    ];
+    executiveKpis.forEach(item => add(item.id, item.name, "kpi", item.semantic || "inventory", item.metrics || { value: item.value }));
     add("division-cost-position", "Budget vs Earned Value vs Actual Cost — by division", "chart", "cost_performance", base, { rows: itemRows });
-    add("cost-performance-map", "Cost Performance Map", "chart", "cost_table", { rowCount: itemRows.length, adverseRows: itemRows.filter(r => finite(r.cpi_to_date) != null && number(r.cpi_to_date) < 1).length }, { rows: itemRows });
+    add("cost-performance-map", "Cost Performance Map", "chart", "cost_table", { ...base, rowCount: itemRows.length, adverseRows: itemRows.filter(r => finite(r.cpi_to_date) != null && number(r.cpi_to_date) < 1).length }, { rows: itemRows });
   } else if (requestedView === "executive-commercial") {
-    const p = rows(norm?.profitability), chosen = p.find(x => String(x.method || "").toLowerCase().includes("revenue")) || p[0] || {};
-    add("profitability", "Profitability — source methods kept separate", "chart", "profitability", { profit: finite(chosen.profit), margin: finite(chosen.profit_pct), methodCount: p.length }, { rows: p });
+    const p = rows(norm?.profitability);
+    add("profitability", "Profitability — source methods kept separate", "chart", "profitability_methods", { methodCount: p.length }, { rows: p });
+    p.forEach((method, index) => {
+      const label = String(method.method || method.source || `Method ${index + 1}`), stable = label.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || String(index + 1);
+      const methodEvidence = method.source_sheet ? [`${method.source_sheet}${method.source_row ? ` · row ${method.source_row}` : ""}`] : [];
+      add(`profitability-method-${stable}`, `Profitability method · ${label}`, "kpi", "profitability", { profit: finite(method.profit), margin: finite(method.profit_pct), base: finite(method.base), cost: finite(method.cost), deductions: finite(method.deductions) }, { rows: [method], assessmentBasis: "source", sourceEvidence: [...source(data, label), ...methodEvidence] });
+    });
     const cash = rows(norm?.cashflow), last = cash.at(-1) || {}, neg = cash.filter(x => number(x.cash_in) - number(x.cash_out) < 0).length;
     add("monthly-cashflow", "Monthly Cashflow — Cash In vs Cash Out", "chart", "cashflow", { periods: cash.length, negativePeriods: neg, latestCashIn: finite(last.cash_in), latestCashOut: finite(last.cash_out), latestNet: finite(last.cash_in) != null && finite(last.cash_out) != null ? number(last.cash_in) - number(last.cash_out) : null }, { rows: cash });
     add("cumulative-cashflow", "Cumulative Cashflow / S-Curve", "chart", "cumulative_cashflow", { periods: cash.length, cumulativeCashIn: finite(last.cash_in_cum), cumulativeCashOut: finite(last.cash_out_cum), cumulativeNet: finite(last.cash_in_cum) != null && finite(last.cash_out_cum) != null ? number(last.cash_in_cum) - number(last.cash_out_cum) : null }, { rows: cash });
@@ -243,13 +330,23 @@ export function buildProjectDescriptors(context: ProjectIntelligenceContext, req
     add("data-quality", "Data Quality findings", "assurance", "data_quality", { findings: quality.length, severe, warnings }, { rows: quality, assessmentBasis: "evidence" });
     add("source-lineage", "Source Lineage", "assurance", "inventory", { sheets: data.manifest.sheet_count, tables: data.manifest.detected_table_count, charts: data.manifest.excel_chart_count, cells: data.manifest.cell_count }, { assessmentBasis: "evidence" });
     add("adaptive-coverage", "Adaptive Workbook Coverage", "assurance", "data_quality", { sheets: data.manifest.sheet_count, tables: data.manifest.detected_table_count, charts: data.manifest.excel_chart_count, cells: data.manifest.cell_count, unaccountedSheets: data.manifest.unaccounted_sheets }, { assessmentBasis: "evidence" });
+  } else if (requestedView === "assurance-mapping") {
+    const mappings = projectDataMappings(data, norm), exact = mappings.filter(item => ["wired", "adaptive"].includes(item.status)).length;
+    add("data-mapping", "Data Mapping", "table", "inventory", { outputLinks: mappings.length, exactEvidenceLinks: exact, unavailableLinks: mappings.filter(item => item.status === "unavailable").length }, { rows: mappings as unknown as Record<string, any>[], assessmentBasis: "evidence" });
+  } else if (requestedView === "assurance-workbooks") {
+    const inventory = rows(norm?.source_inventory), snapshots = rows(norm?.source_snapshots);
+    add("workbook-sources", "Workbook Sources and Detected Tables", "assurance", "inventory", { sheets: data.manifest.sheet_count, inventoryRows: inventory.length, snapshots: snapshots.length, tables: data.manifest.detected_table_count, cells: data.manifest.cell_count }, { rows: inventory, assessmentBasis: "evidence" });
+  } else if (requestedView === "assurance-visuals") {
+    const charts = rows(norm?.source_charts).length ? rows(norm?.source_charts) : rows(data.manifest.charts), media = rows(norm?.source_media);
+    add("source-visuals", "Workbook Charts and Source Media", "assurance", "inventory", { chartObjects: charts.length, mediaObjects: media.length }, { rows: [...charts, ...media], assessmentBasis: "evidence" });
+    charts.forEach((chart, index) => add(`source-chart-${index + 1}`, `Source chart evidence · ${String(chart.title || `Chart ${index + 1}`)}`, "assurance", "inventory", { chartObject: 1 }, { rows: [chart], assessmentBasis: "evidence" }));
   }
-  return out;
+  if (!out.length) add(`surface-${requestedView}`, `Application surface · ${requestedView.replaceAll("-", " ")}`, "assurance", "inventory", {}, { assessmentBasis: "evidence" });
+  return attachProjectMappingEvidence(data, norm, out);
 }
 
 export function buildWholeProjectDescriptors(context: ProjectIntelligenceContext) {
-  const views: ProjectView[] = ["executive-overview", "executive-commercial", "executive-resources", "forecast-performance", "forecast-boq-actual", "forecast-boq-outlook", "structure-direct", "structure-indirect", "structure-allocation", "ledger-analytics", "ledger-transactions", "ledger-codes", "assurance-quality", "assurance-mapping"];
-  return views.flatMap(view => buildProjectDescriptors(context, view));
+  return PROJECT_INTELLIGENCE_VIEWS.flatMap(view => buildProjectDescriptors(context, view));
 }
 
 export function buildPortfolioDescriptors(context: PortfolioIntelligenceContext): IntelligenceDescriptor[] {
@@ -258,12 +355,12 @@ export function buildPortfolioDescriptors(context: PortfolioIntelligenceContext)
       ...buildPortfolioDescriptors({ ...context, view: "charts" }),
       ...buildPortfolioDescriptors({ ...context, view: "analysis" }).filter(item => item.semanticType !== "scenario"),
     ];
-    return combined.filter((item, index) => combined.findIndex(other => other.componentId === item.componentId) === index);
+    return combined.filter((item, index) => combined.findIndex(other => other.componentId === item.componentId) === index).map(item => ({ ...item, componentId: `risk-${item.componentId}`, family: "portfolio-risk", filters: { ...item.filters, surface: "risk" } }));
   }
   const active = context.active || [], projectName = active.length === 1 ? active[0].name : `${active.length} selected projects`;
   const period = [...new Set(active.map(x => x.period))].sort().join(" · ") || "No period";
   const revision = active.map(x => x.registry?.source_fingerprint || "").filter(Boolean).join("|");
-  const d = (id: string, name: string, kind: InsightKind, semanticType: SemanticType, metrics: Record<string, number | null>, extra: Partial<IntelligenceDescriptor> = {}): IntelligenceDescriptor => ({ componentId: id, componentName: name, kind, semanticType, family: "portfolio", projectId: "portfolio", projectName, period, revision, metrics, sourceEvidence: active.map(x => `${x.name} · ${x.period} · ${String(x.registry?.source_fingerprint || "").slice(0, 12)}…`), extractionConfidence: active.length ? .9 : 0, assessmentBasis: "derived", ...extra });
+  const d = (id: string, name: string, kind: InsightKind, semanticType: SemanticType, metrics: Record<string, number | null>, extra: Partial<IntelligenceDescriptor> = {}): IntelligenceDescriptor => ({ componentId: `${context.view}-${id}`, componentName: name, kind, semanticType, family: "portfolio", projectId: "portfolio", projectName, period, revision, metrics, sourceEvidence: active.map(x => `${x.name} · ${x.period} · ${String(x.registry?.source_fingerprint || "").slice(0, 12)}…`), extractionConfidence: active.length ? .9 : 0, assessmentBasis: "derived", filters: { surface: context.view }, ...extra });
   if (context.view === "projects") {
     const revisions = context.projects.reduce((sum, project) => sum + Math.max(project.history?.length || 0, 1), 0);
     return [{
@@ -271,7 +368,7 @@ export function buildPortfolioDescriptors(context: PortfolioIntelligenceContext)
       projectId: "portfolio", projectName: `${context.projects.length} registered projects`, period: "Current registry", revision: context.projects.map(project => project.source_fingerprint).join("|"),
       metrics: { projectCount: context.projects.length, revisionCount: revisions },
       rows: context.projects as unknown as Record<string, any>[], sourceEvidence: context.projects.map(project => `${project.project_name} · ${project.reporting_period} · ${project.source_fingerprint.slice(0, 12)}…`),
-      extractionConfidence: 1, assessmentBasis: "evidence",
+      extractionConfidence: 1, assessmentBasis: "evidence", filters: { surface: "projects" },
     }];
   }
   if (context.view === "intelligence") {
@@ -280,13 +377,21 @@ export function buildPortfolioDescriptors(context: PortfolioIntelligenceContext)
     const severe = (context.conflicts || []).filter(item => ["critical", "error"].includes(String(item.severity).toLowerCase())).length;
     const evidence = context.projects.map(project => `${project.project_name} · ${project.reporting_period} · ${project.source_fingerprint.slice(0, 12)}…`);
     const common = { projectId: "portfolio", projectName: `${context.projects.length} registered projects`, period: "All registered periods", revision: context.projects.map(project => project.source_fingerprint).join("|"), family: "intelligence", extractionConfidence: 1, sourceEvidence: evidence };
-    return [
+    const intelligenceDescriptors: IntelligenceDescriptor[] = [
       { ...common, componentId: "monthly-history", componentName: "Validated Monthly / Revision History", kind: "table", semanticType: "inventory", metrics: { projectCount: context.projects.length, revisionCount: revisions }, rows: context.projects as unknown as Record<string, any>[], assessmentBasis: "evidence" },
       { ...common, componentId: "portfolio-data-quality", componentName: "Portfolio Data Quality", kind: "assurance", semanticType: "data_quality", metrics: { findings: quality + (context.conflicts?.length || 0), severe, warnings: Math.max(quality - severe, 0) }, rows: (context.conflicts || []) as Record<string, any>[], assessmentBasis: "evidence" },
       { ...common, componentId: "source-registry", componentName: "Source Registry", kind: "table", semanticType: "inventory", metrics: { projectCount: context.projects.length, sheetCount: context.projects.reduce((sum, project) => sum + number(project.sheet_count), 0), chartCount: context.projects.reduce((sum, project) => sum + number(project.chart_count), 0) }, rows: context.projects as unknown as Record<string, any>[], assessmentBasis: "evidence" },
+      { ...common, componentId: "portfolio-data-mapping", componentName: "Portfolio Command Center Data Mapping", kind: "table", semanticType: "inventory", metrics: { projectCount: context.projects.length }, rows: context.projects as unknown as Record<string, any>[], assessmentBasis: "evidence" },
     ];
+    return intelligenceDescriptors.map(item => ({ ...item, filters: { surface: "intelligence" } }));
   }
-  if (context.view === "output") return [];
+  if (context.view === "output") return [{
+    componentId: "output-studio", componentName: "Output Studio", kind: "assurance", semanticType: "inventory", family: "output",
+    projectId: "portfolio", projectName: `${context.projects.length} registered projects`, period: "Current registry", revision: context.projects.map(project => project.source_fingerprint).join("|"),
+    metrics: { reportTypes: 6, projectCount: context.projects.length, revisionCount: context.projects.reduce((sum, project) => sum + Math.max(project.history?.length || 0, 1), 0) },
+    rows: context.projects as unknown as Record<string, any>[], sourceEvidence: context.projects.map(project => `${project.project_name} · ${project.reporting_period} · ${project.source_fingerprint.slice(0, 12)}…`),
+    extractionConfidence: 1, assessmentBasis: "evidence", filters: { surface: "output" },
+  }];
   const sumWhenAvailable = (available: (item: any) => boolean, value: (item: any) => unknown) => active.some(available) ? active.reduce((sum, item) => sum + number(value(item)), 0) : null;
   const budget = sumWhenAvailable(x => finite(x.normalized?.kpis?.total_budget_cost) != null || finite(x.registry?.metrics?.budget) != null, x => x.budget);
   const ev = sumWhenAvailable(x => finite(x.normalized?.kpis?.ev_dashboard_scope) != null || finite(x.registry?.metrics?.earned_value) != null, x => x.ev);
@@ -294,12 +399,12 @@ export function buildPortfolioDescriptors(context: PortfolioIntelligenceContext)
   const revenue = sumWhenAvailable(x => finite(x.normalized?.kpis?.revenue_gross_profit) != null || rows(x.normalized?.profitability).length > 0, x => x.revenue);
   const gp = sumWhenAvailable(x => rows(x.normalized?.profitability).some(row => finite(row.profit) != null) || finite(x.registry?.metrics?.gross_profit) != null, x => x.gp);
   const common = { budget, ev, ac, cv: ev != null && ac != null ? ev - ac : null, cpi: ev != null && ac ? ev / ac : null };
-  const out = [d("portfolio-kpis", "Portfolio KPI cards", "kpi", "cost_performance", { ...common, revenue, profit: gp, margin: revenue && gp != null ? gp / revenue : null, projectCount: active.length })];
+  const out = [d("portfolio-kpis", "Portfolio KPI cards — revenue-based profit method", "kpi", "cost_performance", { ...common, revenue, profit: gp, margin: revenue && gp != null ? gp / revenue : null, projectCount: active.length })];
   if (context.view === "charts") {
     out.push(d("portfolio-position", "Portfolio Cost Position", "chart", "cost_performance", common, { rows: active }));
-    out.push(d("portfolio-margin", "Margin vs Cost Performance", "chart", "profitability", { profit: gp, margin: revenue && gp != null ? gp / revenue : null, cpi: common.cpi }, { rows: active }));
+    out.push(d("portfolio-margin", "Revenue-based Margin vs Cost Performance", "chart", "profitability", { profit: gp, margin: revenue && gp != null ? gp / revenue : null, cpi: common.cpi }, { rows: active }));
     out.push(d("portfolio-mix", "Direct vs Indirect Actual Cost", "chart", "cost_mix", { direct: active.reduce((s, x) => s + number(x.directAc), 0), indirect: active.reduce((s, x) => s + number(x.indirectAc), 0) }, { rows: active }));
-    out.push(d("portfolio-profit", "Revenue, Actual Cost & Gross Profit", "chart", "profitability", { revenue, actualCost: ac, profit: gp, margin: revenue && gp != null ? gp / revenue : null }, { rows: active }));
+    out.push(d("portfolio-profit", "Revenue, Actual Cost & Revenue-based Gross Profit", "chart", "profitability", { revenue, actualCost: ac, profit: gp, margin: revenue && gp != null ? gp / revenue : null }, { rows: active }));
     const cash = active.flatMap(x => rows(x.cashflow)), latestCash = active.map(x => rows(x.cashflow).at(-1));
     const completeCumulativeCash = active.length > 0 && latestCash.every(row => finite(row?.cash_in_cum) != null && finite(row?.cash_out_cum) != null);
     const lastIn = completeCumulativeCash ? latestCash.reduce((sum, row) => sum + number(row?.cash_in_cum), 0) : null;
@@ -326,6 +431,23 @@ export function buildPortfolioDescriptors(context: PortfolioIntelligenceContext)
     out.push(d("scenario-lab", "CTO Cost Scenario Lab", "scenario", "scenario", { currentAc: finite(s?.currentAc), eac: finite(s?.eac), revenue: finite(s?.revenue), profit: finite(s?.profit), margin: finite(s?.margin), costStress: finite(s?.costStress), revenueRealization: finite(s?.revenueRealization), indirectStress: finite(s?.indirectStress) }, { assessmentBasis: "scenario" }));
   }
   return out;
+}
+
+export function buildApplicationDescriptors(context: ApplicationIntelligenceContext): IntelligenceDescriptor[] {
+  const projectDescriptors = context.projects.flatMap(project => buildWholeProjectDescriptors(project));
+  const portfolioDescriptors = PORTFOLIO_INTELLIGENCE_VIEWS.flatMap(view => buildPortfolioDescriptors({ ...context.portfolio, view }));
+  return [...projectDescriptors, ...portfolioDescriptors];
+}
+
+export function summarizeApplicationCoverage(descriptors: IntelligenceDescriptor[], projectCount: number) {
+  const expectedSurfaces = projectCount * PROJECT_INTELLIGENCE_VIEWS.length + PORTFOLIO_INTELLIGENCE_VIEWS.length;
+  const covered = new Set(descriptors.map(item => `${item.projectId}:${item.filters?.surface || "unknown"}`));
+  return {
+    expectedSurfaces,
+    coveredSurfaces: Math.min(expectedSurfaces, covered.size),
+    coveragePct: expectedSurfaces ? Math.min(100, covered.size / expectedSurfaces * 100) : 0,
+    evidenceGaps: descriptors.filter(item => !Object.values(item.metrics).some(value => value != null && Number.isFinite(value))).length,
+  };
 }
 
 export function validateIntelligencePolicy(value: unknown): IntelligencePolicy | null {
@@ -370,6 +492,35 @@ export function evaluateDescriptor(d: IntelligenceDescriptor, p: IntelligencePol
       r.status = "favorable"; r.indication = "Cost efficiency is on track against the current earned-value evidence."; r.reason = "CPI and CV meet the configured favorable boundaries."; r.benefits = ["The project is earning at least as much value as the cost consumed on this scope."]; r.decision = "Maintain the current controls and protect the favorable variance from unapproved scope or productivity loss."; r.keepOnTrack = ["Continue monthly CPI/CV trend review.", "Preserve the current cost-code and commitment controls."];
     }
     r.ruleApplied = "CPI and normalized CV/EV policy"; return r;
+  }
+  if (d.semanticType === "profitability_methods") {
+    const methods = rows(d.rows).filter(method => finite(method.profit) != null || finite(method.profit_pct) != null);
+    if (!methods.length) return unavailable(d, "No controlled profitability method is available.");
+    const losses = methods.filter(method => number(method.profit) < 0 || number(method.profit_pct) < 0), targetMisses = methods.filter(method => finite(method.profit_pct) == null || number(method.profit_pct) * 100 < p.marginTargetPct);
+    r.meaning = "Compares every workbook profitability method while keeping each commercial basis and deduction set separate.";
+    r.thresholds = { marginTargetPct: p.marginTargetPct };
+    if (losses.length) {
+      r.status = losses.length === methods.length ? "critical" : "mixed";
+      r.indication = `${losses.length} of ${methods.length} source profitability method(s) indicate a loss.`;
+      r.reason = "At least one legitimate source method is adverse; favorable methods do not overwrite it.";
+      r.risks = ["Selecting only the favorable method could hide a valid adverse commercial basis."];
+      r.decision = "Review every source method and approve which commercial basis governs each management decision.";
+      r.mitigation = ["Reconcile bases, deductions, and scope differences method by method without averaging them."];
+    } else if (targetMisses.length) {
+      r.status = targetMisses.length === methods.length ? "caution" : "mixed";
+      r.indication = `${targetMisses.length} of ${methods.length} source profitability method(s) do not meet the configured margin target.`;
+      r.reason = "The methods remain valid but do not produce one uniform favorable conclusion.";
+      r.decision = "Protect the weakest valid margin basis and document why methods differ before approval.";
+    } else {
+      r.status = "favorable";
+      r.indication = `All ${methods.length} available source profitability method(s) meet the configured margin target.`;
+      r.reason = "Every separately retained method is non-negative and meets policy.";
+      r.benefits = ["The commercial conclusion is not dependent on selecting only one favorable source method."];
+      r.decision = "Maintain each method separately and revalidate after every source revision.";
+      r.keepOnTrack = ["Continue reconciling method bases and deductions without merging them."];
+    }
+    r.ruleApplied = "All-method profitability guard; no source method is overwritten";
+    return r;
   }
   if (d.semanticType === "profitability") {
     const profit = m.profit, margin = m.margin, marginPct = margin != null ? margin * 100 : null;

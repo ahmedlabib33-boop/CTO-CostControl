@@ -4,11 +4,15 @@ import fs from "node:fs";
 import path from "node:path";
 import {
   DEFAULT_INTELLIGENCE_POLICY as policy,
+  PORTFOLIO_INTELLIGENCE_VIEWS,
+  PROJECT_INTELLIGENCE_VIEWS,
+  buildApplicationDescriptors,
   buildPortfolioDescriptors,
   buildProjectDescriptors,
   buildWholeProjectDescriptors,
   cashflowTrendMetrics,
   evaluateDescriptor,
+  summarizeApplicationCoverage,
   validateIntelligencePolicy,
   type IntelligenceDescriptor,
   type SemanticType,
@@ -30,6 +34,17 @@ const descriptor = (semanticType: SemanticType, metrics: Record<string, number |
   extractionConfidence: 1,
   assessmentBasis: semanticType === "scenario" ? "scenario" : "derived",
 });
+
+function loadFirstCurrentProject() {
+  const projects = JSON.parse(fs.readFileSync(path.resolve("public/generated/projects.json"), "utf8"));
+  assert.ok(projects.length > 0, "at least one generated project is required for the live contract test");
+  const registry = projects[0];
+  const latestPath = path.resolve(`public/generated/projects/${registry.project_id}/latest.json`);
+  const data = JSON.parse(fs.readFileSync(latestPath, "utf8")) as ProjectData;
+  const normalizedPath = path.resolve("public", String(data.normalized_path).replace(/^\/generated\//, "generated/"));
+  const normalized = JSON.parse(fs.readFileSync(normalizedPath, "utf8"));
+  return { projects, registry, data, normalized };
+}
 
 test("cost performance covers favorable, caution, critical, zero and missing", () => {
   assert.equal(evaluateDescriptor(descriptor("cost_performance", { ev: 110, ac: 100, cv: 10, cpi: 1.1 }), policy).status, "favorable");
@@ -97,18 +112,19 @@ test("policy import validates ordering and finite values", () => {
 });
 
 test("actual project contract covers all business dashboard families without cross-project identity", () => {
-  const latestPath = path.resolve("public/generated/projects/bridge/latest.json");
-  const data = JSON.parse(fs.readFileSync(latestPath, "utf8")) as ProjectData;
-  const normalizedPath = path.resolve("public", String(data.normalized_path).replace(/^\/generated\//, "generated/"));
-  const normalized = JSON.parse(fs.readFileSync(normalizedPath, "utf8"));
+  const { data, normalized } = loadFirstCurrentProject();
   const context = { kind: "project" as const, view: "executive-overview" as const, data, normalized };
   const current = buildProjectDescriptors(context);
-  assert.deepEqual(current.map(item => item.componentName), ["Executive KPI cards", "Budget vs Earned Value vs Actual Cost — by division", "Cost Performance Map"]);
+  const expectedKpis = ["Contract Price", "Total Budget Cost", "Earned Value", "Actual Cost", "Cost Variance", "CPI", "Direct Actual", "Indirect Actual", "Revenue", "Ledger Cost"];
+  for (const title of expectedKpis) assert.ok(current.some(item => item.componentName === title), `missing KPI ${title}`);
+  assert.ok(current.some(item => item.componentName === "Budget vs Earned Value vs Actual Cost — by division"));
+  assert.ok(current.some(item => item.componentName === "Cost Performance Map"));
   const all = buildWholeProjectDescriptors(context);
   const expected = ["Monthly Cashflow — Cash In vs Cash Out", "Cashflow Trend Forecast", "Waste Efficiency", "Detailed BOQ Forecast Analysis table", "Direct Details table", "Indirect Cost Detail table", "Ledger Reconciliation", "Actual Expense Ledger table", "Cost Code Lookup table", "Data Quality findings"];
   for (const title of expected) assert.ok(all.some(item => item.componentName === title), `missing ${title}`);
   assert.ok(all.length >= 25);
   assert.ok(all.every(item => item.projectId === data.project_id && item.period === data.reporting_period && item.revision === data.source.sha256));
+  for (const view of PROJECT_INTELLIGENCE_VIEWS) assert.ok(all.some(item => item.filters?.surface === view), `missing project surface ${view}`);
   assert.equal(all.find(item => item.componentId === "direct-details")?.rows?.length, normalized.direct_details.length);
   assert.equal(all.find(item => item.componentId === "expense-ledger")?.rows?.length, normalized.expenses?.length || normalized.expenses_packed?.length);
 });
@@ -117,8 +133,31 @@ test("portfolio, project-registry, intelligence and output pages register only s
   const projects = JSON.parse(fs.readFileSync(path.resolve("public/generated/projects.json"), "utf8"));
   const common = { kind: "portfolio" as const, scope: "dashboard" as const, projects, active: [] };
   assert.deepEqual(buildPortfolioDescriptors({ ...common, view: "projects" }).map(item => item.componentName), ["Project Registry cards"]);
-  assert.deepEqual(buildPortfolioDescriptors({ ...common, view: "intelligence" }).map(item => item.componentName), ["Validated Monthly / Revision History", "Portfolio Data Quality", "Source Registry"]);
-  assert.deepEqual(buildPortfolioDescriptors({ ...common, view: "output" }), []);
+  assert.deepEqual(buildPortfolioDescriptors({ ...common, view: "intelligence" }).map(item => item.componentName), ["Validated Monthly / Revision History", "Portfolio Data Quality", "Source Registry", "Portfolio Command Center Data Mapping"]);
+  assert.deepEqual(buildPortfolioDescriptors({ ...common, view: "output" }).map(item => item.componentName), ["Output Studio"]);
+});
+
+test("multiple profitability methods stay separate and the weakest valid method remains visible", () => {
+  const mixed = evaluateDescriptor({ ...descriptor("profitability_methods", { methodCount: 2 }), rows: [{ method: "Revenue basis", profit: 10, profit_pct: .1 }, { method: "Deduction basis", profit: -2, profit_pct: -.02 }] }, policy);
+  assert.equal(mixed.status, "mixed");
+  assert.match(mixed.reason, /do not overwrite/i);
+  const favorable = evaluateDescriptor({ ...descriptor("profitability_methods", { methodCount: 2 }), rows: [{ profit: 10, profit_pct: .1 }, { profit: 5, profit_pct: .05 }] }, policy);
+  assert.equal(favorable.status, "favorable");
+  assert.equal(evaluateDescriptor({ ...descriptor("profitability_methods", { methodCount: 0 }), rows: [] }, policy).status, "unavailable");
+});
+
+test("entire-app scope registers every project and portfolio surface without claiming missing evidence", () => {
+  const { data, normalized, registry } = loadFirstCurrentProject();
+  const portfolio = { kind: "portfolio" as const, view: "charts" as const, scope: "dashboard" as const, projects: [registry], active: [] };
+  const descriptors = buildApplicationDescriptors({ portfolio, projects: [{ kind: "project", view: "executive-overview", data, normalized }] });
+  const coverage = summarizeApplicationCoverage(descriptors, 1);
+  assert.equal(coverage.coveredSurfaces, PROJECT_INTELLIGENCE_VIEWS.length + PORTFOLIO_INTELLIGENCE_VIEWS.length);
+  assert.equal(coverage.coveragePct, 100);
+  assert.ok(descriptors.every(item => item.sourceEvidence.length > 0 || evaluateDescriptor(item, policy).status === "unavailable"));
+  assert.ok(descriptors.some(item => item.componentName === "Data Mapping"));
+  assert.ok(descriptors.some(item => item.componentName === "Workbook Sources and Detected Tables"));
+  assert.ok(descriptors.some(item => item.componentName === "Workbook Charts and Source Media"));
+  assert.ok(descriptors.some(item => item.componentName === "Output Studio"));
 });
 
 test("local ML assets are self hosted and remote loading is disabled", () => {
