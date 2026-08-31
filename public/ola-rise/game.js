@@ -18,8 +18,8 @@ import {
   timePhaseFor,
   trainingSummary,
   trophySummary,
-} from "./systems.js?release=20260830-v22";
-import { loadLiveGameProjects } from "./live-data.js?release=20260830-v22";
+} from "./systems.js?release=20260831-v23";
+import { loadLiveGameProjects } from "./live-data.js?release=20260831-v23";
 
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
@@ -211,11 +211,8 @@ function loadMusicTrack(index, autoplay = false) {
 function setupMusic() {
   const audio = $("#musicPlayer");
   if (!audio) return;
-  setMusicVolume(0.7);
+  setMusicVolume(0);
   loadMusicTrack(0);
-  addEventListener("pointerdown", () => {
-    if (audio.paused) audio.play().catch(() => {});
-  }, { passive: true });
   audio.addEventListener("ended", () => loadMusicTrack(musicIndex + 1, true));
   $("#musicToggle").onclick = () => {
     if (audio.paused) audio.play().then(() => { $("#musicToggle").textContent = "❚❚ Pause music"; }).catch(() => toast("The browser blocked audio; press Play again"));
@@ -274,8 +271,6 @@ $("#storyNext").onclick = async () => {
     const button = $("#storyNext");
     button.disabled = true;
     button.textContent = "Reading the current app snapshot…";
-    const audio = $("#musicPlayer");
-    if (audio?.paused) audio.play().catch(() => {});
     try {
       await ensureLiveProjects();
       show("game");
@@ -2014,7 +2009,7 @@ function init3D() {
   animate();
   if (isBedtime(state.hour) && !state.nightSocial) setTimeout(openBedtimeGate, 0);
   if ("serviceWorker" in navigator)
-    navigator.serviceWorker.register("./sw.js?release=20260830-v22", { updateViaCache: "none" }).catch(() => {});
+    navigator.serviceWorker.register("./sw.js?release=20260831-v23", { updateViaCache: "none" }).catch(() => {});
 }
 function resize() {
   if (!renderer) return;

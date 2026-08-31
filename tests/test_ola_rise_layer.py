@@ -158,7 +158,7 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn('id="musicPlayer"', html)
         self.assertIn('id="volumeDown"', html)
         self.assertIn('id="volumeUp"', html)
-        self.assertIn("setMusicVolume(0.7)", script)
+        self.assertIn("setMusicVolume(0);", script)
         self.assertIn('assets/intro.mp3', script)
         self.assertIn('assets/crystalised.mp3', script)
         self.assertIn('assets/track-3.mp3', script)
@@ -190,6 +190,9 @@ class OlaRiseLayerTests(unittest.TestCase):
             self.assertIn(f'id="{element_id}"', html)
         self.assertIn('data-speed="2"', html)
         self.assertIn('data-speed="4"', html)
+        self.assertIn('id="volumeValue" aria-label="Volume 0 percent">0%', html)
+        self.assertIn("setMusicVolume(0);", script)
+        self.assertNotIn('addEventListener("pointerdown", () => {\n    if (audio.paused) audio.play()', script)
         pause_logic = script.split("function simulationPausedByUI()", 1)[1].split("function animate()", 1)[0]
         self.assertNotIn('$("#drawer")', pause_logic)
         self.assertIn("lastInterfaceRefreshAt", script)

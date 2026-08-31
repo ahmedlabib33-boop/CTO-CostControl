@@ -15,7 +15,7 @@
     <meta name="apple-mobile-web-app-title" content="OLA: RISE" />
     <title>OLA: RISE — Memory. Decisions. Projects. Destiny.</title>
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="stylesheet" href="style.css?release=20260830-v22" />
+    <link rel="stylesheet" href="style.css?release=20260831-v23" />
   </head>
   <body>
     <div id="app">
@@ -201,11 +201,11 @@
             <button id="musicPrev" type="button" aria-label="Previous track">⏮</button>
             <button id="musicNext" type="button" aria-label="Next track">⏭</button>
             <button id="volumeDown" type="button" aria-label="Volume down">🔉 −</button>
-            <output id="volumeValue">50%</output>
+            <output id="volumeValue" aria-label="Volume 0 percent">0%</output>
             <button id="volumeUp" type="button" aria-label="Volume up">🔊 +</button>
           </div>
           <div id="musicTrack" class="music-track">The xx · Intro</div>
-          <div class="sims-note">Windows volume-up/down keys, the controls above, and zero volume all work. Music starts after the story entry click.</div>
+          <div class="sims-note">Music always starts muted. Press Play and raise the volume when you want the soundtrack.</div>
           <h3 class="management-control">TROPHY CABINET</h3>
           <div id="trophyShelf" class="trophy-shelf management-control"></div>
           <h3>VIEW</h3>
@@ -365,6 +365,6 @@
         </div>
       </section>
     </div>
-    <script type="module" src="game.js?release=20260830-v22"></script>
+    <script type="module" src="game.js?release=20260831-v23"></script>
   </body>
 </html>
