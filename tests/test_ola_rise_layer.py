@@ -92,7 +92,8 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn("LIVE MANAGEMENT OBJECTIVE", html)
         self.assertIn("objective-marker", html)
         self.assertIn("goToPulse", css)
-        self.assertIn("ola-rise-v21-decision-academy", service_worker)
+        self.assertIn('cache: "no-store"', service_worker)
+        self.assertNotIn("caches.open", service_worker)
         self.assertIn("self.skipWaiting()", service_worker)
         self.assertIn("self.clients.claim()", service_worker)
 
@@ -147,7 +148,8 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn("nightFoodFallbackTimer", script)
         self.assertIn(".decision-learning", css)
         self.assertIn(".life-practice", css)
-        self.assertIn("ola-rise-v21-decision-academy", service_worker)
+        self.assertIn('cache: "no-store"', service_worker)
+        self.assertNotIn("caches.open", service_worker)
 
     def test_soundtrack_has_ordered_tracks_and_windows_volume_controls(self):
         game_root = ROOT / "public/ola-rise"
@@ -188,6 +190,10 @@ class OlaRiseLayerTests(unittest.TestCase):
             self.assertIn(f'id="{element_id}"', html)
         self.assertIn('data-speed="2"', html)
         self.assertIn('data-speed="4"', html)
+        pause_logic = script.split("function simulationPausedByUI()", 1)[1].split("function animate()", 1)[0]
+        self.assertNotIn('$("#drawer")', pause_logic)
+        self.assertIn("lastInterfaceRefreshAt", script)
+        self.assertIn("lastLightingRefreshAt", script)
         self.assertIn("function timePhaseFor", systems)
         self.assertIn("function isBedtime", systems)
         self.assertIn("function sleepUntilMorning", systems)

@@ -1975,7 +1975,7 @@ function init3D() {
   renderer.setPixelRatio(
     Math.min(
       devicePixelRatio,
-      matchMedia("(max-width:600px)").matches ? 1.45 : 1.8,
+      matchMedia("(max-width:600px)").matches ? 1 : 1.25,
     ),
   );
   renderer.setSize(innerWidth, innerHeight);
@@ -1989,7 +1989,7 @@ function init3D() {
   sunLight = new THREE.DirectionalLight(0xffe4aa, 3.8);
   sunLight.position.set(-16, 28, 13);
   sunLight.castShadow = renderer.shadowMap.enabled;
-  sunLight.shadow.mapSize.set(2048, 2048);
+  sunLight.shadow.mapSize.set(1024, 1024);
   sunLight.shadow.camera.left = -35;
   sunLight.shadow.camera.right = 35;
   sunLight.shadow.camera.top = 35;
@@ -2165,11 +2165,14 @@ function updateDayLight() {
 }
 function simulationPausedByUI() {
   return ["decisionSheet", "examSheet", "trophyModal", "guideModal", "bedtimeGate"]
-    .some((id) => $("#" + id)?.classList.contains("hidden") === false) || $("#drawer")?.classList.contains("open");
+    .some((id) => $("#" + id)?.classList.contains("hidden") === false);
 }
+let lastInterfaceRefreshAt = 0;
+let lastLightingRefreshAt = 0;
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock3d.getDelta(), 0.04);
+  const frameNow = performance.now();
   const uiPaused = simulationPausedByUI();
   if (!gameFinished && !uiPaused && state.speed > 0) {
     state.hour += dt * state.speed * 0.2;
@@ -2263,10 +2266,16 @@ function animate() {
   });
   animateOla(dt, characterMoving);
   updateWorldEffects(dt);
-  updateDayLight();
+  if (frameNow - lastLightingRefreshAt >= 100) {
+    updateDayLight();
+    lastLightingRefreshAt = frameNow;
+  }
   cameraUpdate();
-  positionAmbientConversations();
-  updateHUD();
+  if (frameNow - lastInterfaceRefreshAt >= 100) {
+    positionAmbientConversations();
+    updateHUD();
+    lastInterfaceRefreshAt = frameNow;
+  }
   renderer.render(scene, camera);
 }
 function bindWorldControls() {
@@ -2767,7 +2776,7 @@ $("#qualityBtn").onclick = () => {
     renderer.setPixelRatio(
       quality === "low"
         ? 1
-        : Math.min(devicePixelRatio, quality === "high" ? 2 : 1.45),
+        : Math.min(devicePixelRatio, quality === "high" ? 1.75 : 1.25),
     );
   toast("Graphics " + quality);
 };
