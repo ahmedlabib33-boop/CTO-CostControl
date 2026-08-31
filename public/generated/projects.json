@@ -1,5 +1,77 @@
 [
   {
+    "project_id": "bridge",
+    "project_name": "Bridge",
+    "identity": {
+      "status": "new",
+      "project_sap_id": "SAP_010",
+      "project_code": "LMD01",
+      "project_name": "Bridge",
+      "report_start": "2026-06-01",
+      "report_finish": "2026-06-30",
+      "project_start": "2025-09-12",
+      "project_finish": "2027-10-12",
+      "project_finish_eot": null,
+      "effective_project_finish": "2027-10-12",
+      "metadata_sheet_state": "visible",
+      "identity_source": "metadata_sheet"
+    },
+    "reporting_period": "2026-06-01_to_2026-06-30",
+    "source_fingerprint": "f08174a4190e49c086b2ca2e85f9f374284912c2b38e2a7912efb57b062a27ee",
+    "normalized_path": "/generated/projects/bridge/enriched/2026-06-01_to_2026-06-30/f08174a4190e49c0/normalized.json",
+    "approved_parity": false,
+    "metrics": {
+      "contract_value": 281671550.1270822,
+      "budget": 24828703.144480266,
+      "earned_value": 11459617.820446912,
+      "actual_cost": 10206140.919006897,
+      "cost_variance": 1253476.901440015,
+      "revenue": 109784425.36027858,
+      "gross_profit": 82638547.6081807,
+      "direct_cost": 0.0,
+      "indirect_cost": 10206140.919006897,
+      "cpi": 1.1228159508463835
+    },
+    "capabilities": {
+      "overview": true,
+      "project_summary": true,
+      "cashflow": true,
+      "direct_cost": true,
+      "indirect_cost": true,
+      "boq": true,
+      "forecast": true,
+      "ledger": true,
+      "cost_codes": true,
+      "waste": true,
+      "wages": true,
+      "reallocation": true,
+      "assets": true,
+      "balance": true
+    },
+    "quality_count": 8108,
+    "sheet_count": 52,
+    "chart_count": 6,
+    "history": [
+      {
+        "reporting_period": "2026-06-01_to_2026-06-30",
+        "source_fingerprint": "f08174a4190e49c086b2ca2e85f9f374284912c2b38e2a7912efb57b062a27ee",
+        "metrics": {
+          "contract_value": 281671550.1270822,
+          "budget": 24828703.144480266,
+          "earned_value": 11459617.820446912,
+          "actual_cost": 10206140.919006897,
+          "cost_variance": 1253476.901440015,
+          "revenue": 109784425.36027858,
+          "gross_profit": 82638547.6081807,
+          "direct_cost": 0.0,
+          "indirect_cost": 10206140.919006897,
+          "cpi": 1.1228159508463835
+        },
+        "normalized_path": "/generated/projects/bridge/enriched/2026-06-01_to_2026-06-30/f08174a4190e49c0/normalized.json"
+      }
+    ]
+  },
+  {
     "project_id": "gloria-hospital",
     "project_name": "Gloria Hospital",
     "identity": {
@@ -68,6 +140,74 @@
           "cpi": 0.9433103966542545
         },
         "normalized_path": "/generated/projects/gloria-hospital/enriched/2026-06-01_to_2026-06-30/c40526867b2629a0/normalized.json"
+      }
+    ]
+  },
+  {
+    "project_id": "the-big",
+    "project_name": "The BIG",
+    "identity": {
+      "status": "new",
+      "project_sap_id": "SAP_002",
+      "project_code": "BIG01",
+      "project_name": "The BIG",
+      "report_start": "2026-06-01",
+      "report_finish": "2026-06-30",
+      "project_start": "2026-09-11",
+      "project_finish": "2027-04-10",
+      "project_finish_eot": null,
+      "effective_project_finish": "2027-04-10",
+      "metadata_sheet_state": "visible",
+      "identity_source": "metadata_sheet"
+    },
+    "reporting_period": "2026-06-01_to_2026-06-30",
+    "source_fingerprint": "5362ab5333c6e524876be3694cde120b2049b8b0b665db37636ca5f32801e803",
+    "normalized_path": "/generated/projects/the-big/enriched/2026-06-01_to_2026-06-30/5362ab5333c6e524/normalized.json",
+    "approved_parity": false,
+    "metrics": {
+      "contract_value": 385466379.0,
+      "budget": 11342387.03,
+      "earned_value": 159851272.4191947,
+      "actual_cost": 12678301.690000005,
+      "cost_variance": 147172970.7291947,
+      "revenue": 169443470.76,
+      "indirect_cost": 13038525.653684376,
+      "cpi": 12.60825592636569
+    },
+    "capabilities": {
+      "overview": true,
+      "project_summary": true,
+      "cashflow": true,
+      "direct_cost": true,
+      "indirect_cost": true,
+      "boq": true,
+      "forecast": true,
+      "ledger": true,
+      "cost_codes": true,
+      "waste": true,
+      "wages": false,
+      "reallocation": true,
+      "assets": true,
+      "balance": true
+    },
+    "quality_count": 287,
+    "sheet_count": 37,
+    "chart_count": 5,
+    "history": [
+      {
+        "reporting_period": "2026-06-01_to_2026-06-30",
+        "source_fingerprint": "5362ab5333c6e524876be3694cde120b2049b8b0b665db37636ca5f32801e803",
+        "metrics": {
+          "contract_value": 385466379.0,
+          "budget": 11342387.03,
+          "earned_value": 159851272.4191947,
+          "actual_cost": 12678301.690000005,
+          "cost_variance": 147172970.7291947,
+          "revenue": 169443470.76,
+          "indirect_cost": 13038525.653684376,
+          "cpi": 12.60825592636569
+        },
+        "normalized_path": "/generated/projects/the-big/enriched/2026-06-01_to_2026-06-30/5362ab5333c6e524/normalized.json"
       }
     ]
   }
