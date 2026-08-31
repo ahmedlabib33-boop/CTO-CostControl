@@ -127,15 +127,20 @@ function Restore-CleanTransaction([string]$RunBackupRoot) {
         Copy-Item -LiteralPath $watcherSnapshot -Destination $WatcherStatePath -Force
     }
     $inputSnapshot = Join-Path $RunBackupRoot "INPUT"
+    $restoredInputFiles = 0
     if (Test-Path -LiteralPath $inputSnapshot -PathType Container) {
         foreach ($file in Get-ChildItem -LiteralPath $inputSnapshot -Recurse -File) {
-            $relative = $file.FullName.Substring($inputSnapshot.TrimEnd('\').Length).TrimStart('\')
+            $relative = $file.FullName.Substring($inputSnapshot.TrimEnd('\').Length).TrimStart([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar)
             $destination = Join-Path $InputRoot $relative
             [void](New-Item -ItemType Directory -Path (Split-Path -Parent $destination) -Force)
-            Copy-Item -LiteralPath $file.FullName -Destination $destination -Force
+            Copy-Item -LiteralPath $file.FullName -Destination $destination -Force -ErrorAction Stop
+            if (-not (Test-Path -LiteralPath $destination -PathType Leaf) -or (Get-Item -LiteralPath $destination).Length -ne $file.Length) {
+                throw "Rollback could not verify restored INPUT file: $destination. Recovery copy remains at $RunBackupRoot"
+            }
+            $restoredInputFiles++
         }
     }
-    Write-Host "LOCAL ROLLBACK COMPLETED: generated JSON, watcher memory, and INPUT sources were restored." -ForegroundColor Yellow
+    Write-Host "LOCAL ROLLBACK COMPLETED: generated JSON, watcher memory, and $restoredInputFiles INPUT source file(s) were restored and verified." -ForegroundColor Yellow
 }
 
 function Get-AvailableProjects {

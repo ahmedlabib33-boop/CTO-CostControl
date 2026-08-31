@@ -195,9 +195,11 @@ function Get-RemoteSnapshot {
     return [pscustomobject]@{ ParentSha = $parentSha; RootTreeSha = $rootTreeSha; Files = $remote; Hashes = $remoteHashes }
 }
 
-function Publish-WithNativeGit([object[]]$Changes, [string]$ExpectedRemoteSha) {
+function Publish-WithNativeGit([object[]]$Changes, [string[]]$Deletions, [string]$ExpectedRemoteSha) {
     if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw "Git is required for the safe generated-data publisher." }
-    $paths = @($Changes | ForEach-Object { [string]$_.Path })
+    $changePaths = @($Changes | ForEach-Object { [string]$_.Path })
+    $deletePaths = @($Deletions | ForEach-Object { [string]$_ })
+    $paths = @($changePaths + $deletePaths | Sort-Object -Unique)
     if (-not $paths.Count) { return }
 
     Push-Location $RepoRoot
@@ -217,15 +219,21 @@ function Publish-WithNativeGit([object[]]$Changes, [string]$ExpectedRemoteSha) {
             throw "The Git staging area already contains changes. Commit or unstage them before running powershell.bat; nothing was added."
         }
 
-        Write-Host "Staging only the $($paths.Count) generated file(s) that differ from GitHub..." -ForegroundColor Cyan
-        & git add -- @paths
-        if ($LASTEXITCODE -ne 0) { throw "Git could not stage the changed generated files." }
+        Write-Host "Staging $($changePaths.Count) changed generated file(s) and $($deletePaths.Count) explicitly approved deletion(s)..." -ForegroundColor Cyan
+        if ($changePaths.Count) {
+            & git add -- @changePaths
+            if ($LASTEXITCODE -ne 0) { throw "Git could not stage the changed generated files." }
+        }
+        if ($deletePaths.Count) {
+            & git add -u -- @deletePaths
+            if ($LASTEXITCODE -ne 0) { throw "Git could not stage the explicitly approved generated deletions." }
+        }
         $staged = @(& git diff --cached --name-only)
         if ($LASTEXITCODE -ne 0 -or -not $staged.Count) { throw "No generated changes reached the staging area." }
         $unexpected = @($staged | Where-Object { $_ -notin $paths })
         if ($unexpected.Count) { throw "Safety stop: an unrelated file entered the generated-data commit: $($unexpected -join ', ')" }
 
-        & git commit -m $CommitMessage -- @paths
+        & git commit -m $CommitMessage
         if ($LASTEXITCODE -ne 0) { throw "Git could not create the generated-data commit." }
         $commitCreated = $true
         $newCommit = (& git rev-parse HEAD).Trim()
@@ -238,7 +246,7 @@ function Publish-WithNativeGit([object[]]$Changes, [string]$ExpectedRemoteSha) {
         $remoteHead = (& git ls-remote origin "refs/heads/$Branch" | ForEach-Object { ($_ -split "`t")[0] }).Trim()
         if ($LASTEXITCODE -ne 0 -or $remoteHead -ne $newCommit) { throw "GitHub push completed but the remote commit could not be verified." }
         Write-Host "SUCCESS: GitHub commit $newCommit" -ForegroundColor Green
-        Write-Host "Committed exactly $($paths.Count) new or changed generated file(s). Remote-only generated history was preserved." -ForegroundColor Green
+        Write-Host "Committed exactly $($changePaths.Count) new/changed generated file(s) and $($deletePaths.Count) explicitly approved deletion(s)." -ForegroundColor Green
     }
     catch {
         if (-not $commitCreated) {
@@ -314,10 +322,7 @@ for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
         exit 0
     }
 
-    if ($deletions.Count) {
-        throw "Native generated-data publishing does not delete remote files. Use Clean_Vercel.bat for the explicitly reviewed deletion plan."
-    }
-    Publish-WithNativeGit -Changes @($plan.Changes) -ExpectedRemoteSha $snapshot.ParentSha
+    Publish-WithNativeGit -Changes @($plan.Changes) -Deletions @($deletions) -ExpectedRemoteSha $snapshot.ParentSha
     exit 0
 
     $entries = [System.Collections.Generic.List[object]]::new()
