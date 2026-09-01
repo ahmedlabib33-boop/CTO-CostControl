@@ -168,6 +168,31 @@ function Get-RemoteSnapshot {
     return [pscustomobject]@{ ParentSha = $parentSha; TreeSha = [string]$commit.tree.sha; Files = $remote }
 }
 
+function Confirm-RemoteCommit([string]$ExpectedSha) {
+    $lastSeen = ""
+    for ($attempt = 1; $attempt -le 8; $attempt++) {
+        $cacheBust = [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+        $verifiedRef = Invoke-GitHub GET "$api/git/ref/heads/$Branch?verify=$cacheBust"
+        $lastSeen = [string]$verifiedRef.object.sha
+        if ($lastSeen -eq $ExpectedSha) { return $lastSeen }
+
+        # Another approved publisher or deployment may move main immediately
+        # after this commit. Treat that as success only when the current main
+        # commit is a descendant of the commit created by this run.
+        if ($lastSeen) {
+            try {
+                $comparison = Invoke-GitHub GET "$api/compare/$ExpectedSha...$lastSeen?verify=$cacheBust"
+                if ([string]$comparison.merge_base_commit.sha -eq $ExpectedSha -and [string]$comparison.status -in @("ahead", "identical")) {
+                    return $lastSeen
+                }
+            }
+            catch { }
+        }
+        if ($attempt -lt 8) { Start-Sleep -Seconds 2 }
+    }
+    throw "GitHub ref verification failed after retries. Expected commit $ExpectedSha; main reported $lastSeen."
+}
+
 try {
     Set-Location -LiteralPath $Root
     Write-Host "CTO COSTCONTROL - REVIEW AND PUSH APPLICATION CHANGES" -ForegroundColor Cyan
@@ -243,13 +268,14 @@ try {
     }
     $tree = Invoke-GitHub POST "$api/git/trees" @{ base_tree = $remoteSnapshot.TreeSha; tree = $treeEntries }
     $newCommit = Invoke-GitHub POST "$api/git/commits" @{ message = $CommitMessage; tree = [string]$tree.sha; parents = @($remoteSnapshot.ParentSha) }
-    [void](Invoke-GitHub PATCH "$api/git/refs/heads/$Branch" @{ sha = [string]$newCommit.sha; force = $false })
-    $verifiedRef = Invoke-GitHub GET "$api/git/ref/heads/$Branch"
-    if ([string]$verifiedRef.object.sha -ne [string]$newCommit.sha) { throw "GitHub ref verification failed." }
+    $newCommitSha = [string]$newCommit.sha
+    [void](Invoke-GitHub PATCH "$api/git/refs/heads/$Branch" @{ sha = $newCommitSha; force = $false })
+    $verifiedSha = Confirm-RemoteCommit $newCommitSha
 
     Write-Host ""
     Write-Host "VERIFIED SUCCESS" -ForegroundColor Green
-    Write-Host "Commit: $([string]$newCommit.sha)" -ForegroundColor Green
+    Write-Host "Commit: $newCommitSha" -ForegroundColor Green
+    Write-Host "Verified main: $verifiedSha" -ForegroundColor Green
     Write-Host "Files published: $($changes.Count)" -ForegroundColor Green
     Write-Host "Vercel will build from GitHub main if its project is connected to this branch." -ForegroundColor Cyan
 }
