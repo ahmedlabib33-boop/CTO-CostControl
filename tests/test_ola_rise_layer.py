@@ -75,8 +75,8 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn('project-sheet-open', script)
         self.assertIn('.project-sheet-open .joystick', css)
         self.assertIn('overscroll-behavior: none;', css)
-        self.assertIn('release=20260901-v27', html)
-        self.assertIn('release=20260901-v27', launcher)
+        self.assertIn('release=20260901-v28', html)
+        self.assertIn('release=20260901-v28', launcher)
 
     def test_decisions_change_project_trajectory_and_food_court_is_one_tap_at_night(self):
         game_root = ROOT / "public/ola-rise"

@@ -18,8 +18,8 @@ import {
   timePhaseFor,
   trainingSummary,
   trophySummary,
-} from "./systems.js?release=20260901-v27";
-import { loadLiveGameProjects } from "./live-data.js?release=20260901-v27";
+} from "./systems.js?release=20260901-v28";
+import { loadLiveGameProjects } from "./live-data.js?release=20260901-v28";
 
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
@@ -531,6 +531,7 @@ function trajectoryFor(project) {
   if (momentum >= 72) return { momentum, label: "RISING", tone: "rising", detail: "Controlled decisions are strengthening this project’s path." };
   if (momentum >= 52) return { momentum, label: "STEADY", tone: "steady", detail: "The project is holding course; keep checking the live evidence." };
   if (momentum >= 35) return { momentum, label: "RECOVERING", tone: "recovering", detail: "Recovery is possible; protect the next decision and review the open exposure." };
+  if (momentum <= 20) return { momentum, label: "FAILING", tone: "failing", detail: "Repeated uncontrolled decisions have pushed this project into a failing trajectory. Recover the evidence-led control." };
   return { momentum, label: "AT RISK", tone: "risk", detail: "Uncontrolled choices are weakening the project path; use the evidence-led recovery action." };
 }
 function applyProjectDecisionImpact(project, good, amount = null) {
@@ -544,7 +545,7 @@ function updateProjectTrajectories() {
   projectMeshes.forEach((model) => {
     const project = model.userData.project;
     const trajectory = trajectoryFor(project);
-    const color = trajectory.tone === "risk" ? 0xff5566 : trajectory.tone === "recovering" ? 0xffc04f : trajectory.tone === "steady" ? 0x73c9ff : 0x58f29b;
+    const color = trajectory.tone === "failing" || trajectory.tone === "risk" ? 0xff5566 : trajectory.tone === "recovering" ? 0xffc04f : trajectory.tone === "steady" ? 0x73c9ff : 0x58f29b;
     model.userData.beacon?.children?.forEach((part) => {
       if (part.material?.color) part.material.color.setHex(color);
     });
@@ -2027,7 +2028,7 @@ function init3D() {
   animate();
   if (isBedtime(state.hour) && !state.nightSocial) setTimeout(openBedtimeGate, 0);
   if ("serviceWorker" in navigator)
-     navigator.serviceWorker.register("./sw.js?release=20260901-v27", { updateViaCache: "none" }).catch(() => {});
+     navigator.serviceWorker.register("./sw.js?release=20260901-v28", { updateViaCache: "none" }).catch(() => {});
 }
 function resize() {
   if (!renderer) return;

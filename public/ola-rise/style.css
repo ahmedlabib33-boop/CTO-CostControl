@@ -1145,6 +1145,9 @@ body[data-time-phase="night"] #game::before {
 .project-trajectory.risk { border-color: rgba(255,85,102,.48); }
 .project-trajectory.risk .trajectory-head b { color: #ff7b87; }
 .project-trajectory.risk .trajectory-track i { background: linear-gradient(90deg,#bd3e52,#ff6677); }
+.project-trajectory.failing { border-color: rgba(255,67,84,.72); background: linear-gradient(135deg, rgba(104, 27, 43, .46), rgba(30, 19, 31, .76)); }
+.project-trajectory.failing .trajectory-head b { color: #ff4d5e; }
+.project-trajectory.failing .trajectory-track i { background: linear-gradient(90deg,#8e2035,#ff4057); }
 .bottom-sheet.compact {
   max-height: 112px;
   overflow: hidden;
@@ -1344,6 +1347,7 @@ body.food-court-arrival::after {
 .decision-trajectory.rising { border-color: #58f29b; color: #8af7bb; background: rgba(64, 177, 112, .13); }
 .decision-trajectory.recovering { border-color: #ffc04f; color: #ffd98c; background: rgba(205, 135, 54, .13); }
 .decision-trajectory.risk { border-color: #ff6677; color: #ff9ca7; background: rgba(189, 62, 82, .13); }
+.decision-trajectory.failing { border-color: #ff4057; color: #ff8996; background: rgba(160, 32, 54, .2); }
 .decision-reflection { border-color: rgba(240,201,111,.34); }
 .decision-reflection h3 { margin: 6px 0 9px; font-size: 17px; line-height: 1.38; }
 .status {
