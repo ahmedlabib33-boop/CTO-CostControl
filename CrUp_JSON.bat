@@ -6,7 +6,14 @@ cd /d "%~dp0"
 set "CRUP_JSON_FILE=%~f0"
 set "CRUP_JSON_ROOT=%CD%"
 
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $raw=[IO.File]::ReadAllText($env:CRUP_JSON_FILE); $marker='# PYTHON-PAYLOAD-START'; $pos=$raw.LastIndexOf($marker); if($pos -lt 0){throw 'Python payload marker was not found.'}; $code=$raw.Substring($pos+$marker.Length); $runtime=Join-Path $env:CRUP_JSON_ROOT '.runtime'; [IO.Directory]::CreateDirectory($runtime)|Out-Null; $helper=Join-Path $runtime ('CrUp_JSON_'+[Guid]::NewGuid().ToString('N')+'.py'); try{[IO.File]::WriteAllText($helper,$code,[Text.UTF8Encoding]::new($false)); & python $helper $env:CRUP_JSON_ROOT; $result=$LASTEXITCODE}finally{if(Test-Path -LiteralPath $helper){Remove-Item -LiteralPath $helper -Force}}; exit $result"
+where python >nul 2>&1
+if errorlevel 1 (
+  echo Python was not found in PATH. Install Python 3.10+ and run CrUp_JSON.bat again.
+  pause
+  exit /b 1
+)
+
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$ErrorActionPreference='Stop'; $raw=[IO.File]::ReadAllText($env:CRUP_JSON_FILE); $marker='# PYTHON-PAYLOAD-START'; $pos=$raw.LastIndexOf($marker); if($pos -lt 0){throw 'Python payload marker was not found.'}; $code=$raw.Substring($pos+$marker.Length); $runtime=Join-Path $env:CRUP_JSON_ROOT '.runtime'; [IO.Directory]::CreateDirectory($runtime)|Out-Null; $helper=Join-Path $runtime ('CrUp_JSON_'+[Guid]::NewGuid().ToString('N')+'.py'); try{[IO.File]::WriteAllText($helper,$code,[Text.UTF8Encoding]::new($false)); & python -u $helper $env:CRUP_JSON_ROOT; $result=$LASTEXITCODE}finally{if(Test-Path -LiteralPath $helper){Remove-Item -LiteralPath $helper -Force}}; exit $result"
 set "RESULT=%ERRORLEVEL%"
 
 echo.

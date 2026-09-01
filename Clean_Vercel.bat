@@ -317,8 +317,23 @@ function Publish-GeneratedDataToGitHub([string]$CommitMessage, [string]$DeletePr
         $arguments += @("-DeleteProjectId", $DeleteProjectId)
         if ($DeletePeriod) { $arguments += @("-DeletePeriod", $DeletePeriod) }
     }
-    & powershell.exe @arguments
-    if ($LASTEXITCODE -ne 0) { throw "Changed-only GitHub publisher failed with exit code $LASTEXITCODE." }
+    # Pass the already validated token explicitly to the child process and keep
+    # its complete output. This prevents a generic exit code from hiding the
+    # real GitHub or Git preflight reason during a rollback.
+    $previousToken = $env:GITHUB_TOKEN
+    $env:GITHUB_TOKEN = $script:Token
+    try {
+        $publisherOutput = @(& powershell.exe @arguments 2>&1)
+        $publisherExit = $LASTEXITCODE
+    }
+    finally {
+        $env:GITHUB_TOKEN = $previousToken
+    }
+    $publisherOutput | ForEach-Object { Write-Host $_ }
+    if ($publisherExit -ne 0) {
+        $details = ($publisherOutput | ForEach-Object { [string]$_ }) -join [Environment]::NewLine
+        throw "Changed-only GitHub publisher failed with exit code $publisherExit. $details"
+    }
     $headers = Get-GitHubHeaders
     $api = "https://api.github.com/repos/$GitHubOwner/$GitHubRepo"
     $ref = Invoke-RestMethod -Headers $headers -Uri "$api/git/ref/heads/$GitHubBranch" -TimeoutSec 20

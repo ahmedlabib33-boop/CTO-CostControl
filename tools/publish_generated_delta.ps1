@@ -209,9 +209,33 @@ function Publish-WithNativeGit([object[]]$Changes, [string[]]$Deletions, [string
         if ($LASTEXITCODE -ne 0 -or $branchName -ne $Branch) {
             throw "Local Git branch must be '$Branch' before publishing generated data. Current branch: '$branchName'."
         }
+        # Refresh the remote-tracking ref. A previous app commit may have moved
+        # origin/main while this checkout was closed. Fast-forward only when the
+        # local branch is strictly behind and none of the user's worktree files
+        # overlap the incoming commits; never rebase, force, or discard changes.
+        & git fetch --quiet origin $Branch
+        if ($LASTEXITCODE -ne 0) { throw "Git could not refresh origin/$Branch before publishing. Nothing was committed." }
         $localHead = (& git rev-parse HEAD).Trim()
         if ($LASTEXITCODE -ne 0 -or $localHead -ne $ExpectedRemoteSha) {
-            throw "Local $Branch is not synchronized with GitHub $Branch. Pull the latest main first; nothing was committed."
+            $behind = 0
+            $ahead = 0
+            try { $behind = [int]((& git rev-list --count "$localHead..$ExpectedRemoteSha").Trim()); $ahead = [int]((& git rev-list --count "$ExpectedRemoteSha..$localHead").Trim()) } catch { }
+            if ($ahead -eq 0 -and $behind -gt 0) {
+                $incoming = @(& git diff --name-only "$localHead..$ExpectedRemoteSha")
+                $worktree = @(& git status --porcelain --untracked-files=all)
+                $overlap = @($worktree | Where-Object {
+                    $line = [string]$_
+                    $path = if ($line.Length -gt 3) { $line.Substring(3).Trim().Trim('"') } else { "" }
+                    $path -and (@($incoming | Where-Object { $_ -eq $path }).Count -gt 0)
+                })
+                if ($overlap.Count) { throw "Local main is behind GitHub and an uncommitted file overlaps the incoming commit ($($overlap -join ', ')). Pull main manually; nothing was committed." }
+                & git merge --ff-only $ExpectedRemoteSha
+                if ($LASTEXITCODE -ne 0) { throw "Local main could not be fast-forwarded to GitHub main. Nothing was committed." }
+                $localHead = (& git rev-parse HEAD).Trim()
+            }
+            if ($localHead -ne $ExpectedRemoteSha) {
+                throw "Local $Branch is not synchronized with GitHub $Branch. Pull the latest main first; nothing was committed."
+            }
         }
         $alreadyStaged = @(& git diff --cached --name-only)
         if ($LASTEXITCODE -ne 0) { throw "Could not inspect the Git staging area." }
@@ -238,12 +262,24 @@ function Publish-WithNativeGit([object[]]$Changes, [string[]]$Deletions, [string
         $commitCreated = $true
         $newCommit = (& git rev-parse HEAD).Trim()
 
-        $basic = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("x-access-token:$token"))
-        & git -c "http.https://github.com/.extraheader=AUTHORIZATION: Basic $basic" push origin "HEAD:refs/heads/$Branch"
-        if ($LASTEXITCODE -ne 0) {
-            throw "GitHub push failed. The local commit $newCommit is preserved and can be pushed safely by running powershell.bat again."
+        # Git's HTTPS transport requires Basic auth with the token as the
+        # password; the GitHub REST API above uses Bearer separately.
+        $basic = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes("x-access-token:$token"))
+        $pushHeader = "Authorization: Basic $basic"
+        $pushed = $false
+        for ($pushAttempt = 1; $pushAttempt -le $MaxAttempts; $pushAttempt++) {
+            & git -c "http.version=HTTP/1.1" -c "http.extraHeader=$pushHeader" push origin "HEAD:refs/heads/$Branch"
+            if ($LASTEXITCODE -eq 0) { $pushed = $true; break }
+            if ($pushAttempt -lt $MaxAttempts) {
+                $delay = [Math]::Min(10, [Math]::Pow(2, $pushAttempt - 1))
+                Write-Host "Temporary GitHub push failure. Retrying in $delay second(s) ($pushAttempt/$MaxAttempts)..." -ForegroundColor Yellow
+                Start-Sleep -Seconds $delay
+            }
         }
-        $remoteHead = (& git ls-remote origin "refs/heads/$Branch" | ForEach-Object { ($_ -split "`t")[0] }).Trim()
+        if (-not $pushed) {
+            throw "GitHub push failed after $MaxAttempts attempts. The local commit $newCommit is preserved; rerun powershell.bat to retry safely."
+        }
+        $remoteHead = (& git -c "http.version=HTTP/1.1" -c "http.extraHeader=$pushHeader" ls-remote origin "refs/heads/$Branch" | ForEach-Object { ($_ -split "`t")[0] }).Trim()
         if ($LASTEXITCODE -ne 0 -or $remoteHead -ne $newCommit) { throw "GitHub push completed but the remote commit could not be verified." }
         Write-Host "SUCCESS: GitHub commit $newCommit" -ForegroundColor Green
         Write-Host "Committed exactly $($changePaths.Count) new/changed generated file(s) and $($deletePaths.Count) explicitly approved deletion(s)." -ForegroundColor Green

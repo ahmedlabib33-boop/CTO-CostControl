@@ -58,6 +58,9 @@ class BatchWorkflowTests(unittest.TestCase):
         self.assertIn('Read-Host "Paste GITHUB_TOKEN (input is hidden)" -AsSecureString', script)
         self.assertIn("Nothing was committed", script)
         self.assertIn('.runtime\\github-token.txt', script)
+        self.assertIn('http.version=HTTP/1.1', script)
+        self.assertIn('x-access-token:$token', script)
+        self.assertIn('Temporary GitHub push failure', script)
 
     def test_clean_preflights_authorization_and_rolls_back_failed_publish(self):
         script = (ROOT / "Clean_Vercel.bat").read_text(encoding="utf-8")
@@ -74,6 +77,8 @@ class BatchWorkflowTests(unittest.TestCase):
         self.assertIn('function Regenerate-GlobalIndexes', script)
         self.assertIn('Rollback could not verify restored INPUT file', script)
         self.assertIn('$restoredInputFiles INPUT source file(s) were restored and verified', script)
+        self.assertIn('$publisherOutput', script)
+        self.assertIn('Changed-only GitHub publisher failed with exit code', script)
         self.assertIn('from watcher.xlsx_engine import regenerate_portfolio', script)
         remove_project_start = script.index('function Remove-OneProject')
         remove_project_end = script.index('\nfunction Remove-AllProjects', remove_project_start)
@@ -135,6 +140,16 @@ class BatchWorkflowTests(unittest.TestCase):
         for script in (clean, generated_publisher, main_publisher):
             self.assertIn('.runtime\\github-token.txt', script)
             self.assertIn("PASTE_GITHUB_TOKEN_HERE", script)
+
+    def test_wrappers_fail_loudly_and_return_child_exit_codes(self):
+        powershell = (ROOT / "powershell.bat").read_text(encoding="utf-8")
+        crup = (ROOT / "CrUp_JSON.bat").read_text(encoding="utf-8")
+        self.assertIn("setlocal EnableExtensions DisableDelayedExpansion", powershell)
+        self.assertIn("-MaxAttempts 6", powershell)
+        self.assertIn("exit /b %RESULT%", powershell)
+        self.assertIn("where python", crup)
+        self.assertIn("python -u $helper", crup)
+        self.assertIn("No success confirmation was issued for this source.", crup)
 
 
 if __name__ == "__main__":
