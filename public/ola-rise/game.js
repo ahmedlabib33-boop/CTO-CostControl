@@ -18,8 +18,8 @@ import {
   timePhaseFor,
   trainingSummary,
   trophySummary,
-} from "./systems.js?release=20260901-v25";
-import { loadLiveGameProjects } from "./live-data.js?release=20260901-v25";
+} from "./systems.js?release=20260901-v26";
+import { loadLiveGameProjects } from "./live-data.js?release=20260901-v26";
 
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
@@ -1981,7 +1981,7 @@ function init3D() {
   animate();
   if (isBedtime(state.hour) && !state.nightSocial) setTimeout(openBedtimeGate, 0);
   if ("serviceWorker" in navigator)
-    navigator.serviceWorker.register("./sw.js?release=20260901-v25", { updateViaCache: "none" }).catch(() => {});
+    navigator.serviceWorker.register("./sw.js?release=20260901-v26", { updateViaCache: "none" }).catch(() => {});
 }
 function resize() {
   if (!renderer) return;
@@ -2043,6 +2043,7 @@ function goToProject(p) {
   drawNavigationLine(walkTarget);
   model.userData.beacon.visible = true;
   $("#projectSheet").classList.remove("open");
+  document.body.classList.remove("project-sheet-open");
   const button = $("#goToBtn");
   button.disabled = true;
   button.textContent = "TRAVELLING IN 3D…";
@@ -2410,10 +2411,40 @@ function bindWorldControls() {
     document.addEventListener("touchcancel", finishTouch, { passive: false });
   }
   addEventListener("blur", resetJoystick);
+
+  // Desktop keyboards use the same movement vector as the virtual joystick.
+  const keys = new Set();
+  const keyDirection = () => {
+    if (jid !== null) return;
+    const horizontal = (keys.has("ArrowRight") || keys.has("d") ? 1 : 0) -
+      (keys.has("ArrowLeft") || keys.has("a") ? 1 : 0);
+    const vertical = (keys.has("ArrowDown") || keys.has("s") ? 1 : 0) -
+      (keys.has("ArrowUp") || keys.has("w") ? 1 : 0);
+    move.x = horizontal;
+    move.y = -vertical;
+  };
+  addEventListener("keydown", (e) => {
+    if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "w", "a", "s", "d"].includes(e.key)) return;
+    if (["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName)) return;
+    keys.add(e.key);
+    keyDirection();
+    e.preventDefault();
+  });
+  addEventListener("keyup", (e) => {
+    if (!keys.has(e.key)) return;
+    keys.delete(e.key);
+    keyDirection();
+    e.preventDefault();
+  });
+  addEventListener("blur", () => {
+    keys.clear();
+    keyDirection();
+  });
 }
 
 function openProject(p) {
   if (!requireAwake()) return;
+  document.body.classList.add("project-sheet-open");
   $("#projectAlias").textContent = p.alias.toUpperCase();
   $("#projectName").textContent = p.name;
   $("#projectSource").textContent = p.source;
@@ -2645,7 +2676,10 @@ $("#closeDecision").onclick = () => {
   currentDecisionPractice = null;
   hideThought();
 };
-$("#closeProject").onclick = () => $("#projectSheet").classList.remove("open");
+$("#closeProject").onclick = () => {
+  $("#projectSheet").classList.remove("open");
+  document.body.classList.remove("project-sheet-open");
+};
 $("#collapseProject").onclick = () => {
   const sheet = $("#projectSheet"),
     compact = sheet.classList.toggle("compact"),
@@ -2707,6 +2741,7 @@ function openBedtimeGate() {
   state.nightSocial = false;
   document.body.classList.remove("night-social-mode");
   $("#projectSheet").classList.remove("open");
+  document.body.classList.remove("project-sheet-open");
   $("#drawer").classList.remove("open");
   $("#nightSocialDock").classList.add("hidden");
   $("#wellbeingPrompt")?.classList.add("hidden");
@@ -2734,6 +2769,7 @@ $("#goNightFoodCourt").onclick = () => {
   state.speed = 0;
   $("#bedtimeGate").classList.add("hidden");
   $("#projectSheet").classList.remove("open");
+  document.body.classList.remove("project-sheet-open");
   $("#nightSocialDock").classList.remove("hidden");
   document.body.classList.add("night-social-mode");
   guidedProject = null;
@@ -2824,6 +2860,7 @@ function openStageExam(project) {
   }
   activeExam = { project, questions, index: 0, score: 0 };
   $("#projectSheet").classList.remove("open");
+  document.body.classList.remove("project-sheet-open");
   $("#decisionSheet").classList.add("hidden");
   $("#examStageLabel").textContent = `${project.name.toUpperCase()} · ${project.period}`;
   $("#examTitle").textContent = "Management Mini Exam";

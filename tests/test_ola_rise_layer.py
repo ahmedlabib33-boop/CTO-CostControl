@@ -71,9 +71,12 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn('if (!("PointerEvent" in window))', script)
         self.assertIn('document.addEventListener("touchmove"', script)
         self.assertIn('addEventListener("blur", resetJoystick)', script)
+        self.assertIn('addEventListener("keydown"', script)
+        self.assertIn('project-sheet-open', script)
+        self.assertIn('.project-sheet-open .joystick', css)
         self.assertIn('overscroll-behavior: none;', css)
-        self.assertIn('release=20260901-v25', html)
-        self.assertIn('release=20260901-v25', launcher)
+        self.assertIn('release=20260901-v26', html)
+        self.assertIn('release=20260901-v26', launcher)
 
     def test_3d_game_has_direct_go_to_guidance_for_every_mission(self):
         game_root = ROOT / "public/ola-rise"

@@ -837,6 +837,11 @@ body[data-time-phase="night"] #game::before {
   gap: 12px;
   touch-action: manipulation;
 }
+/* Keep movement controls reachable while the non-blocking project sheet is open. */
+.project-sheet-open .joystick,
+.project-sheet-open .touch-actions {
+  z-index: 65;
+}
 .round {
   width: 76px;
   height: 76px;
