@@ -58,6 +58,23 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertNotIn("const story = [", script)
         self.assertNotIn("renderStory()", script)
 
+    def test_mobile_controls_survive_cancelled_or_unsupported_pointer_capture(self):
+        game_root = ROOT / "public/ola-rise"
+        launcher = (ROOT / "src/components/OlaRiseLayer.tsx").read_text(encoding="utf-8")
+        html = (game_root / "index.html").read_text(encoding="utf-8")
+        script = (game_root / "game.js").read_text(encoding="utf-8")
+        css = (game_root / "style.css").read_text(encoding="utf-8")
+        self.assertIn('jr.setPointerCapture?.(jid)', script)
+        self.assertIn('document.addEventListener("pointermove", moveJoystickPointer', script)
+        self.assertIn('jr.addEventListener("pointercancel", finishJoystickPointer)', script)
+        self.assertIn('jr.addEventListener("lostpointercapture", finishJoystickPointer)', script)
+        self.assertIn('if (!("PointerEvent" in window))', script)
+        self.assertIn('document.addEventListener("touchmove"', script)
+        self.assertIn('addEventListener("blur", resetJoystick)', script)
+        self.assertIn('overscroll-behavior: none;', css)
+        self.assertIn('release=20260901-v25', html)
+        self.assertIn('release=20260901-v25', launcher)
+
     def test_3d_game_has_direct_go_to_guidance_for_every_mission(self):
         game_root = ROOT / "public/ola-rise"
         html = (game_root / "index.html").read_text(encoding="utf-8")

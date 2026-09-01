@@ -18,8 +18,8 @@ import {
   timePhaseFor,
   trainingSummary,
   trophySummary,
-} from "./systems.js?release=20260901-v24";
-import { loadLiveGameProjects } from "./live-data.js?release=20260901-v24";
+} from "./systems.js?release=20260901-v25";
+import { loadLiveGameProjects } from "./live-data.js?release=20260901-v25";
 
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
@@ -1981,7 +1981,7 @@ function init3D() {
   animate();
   if (isBedtime(state.hour) && !state.nightSocial) setTimeout(openBedtimeGate, 0);
   if ("serviceWorker" in navigator)
-    navigator.serviceWorker.register("./sw.js?release=20260901-v24", { updateViaCache: "none" }).catch(() => {});
+    navigator.serviceWorker.register("./sw.js?release=20260901-v25", { updateViaCache: "none" }).catch(() => {});
 }
 function resize() {
   if (!renderer) return;
@@ -2251,12 +2251,18 @@ function bindWorldControls() {
     touches = new Map(),
     pinch = 0;
   c.addEventListener("pointerdown", (e) => {
-    c.setPointerCapture(e.pointerId);
+    e.preventDefault();
+    try {
+      c.setPointerCapture?.(e.pointerId);
+    } catch {
+      // Document-level pointer handlers below keep the gesture alive.
+    }
     touches.set(e.pointerId, { x: e.clientX, y: e.clientY });
     last = { x: e.clientX, y: e.clientY, moved: false, button: e.button };
   });
   c.addEventListener("pointermove", (e) => {
     if (!touches.has(e.pointerId)) return;
+    e.preventDefault();
     const p = touches.get(e.pointerId),
       dx = e.clientX - p.x,
       dy = e.clientY - p.y;
@@ -2272,13 +2278,15 @@ function bindWorldControls() {
       pinch = d;
     }
   });
-  c.addEventListener("pointerup", (e) => {
+  const finishCanvasPointer = (e, allowTap) => {
+    if (!touches.has(e.pointerId)) return;
     touches.delete(e.pointerId);
     pinch = 0;
-    if (last && !last.moved && e.button === 0) {
+    if (allowTap && last && !last.moved && e.button === 0) {
+      const bounds = c.getBoundingClientRect();
       const ndc = new THREE.Vector2(
-        (e.clientX / innerWidth) * 2 - 1,
-        -(e.clientY / innerHeight) * 2 + 1,
+        ((e.clientX - bounds.left) / bounds.width) * 2 - 1,
+        -((e.clientY - bounds.top) / bounds.height) * 2 + 1,
       );
       raycaster.setFromCamera(ndc, camera);
       const hits = raycaster.intersectObjects(projectMeshes, true);
@@ -2302,7 +2310,11 @@ function bindWorldControls() {
         walkBlockedFrames = 0;
       }
     }
-  });
+    if (!touches.size) last = null;
+  };
+  c.addEventListener("pointerup", (e) => finishCanvasPointer(e, true));
+  c.addEventListener("pointercancel", (e) => finishCanvasPointer(e, false));
+  c.addEventListener("lostpointercapture", (e) => finishCanvasPointer(e, false));
   c.addEventListener(
     "wheel",
     (e) => {
@@ -2317,10 +2329,10 @@ function bindWorldControls() {
   const jr = $(".joy-ring"),
     jk = $("#joyKnob");
   let jid = null;
-  function joy(e) {
+  function joyAt(clientX, clientY) {
     const r = jr.getBoundingClientRect(),
-      x = e.clientX - (r.left + r.width / 2),
-      y = e.clientY - (r.top + r.height / 2),
+      x = clientX - (r.left + r.width / 2),
+      y = clientY - (r.top + r.height / 2),
       m = Math.min(38, Math.hypot(x, y)),
       a = Math.atan2(y, x);
     const px = Math.cos(a) * m,
@@ -2329,21 +2341,75 @@ function bindWorldControls() {
     move.x = px / 38;
     move.y = -py / 38;
   }
+  function resetJoystick() {
+    jid = null;
+    move.x = move.y = 0;
+    jk.style.transform = "";
+    jr.classList.remove("active");
+  }
+  function moveJoystickPointer(e) {
+    if (e.pointerId !== jid) return;
+    e.preventDefault();
+    e.stopPropagation();
+    joyAt(e.clientX, e.clientY);
+  }
+  function finishJoystickPointer(e) {
+    if (e.pointerId !== jid) return;
+    e.preventDefault();
+    e.stopPropagation();
+    resetJoystick();
+  }
   jr.addEventListener("pointerdown", (e) => {
+    if (jid !== null) return;
+    e.preventDefault();
+    e.stopPropagation();
     jid = e.pointerId;
-    jr.setPointerCapture(jid);
-    joy(e);
-  });
-  jr.addEventListener("pointermove", (e) => {
-    if (e.pointerId === jid) joy(e);
-  });
-  jr.addEventListener("pointerup", (e) => {
-    if (e.pointerId === jid) {
-      jid = null;
-      move.x = move.y = 0;
-      jk.style.transform = "";
+    jr.classList.add("active");
+    try {
+      jr.setPointerCapture?.(jid);
+    } catch {
+      // The document listeners below support browsers with partial capture.
     }
+    joyAt(e.clientX, e.clientY);
   });
+  jr.addEventListener("pointermove", moveJoystickPointer);
+  jr.addEventListener("pointerup", finishJoystickPointer);
+  jr.addEventListener("pointercancel", finishJoystickPointer);
+  jr.addEventListener("lostpointercapture", finishJoystickPointer);
+  document.addEventListener("pointermove", moveJoystickPointer, { passive: false });
+  document.addEventListener("pointerup", finishJoystickPointer, { passive: false });
+  document.addEventListener("pointercancel", finishJoystickPointer, { passive: false });
+
+  // Older touch engines do not expose PointerEvent. Keep the same continuous
+  // movement contract instead of degrading the joystick to a tap-only control.
+  if (!("PointerEvent" in window)) {
+    let touchId = null;
+    const findTouch = (list) => [...list].find((touch) => touch.identifier === touchId);
+    jr.addEventListener("touchstart", (e) => {
+      if (touchId !== null || !e.changedTouches.length) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const touch = e.changedTouches[0];
+      touchId = touch.identifier;
+      jr.classList.add("active");
+      joyAt(touch.clientX, touch.clientY);
+    }, { passive: false });
+    document.addEventListener("touchmove", (e) => {
+      const touch = findTouch(e.touches);
+      if (!touch) return;
+      e.preventDefault();
+      joyAt(touch.clientX, touch.clientY);
+    }, { passive: false });
+    const finishTouch = (e) => {
+      if (!findTouch(e.changedTouches)) return;
+      e.preventDefault();
+      touchId = null;
+      resetJoystick();
+    };
+    document.addEventListener("touchend", finishTouch, { passive: false });
+    document.addEventListener("touchcancel", finishTouch, { passive: false });
+  }
+  addEventListener("blur", resetJoystick);
 }
 
 function openProject(p) {
