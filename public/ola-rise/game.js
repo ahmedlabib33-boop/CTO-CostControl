@@ -18,8 +18,8 @@ import {
   timePhaseFor,
   trainingSummary,
   trophySummary,
-} from "./systems.js?release=20260901-v26";
-import { loadLiveGameProjects } from "./live-data.js?release=20260901-v26";
+} from "./systems.js?release=20260901-v27";
+import { loadLiveGameProjects } from "./live-data.js?release=20260901-v27";
 
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
@@ -468,6 +468,7 @@ async function ensureLiveProjects() {
   state = normalizeGameState(
     JSON.parse(localStorage.getItem(stateStorageKey) || "null") || {},
   );
+  ensureProjectMomentum();
   $("#phaseLabel").textContent = `${PROJECTS.length} live stage${PROJECTS.length === 1 ? "" : "s"} · ${PROJECTS.map((project) => project.period).filter(Boolean).join(" · ")}`;
 }
 
@@ -514,6 +515,50 @@ function saveWithToast() {
   save();
   toast("Progress saved locally ✓");
 }
+function ensureProjectMomentum() {
+  state.projectMomentum ??= {};
+  PROJECTS.forEach((project) => {
+    if (Number.isFinite(Number(state.projectMomentum[project.id]))) return;
+    const resolved = state.resolved[project.id] || {};
+    const controlled = project.missions.filter((_mission, index) => Boolean(resolved[index])).length;
+    const ratio = project.missions.length ? controlled / project.missions.length : 0;
+    state.projectMomentum[project.id] = Math.round(50 + ratio * 20);
+  });
+}
+function trajectoryFor(project) {
+  ensureProjectMomentum();
+  const momentum = Math.max(0, Math.min(100, Number(state.projectMomentum[project.id]) || 0));
+  if (momentum >= 72) return { momentum, label: "RISING", tone: "rising", detail: "Controlled decisions are strengthening this project’s path." };
+  if (momentum >= 52) return { momentum, label: "STEADY", tone: "steady", detail: "The project is holding course; keep checking the live evidence." };
+  if (momentum >= 35) return { momentum, label: "RECOVERING", tone: "recovering", detail: "Recovery is possible; protect the next decision and review the open exposure." };
+  return { momentum, label: "AT RISK", tone: "risk", detail: "Uncontrolled choices are weakening the project path; use the evidence-led recovery action." };
+}
+function applyProjectDecisionImpact(project, good, amount = null) {
+  ensureProjectMomentum();
+  const delta = amount ?? (good ? 8 : -10);
+  state.projectMomentum[project.id] = Math.max(0, Math.min(100, (Number(state.projectMomentum[project.id]) || 50) + delta));
+  return trajectoryFor(project);
+}
+function updateProjectTrajectories() {
+  ensureProjectMomentum();
+  projectMeshes.forEach((model) => {
+    const project = model.userData.project;
+    const trajectory = trajectoryFor(project);
+    const color = trajectory.tone === "risk" ? 0xff5566 : trajectory.tone === "recovering" ? 0xffc04f : trajectory.tone === "steady" ? 0x73c9ff : 0x58f29b;
+    model.userData.beacon?.children?.forEach((part) => {
+      if (part.material?.color) part.material.color.setHex(color);
+    });
+    model.userData.trajectory = trajectory;
+  });
+}
+function renderProjectTrajectory(project) {
+  const trajectory = trajectoryFor(project);
+  const root = $("#projectTrajectory");
+  if (!root) return trajectory;
+  root.className = `project-trajectory ${trajectory.tone}`;
+  root.innerHTML = `<div class="trajectory-head"><span><small>PROJECT MOMENTUM</small><b>${trajectory.label}</b></span><strong>${Math.round(trajectory.momentum)}%</strong></div><div class="trajectory-track"><i style="width:${trajectory.momentum}%"></i></div><p>${escapeHtml(trajectory.detail)}</p>`;
+  return trajectory;
+}
 function updateHUD() {
   $("#dayLabel").textContent = `Day ${state.day}/30`;
   $("#timeLabel").textContent =
@@ -554,6 +599,7 @@ function updateHUD() {
   renderTrophyShelf();
   renderDecisionTraining();
   renderLifePractice();
+  updateProjectTrajectories();
 }
 
 function renderDecisionTraining() {
@@ -1981,7 +2027,7 @@ function init3D() {
   animate();
   if (isBedtime(state.hour) && !state.nightSocial) setTimeout(openBedtimeGate, 0);
   if ("serviceWorker" in navigator)
-    navigator.serviceWorker.register("./sw.js?release=20260901-v26", { updateViaCache: "none" }).catch(() => {});
+     navigator.serviceWorker.register("./sw.js?release=20260901-v27", { updateViaCache: "none" }).catch(() => {});
 }
 function resize() {
   if (!renderer) return;
@@ -2454,6 +2500,7 @@ function openProject(p) {
   const done = state.resolved[p.id] || {};
   const controlledCount = p.missions.filter((_mission, index) => Boolean(done[index])).length;
   $("#projectProgress").innerHTML = `<b>${controlledCount}/${p.missions.length}</b> live management decisions controlled for this stage`;
+  renderProjectTrajectory(p);
   $("#missionList").innerHTML = p.missions
     .map(
       (m, i) =>
@@ -2518,6 +2565,7 @@ function choose(p, i, opt) {
     lesson = currentDecisionPractice?.lesson || buildDecisionLesson(p, mission),
     attemptKey = `${p.id}:${i}`,
     buttons = $$('[data-opt]');
+  const trajectory = applyProjectDecisionImpact(p, evaluation.correct);
   buttons.forEach((button) => {
     button.classList.remove("correct", "wrong");
     if (Number(button.dataset.opt) === opt) button.classList.add(evaluation.correct ? "correct" : "wrong");
@@ -2528,6 +2576,8 @@ function choose(p, i, opt) {
   $("#decisionFeedbackReason").textContent = evaluation.reason;
   $("#decisionConsequence").textContent = evaluation.consequence;
   $("#decisionNextAction").textContent = evaluation.nextAction;
+  $("#decisionTrajectory").textContent = `PROJECT PATH · ${trajectory.label} · ${Math.round(trajectory.momentum)}% momentum`;
+  $("#decisionTrajectory").className = `decision-trajectory ${trajectory.tone}`;
   if (!evaluation.correct) {
     state.training = recordDecisionAttempt(state.training, {
       key: attemptKey,
@@ -2570,10 +2620,13 @@ function completeDecisionReflection(p, i, selectedIndex) {
     }
   });
   if (selectedIndex !== lesson.correctReflectionIndex) {
+    const trajectory = applyProjectDecisionImpact(p, false, -3);
     state.patience = Math.max(0, state.patience - 2);
     $("#decisionFeedbackTitle").textContent = "The choice was right, but the reasoning is not protected yet";
     $("#decisionFeedbackReason").textContent = lesson.riskIfRushed;
     $("#decisionNextAction").textContent = "Try the reflection again: protect evidence, traceability, ownership, and the next check.";
+    $("#decisionTrajectory").textContent = `PROJECT PATH · ${trajectory.label} · ${Math.round(trajectory.momentum)}% momentum`;
+    $("#decisionTrajectory").className = `decision-trajectory ${trajectory.tone}`;
     showThought("A correct answer is not enough. Choose the reason that would still work when the numbers change.", 0, true);
     save();
     return;
@@ -2590,9 +2643,12 @@ function completeDecisionReflection(p, i, selectedIndex) {
   state.resolved[p.id][i] = true;
   state.patience = Math.min(100, state.patience + 4);
   state.fun = Math.min(100, state.fun + 3);
+  const trajectory = trajectoryFor(p);
   $("#decisionFeedbackTitle").textContent = "Decision transferred into a reusable skill";
   $("#decisionFeedbackReason").textContent = lesson.principle;
   $("#decisionNextAction").textContent = "Reflection stored · +20 decision mastery XP";
+  $("#decisionTrajectory").textContent = `PROJECT PATH · ${trajectory.label} · ${Math.round(trajectory.momentum)}% momentum`;
+  $("#decisionTrajectory").className = `decision-trajectory ${trajectory.tone}`;
   visualReaction(p, true);
   save();
   updateHUD();

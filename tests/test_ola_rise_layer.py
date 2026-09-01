@@ -75,8 +75,24 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn('project-sheet-open', script)
         self.assertIn('.project-sheet-open .joystick', css)
         self.assertIn('overscroll-behavior: none;', css)
-        self.assertIn('release=20260901-v26', html)
-        self.assertIn('release=20260901-v26', launcher)
+        self.assertIn('release=20260901-v27', html)
+        self.assertIn('release=20260901-v27', launcher)
+
+    def test_decisions_change_project_trajectory_and_food_court_is_one_tap_at_night(self):
+        game_root = ROOT / "public/ola-rise"
+        html = (game_root / "index.html").read_text(encoding="utf-8")
+        script = (game_root / "game.js").read_text(encoding="utf-8")
+        systems = (game_root / "systems.js").read_text(encoding="utf-8")
+        css = (game_root / "style.css").read_text(encoding="utf-8")
+        self.assertIn('id="projectTrajectory"', html)
+        self.assertIn('id="decisionTrajectory"', html)
+        self.assertIn('class="night-food-actions"', html)
+        self.assertIn('function applyProjectDecisionImpact', script)
+        self.assertIn('function updateProjectTrajectories', script)
+        self.assertIn('state.projectMomentum', script)
+        self.assertIn('runFoodAction(button.dataset.food)', script)
+        self.assertIn('.project-trajectory.rising', css)
+        self.assertIn('.night-food-actions button', css)
 
     def test_3d_game_has_direct_go_to_guidance_for_every_mission(self):
         game_root = ROOT / "public/ola-rise"

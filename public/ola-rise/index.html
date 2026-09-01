@@ -15,7 +15,7 @@
     <meta name="apple-mobile-web-app-title" content="OLA: RISE" />
     <title>OLA: RISE — Memory. Decisions. Projects. Destiny.</title>
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="stylesheet" href="style.css?release=20260901-v26" />
+    <link rel="stylesheet" href="style.css?release=20260901-v27" />
   </head>
   <body>
     <div id="app">
@@ -118,8 +118,7 @@
         </div>
 
         <div class="camera-hint">
-          GO TO = direct 3D travel · Drag to rotate · Pinch to zoom · Tap to
-          walk
+          MOVE = joystick / WASD / arrows · GO TO = direct 3D travel · Drag to rotate · Pinch to zoom
         </div>
 
         <aside id="drawer" class="drawer glass">
@@ -205,6 +204,7 @@
           <p id="projectSource" class="muted"></p>
           <div id="projectMetrics" class="metrics"></div>
           <div id="projectProgress" class="project-progress"></div>
+          <section id="projectTrajectory" class="project-trajectory" aria-live="polite"></section>
           <h3>Management Missions — choose GO TO for every step</h3>
           <div id="missionList"></div>
         </section>
@@ -240,8 +240,9 @@
             <section id="decisionFeedback" class="decision-feedback hidden" role="status">
               <div><small id="decisionCalibration"></small><b id="decisionFeedbackTitle"></b></div>
               <p id="decisionFeedbackReason"></p>
-              <p id="decisionConsequence"></p>
-              <strong id="decisionNextAction"></strong>
+               <p id="decisionConsequence"></p>
+               <div id="decisionTrajectory" class="decision-trajectory" role="status"></div>
+               <strong id="decisionNextAction"></strong>
             </section>
             <section id="decisionReflection" class="decision-reflection hidden">
               <small>LOCK THE LEARNING</small>
@@ -300,7 +301,14 @@
           </div>
         </section>
         <section id="nightSocialDock" class="night-social-dock hidden glass">
-          <div><small>NIGHT SOCIAL MODE · 21:00</small><b>FOOD COURT</b><span>Management fields are closed. Food and conversations only.</span></div>
+          <div class="night-social-copy"><small>NIGHT SOCIAL MODE · 21:00</small><b>FOOD COURT</b><span>Management fields are closed. Food and conversations only.</span></div>
+          <div class="night-food-actions" aria-label="Food Court quick actions">
+            <button data-food="pizza" aria-label="Order pizza">🍕</button>
+            <button data-food="burger" aria-label="Order burger">🍔</button>
+            <button data-food="tameez" aria-label="Order tameez">🫓</button>
+            <button data-food="shaabiyat" aria-label="Order shaabiyat">🍲</button>
+            <button data-food="karak" aria-label="Order karak tea">🫖</button>
+          </div>
           <button id="nightSleepNow" class="primary">BED TIME →</button>
         </section>
       </section>
@@ -341,6 +349,6 @@
         </div>
       </section>
     </div>
-    <script type="module" src="game.js?release=20260901-v26"></script>
+    <script type="module" src="game.js?release=20260901-v27"></script>
   </body>
 </html>

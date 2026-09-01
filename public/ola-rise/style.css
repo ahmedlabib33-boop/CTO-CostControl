@@ -1121,6 +1121,30 @@ body[data-time-phase="night"] #game::before {
   font-size: 11px;
 }
 .project-progress b { color: #67ed9f; font-size: 14px; }
+.project-trajectory {
+  margin: 9px 0 10px;
+  padding: 11px 12px;
+  border: 1px solid rgba(115, 201, 255, .28);
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(16, 54, 77, .48), rgba(13, 27, 45, .62));
+}
+.trajectory-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.trajectory-head span { display: flex; flex-direction: column; gap: 2px; }
+.trajectory-head small { color: #a5cde1; font-size: 9px; letter-spacing: .12em; font-weight: 900; }
+.trajectory-head b { color: #73c9ff; font-size: 17px; letter-spacing: .06em; }
+.trajectory-head strong { font-size: 19px; color: #f4fbff; }
+.trajectory-track { height: 7px; margin: 8px 0 6px; border-radius: 99px; background: rgba(255,255,255,.1); overflow: hidden; }
+.trajectory-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #4f9bc7, #73c9ff); transition: width .35s ease, background .35s ease; }
+.project-trajectory p { margin: 0; color: #c7d9e4; font-size: 11px; line-height: 1.4; }
+.project-trajectory.rising { border-color: rgba(88,242,155,.45); }
+.project-trajectory.rising .trajectory-head b { color: #58f29b; }
+.project-trajectory.rising .trajectory-track i { background: linear-gradient(90deg,#41b779,#58f29b); }
+.project-trajectory.recovering { border-color: rgba(255,192,79,.45); }
+.project-trajectory.recovering .trajectory-head b { color: #ffc04f; }
+.project-trajectory.recovering .trajectory-track i { background: linear-gradient(90deg,#cc8736,#ffc04f); }
+.project-trajectory.risk { border-color: rgba(255,85,102,.48); }
+.project-trajectory.risk .trajectory-head b { color: #ff7b87; }
+.project-trajectory.risk .trajectory-track i { background: linear-gradient(90deg,#bd3e52,#ff6677); }
 .bottom-sheet.compact {
   max-height: 112px;
   overflow: hidden;
@@ -1306,6 +1330,20 @@ body.food-court-arrival::after {
 .decision-feedback b { display: block; margin-top: 3px; font-size: 17px; }
 .decision-feedback p { margin: 8px 0; color: #d4e0e7; line-height: 1.48; }
 .decision-feedback strong { display: block; color: var(--gold); line-height: 1.45; }
+.decision-trajectory {
+  margin: 9px 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border-left: 3px solid #73c9ff;
+  color: #bfe7fa;
+  background: rgba(65, 139, 180, .13);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: .06em;
+}
+.decision-trajectory.rising { border-color: #58f29b; color: #8af7bb; background: rgba(64, 177, 112, .13); }
+.decision-trajectory.recovering { border-color: #ffc04f; color: #ffd98c; background: rgba(205, 135, 54, .13); }
+.decision-trajectory.risk { border-color: #ff6677; color: #ff9ca7; background: rgba(189, 62, 82, .13); }
 .decision-reflection { border-color: rgba(240,201,111,.34); }
 .decision-reflection h3 { margin: 6px 0 9px; font-size: 17px; line-height: 1.38; }
 .status {
@@ -1454,10 +1492,14 @@ body.food-court-arrival::after {
   background: linear-gradient(135deg, rgba(77, 49, 30, .9), rgba(14, 45, 61, .94));
 }
 .night-social-dock div { display: flex; flex-direction: column; gap: 2px; }
+.night-social-copy { min-width: 130px; }
 .night-social-dock small { color: var(--gold); font-size: 8px; letter-spacing: .12em; }
 .night-social-dock b { font-size: 16px; }
 .night-social-dock span { color: #c7d4dc; font-size: 10px; }
 .night-social-dock button { white-space: nowrap; }
+.night-food-actions { display: flex; align-items: center; gap: 5px; }
+.night-food-actions button { min-width: 38px; min-height: 38px; padding: 4px; font-size: 18px; border-color: rgba(240,201,111,.42); background: rgba(255,245,221,.08); }
+.night-food-actions button:active { transform: translateY(1px) scale(.96); }
 .night-social-mode .status-strip,
 .night-social-mode .objective,
 .night-social-mode .stage-rail,
@@ -1613,6 +1655,10 @@ body.food-court-arrival::after {
   .camera-hint {
     display: none;
   }
+  .night-social-dock { top: 84px; flex-wrap: wrap; justify-content: center; }
+  .night-social-copy { flex: 1 1 100%; }
+  .night-food-actions { order: 2; flex: 1; justify-content: space-between; }
+  .night-social-dock > #nightSleepNow { order: 3; flex: 1; }
   .metrics {
     grid-template-columns: repeat(2, 1fr);
   }

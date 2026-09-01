@@ -369,6 +369,13 @@ export function sleepUntilMorning(current) {
 }
 
 export function normalizeGameState(saved = {}) {
+  const projectMomentum = {};
+  if (saved.projectMomentum && typeof saved.projectMomentum === "object") {
+    Object.entries(saved.projectMomentum).forEach(([projectId, value]) => {
+      const numeric = Number(value);
+      if (Number.isFinite(numeric)) projectMomentum[projectId] = Math.max(0, Math.min(100, numeric));
+    });
+  }
   return {
     day: Math.max(1, Math.min(30, Number(saved.day) || 1)),
     hour: Number.isFinite(Number(saved.hour)) ? Number(saved.hour) : 8,
@@ -381,6 +388,7 @@ export function normalizeGameState(saved = {}) {
     bonus: Boolean(saved.bonus),
     speed: [0, 1, 2, 4].includes(Number(saved.speed)) ? Number(saved.speed) : 1,
     resolved: saved.resolved && typeof saved.resolved === "object" ? saved.resolved : {},
+    projectMomentum,
     trophies: saved.trophies && typeof saved.trophies === "object" ? saved.trophies : {},
     examAttempts:
       saved.examAttempts && typeof saved.examAttempts === "object"
