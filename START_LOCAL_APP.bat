@@ -1,9 +1,12 @@
 @echo off
-setlocal
+setlocal EnableExtensions DisableDelayedExpansion
+title CTO CostControl - Start Local App
 cd /d "%~dp0"
-if not exist node_modules (
-  echo node_modules not found. Run INSTALL_AND_VERIFY.bat first.
+powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0tools\start_local_app.ps1" -Root "%~dp0."
+set "RESULT=%ERRORLEVEL%"
+if not "%RESULT%"=="0" (
+  echo.
+  echo START_LOCAL_APP stopped with an error.
   pause
-  exit /b 1
 )
-call npm run dev
+exit /b %RESULT%

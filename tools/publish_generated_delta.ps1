@@ -10,6 +10,7 @@ param(
     [switch]$PlanOnly,
     [switch]$MirrorGenerated,
     [switch]$SelfTest,
+    [switch]$PowerShellOnly,
     [ValidateRange(1, 8)][int]$MaxAttempts = 4
 )
 
@@ -20,33 +21,18 @@ $GeneratedPrefix = "public/generated/"
 [Net.ServicePointManager]::DefaultConnectionLimit = 20
 
 function Get-GitBlobSha([string]$Path, [string]$GitPath = "") {
-    if (-not [string]::IsNullOrWhiteSpace($GitPath)) {
-        Push-Location $RepoRoot
-        try {
-            $filteredSha = (& git hash-object "--path=$GitPath" -- $Path).Trim()
-            if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($filteredSha)) {
-                throw "Git could not calculate the normalized blob hash for $GitPath."
-            }
-            return $filteredSha
-        }
-        finally {
-            Pop-Location
-        }
-    }
-    $stream = [IO.File]::OpenRead($Path)
+    # Always hash the exact bytes that will be uploaded. This avoids relying on
+    # git.exe, assumes no line-ending filter, and keeps the verification SHA
+    # identical to the bytes sent to GitHub by the PowerShell API publisher.
+    $bytes = [IO.File]::ReadAllBytes($Path)
     $sha1 = [Security.Cryptography.SHA1]::Create()
     try {
-        $header = [Text.Encoding]::UTF8.GetBytes("blob $($stream.Length)`0")
+        $header = [Text.Encoding]::UTF8.GetBytes("blob $($bytes.Length)`0")
         [void]$sha1.TransformBlock($header, 0, $header.Length, $null, 0)
-        $buffer = New-Object byte[] (1024 * 1024)
-        while (($read = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {
-            [void]$sha1.TransformBlock($buffer, 0, $read, $null, 0)
-        }
-        [void]$sha1.TransformFinalBlock([byte[]]::new(0), 0, 0)
+        [void]$sha1.TransformFinalBlock($bytes, 0, $bytes.Length)
         return (($sha1.Hash | ForEach-Object { $_.ToString("x2") }) -join "")
     }
     finally {
-        $stream.Dispose()
         $sha1.Dispose()
     }
 }
@@ -70,28 +56,6 @@ function Get-DeltaPlan([hashtable]$Local, [hashtable]$Remote) {
     }
     $remoteOnly = @($Remote.Keys | Where-Object { -not $Local.ContainsKey($_) } | Sort-Object)
     return [pscustomobject]@{ Changes = @($changes); Unchanged = $unchanged; RemoteOnly = $remoteOnly }
-}
-
-function Remove-LineEndingFalsePositives($Plan, [hashtable]$Remote, [string]$RemoteHead) {
-    $localHead = (& git -C $RepoRoot rev-parse HEAD).Trim()
-    if ($LASTEXITCODE -ne 0 -or $localHead -ne $RemoteHead) { return $Plan }
-    $confirmed = [System.Collections.Generic.List[object]]::new()
-    $normalizedMatches = 0
-    foreach ($change in @($Plan.Changes)) {
-        $changePath = [string]$change.Path
-        if (-not $Remote.ContainsKey($changePath)) {
-            $confirmed.Add($change)
-            continue
-        }
-        $worktreeStatus = @(& git -C $RepoRoot status --porcelain --untracked-files=all -- $changePath)
-        if ($LASTEXITCODE -ne 0 -or $worktreeStatus.Count) { $confirmed.Add($change) }
-        else { $normalizedMatches++ }
-    }
-    return [pscustomobject]@{
-        Changes = @($confirmed)
-        Unchanged = [int]$Plan.Unchanged + $normalizedMatches
-        RemoteOnly = @($Plan.RemoteOnly)
-    }
 }
 
 if ($SelfTest) {
@@ -196,7 +160,7 @@ function Get-RemoteSnapshot {
 }
 
 function Publish-WithNativeGit([object[]]$Changes, [string[]]$Deletions, [string]$ExpectedRemoteSha) {
-    if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw "Git is required for the safe generated-data publisher." }
+    if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw "Native Git publisher was selected without git.exe." }
     $changePaths = @($Changes | ForEach-Object { [string]$_.Path })
     $deletePaths = @($Deletions | ForEach-Object { [string]$_ })
     $paths = @($changePaths + $deletePaths | Sort-Object -Unique)
@@ -245,7 +209,7 @@ function Publish-WithNativeGit([object[]]$Changes, [string[]]$Deletions, [string
 
         Write-Host "Staging $($changePaths.Count) changed generated file(s) and $($deletePaths.Count) explicitly approved deletion(s)..." -ForegroundColor Cyan
         if ($changePaths.Count) {
-            & git add -- @changePaths
+            & git add -f -- @changePaths
             if ($LASTEXITCODE -ne 0) { throw "Git could not stage the changed generated files." }
         }
         if ($deletePaths.Count) {
@@ -295,6 +259,61 @@ function Publish-WithNativeGit([object[]]$Changes, [string[]]$Deletions, [string
     }
 }
 
+function Publish-WithGitHubApi([object[]]$Changes, [string[]]$Deletions, $Snapshot) {
+    # This path deliberately uses only the GitHub Contents Git Data API. It is
+    # the fallback for laptops without git.exe and never touches local staging
+    # or creates a local commit; the generated files are still compared by the
+    # same Git blob SHA and the branch update is non-forcing (force=false).
+    $changePaths = @($Changes | ForEach-Object { [string]$_.Path })
+    $deletePaths = @($Deletions | ForEach-Object { [string]$_ })
+    if (-not ($changePaths.Count -or $deletePaths.Count)) { return }
+
+    $entries = [System.Collections.Generic.List[object]]::new()
+    $uploadedHashes = @{}
+    foreach ($change in @($Changes)) {
+        $blobSha = [string]$change.Sha
+        if ($Snapshot.Hashes.Contains($blobSha)) {
+            Write-Host "Reusing existing GitHub content for $($change.Path)"
+        }
+        elseif ($uploadedHashes.ContainsKey($blobSha)) {
+            $blobSha = [string]$uploadedHashes[$blobSha]
+        }
+        else {
+            Write-Host "Uploading changed content $($change.Path)" -ForegroundColor Yellow
+            $bytes = [IO.File]::ReadAllBytes([string]$change.File)
+            $blob = Invoke-GitHub "POST" "$api/git/blobs" @{ content = [Convert]::ToBase64String($bytes); encoding = "base64" }
+            $blobSha = [string]$blob.sha
+            if ($blobSha -ne [string]$change.Sha) { throw "GitHub blob verification failed for $($change.Path)." }
+            $uploadedHashes[[string]$change.Sha] = $blobSha
+        }
+        $entries.Add(@{ path = [string]$change.Path; mode = "100644"; type = "blob"; sha = $blobSha })
+    }
+    foreach ($remotePath in @($Deletions)) {
+        $entries.Add(@{ path = [string]$remotePath; mode = "100644"; type = "blob"; sha = $null })
+    }
+
+    $freshRef = Invoke-GitHub "GET" "$api/git/ref/heads/$Branch"
+    if ([string]$freshRef.object.sha -ne [string]$Snapshot.ParentSha) {
+        throw "GitHub main changed while preparing the publish. Nothing was committed; run powershell.bat again."
+    }
+    $newTree = Invoke-GitHub "POST" "$api/git/trees" @{ base_tree = [string]$Snapshot.RootTreeSha; tree = @($entries) }
+    $newCommit = Invoke-GitHub "POST" "$api/git/commits" @{ message = $CommitMessage; tree = [string]$newTree.sha; parents = @([string]$Snapshot.ParentSha) }
+    try {
+        [void](Invoke-GitHub "PATCH" "$api/git/refs/heads/$Branch" @{ sha = [string]$newCommit.sha; force = $false })
+    }
+    catch {
+        $statusCode = 0
+        try { $statusCode = [int]$_.Exception.Response.StatusCode } catch { }
+        if ($statusCode -eq 422) { throw "GitHub main changed before the publish. Nothing was committed; run powershell.bat again." }
+        throw
+    }
+    $verified = Invoke-GitHub "GET" "$api/git/ref/heads/$Branch"
+    if ([string]$verified.object.sha -ne [string]$newCommit.sha) { throw "GitHub commit verification failed." }
+    Write-Host "SUCCESS: GitHub commit $($newCommit.sha)" -ForegroundColor Green
+    Write-Host "Committed exactly $($changePaths.Count) new/changed generated file(s) and $($deletePaths.Count) explicitly approved deletion(s) using the PowerShell API publisher." -ForegroundColor Green
+    return [pscustomobject]@{ commit_sha = [string]$newCommit.sha }
+}
+
 Write-Host "Scanning local public/generated and calculating exact Git blob hashes..." -ForegroundColor Cyan
 $local = @{}
 $files = @(Get-ChildItem -LiteralPath $folder -Recurse -File)
@@ -310,7 +329,6 @@ for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
     Write-Host "Reading latest GitHub main tree (attempt $attempt of $MaxAttempts)..." -ForegroundColor Cyan
     $snapshot = Get-RemoteSnapshot
     $plan = Get-DeltaPlan $local $snapshot.Files
-    $plan = Remove-LineEndingFalsePositives -Plan $plan -Remote $snapshot.Files -RemoteHead $snapshot.ParentSha
     $deletions = @()
     if ($MirrorGenerated) {
         $deletions = @($plan.RemoteOnly)
@@ -358,7 +376,14 @@ for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
         exit 0
     }
 
-    Publish-WithNativeGit -Changes @($plan.Changes) -Deletions @($deletions) -ExpectedRemoteSha $snapshot.ParentSha
+    $gitAvailable = [bool](Get-Command git -ErrorAction SilentlyContinue)
+    if ($gitAvailable -and -not $PowerShellOnly) {
+        Publish-WithNativeGit -Changes @($plan.Changes) -Deletions @($deletions) -ExpectedRemoteSha $snapshot.ParentSha
+    }
+    else {
+        Write-Host "Using the token-only PowerShell GitHub API publisher; git.exe is not required." -ForegroundColor Yellow
+        Publish-WithGitHubApi -Changes @($plan.Changes) -Deletions @($deletions) -Snapshot $snapshot
+    }
     exit 0
 
     $entries = [System.Collections.Generic.List[object]]::new()

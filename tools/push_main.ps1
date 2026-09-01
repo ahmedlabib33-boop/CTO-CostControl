@@ -1,206 +1,263 @@
+[CmdletBinding()]
+param(
+    [string]$Root = "",
+    [string]$Owner = "ahmedlabib33-boop",
+    [string]$Repository = "CTO-CostControl",
+    [string]$Branch = "main",
+    [string]$CommitMessage = "",
+    [switch]$PlanOnly,
+    [switch]$SelfTest,
+    [ValidateRange(1, 8)][int]$MaxAttempts = 4
+)
+
 $ErrorActionPreference = "Stop"
-$Host.UI.RawUI.WindowTitle = "CTO CostControl - Review and Push Main"
+[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+[Net.ServicePointManager]::Expect100Continue = $false
+[Net.ServicePointManager]::DefaultConnectionLimit = 20
 
-$RepoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
-$TokenFilePath = Join-Path $RepoRoot ".runtime\github-token.txt"
-$script:GitHubToken = $env:GITHUB_TOKEN
-if ([string]::IsNullOrWhiteSpace($script:GitHubToken) -and (Test-Path -LiteralPath $TokenFilePath -PathType Leaf)) {
-    $storedToken = (Get-Content -LiteralPath $TokenFilePath -Raw).Trim()
-    if ($storedToken -and $storedToken -ne "PASTE_GITHUB_TOKEN_HERE") { $script:GitHubToken = $storedToken }
+if ([string]::IsNullOrWhiteSpace($Root)) {
+    $Root = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot ".."))
 }
-$OriginalIndex = $env:GIT_INDEX_FILE
-$TempIndex = Join-Path ([IO.Path]::GetTempPath()) ("cto-push-main-index-" + [guid]::NewGuid().ToString("N"))
-$BlockedPattern = '(^|/)(INPUT|Old workbooks)(/|$)|\.(xlsx|xlsm|xlsb|xls|otf|xsf|xdf)$|(^|/)\.env($|\.)|\.(pem|pfx|p12|key)$'
+$Root = [IO.Path]::GetFullPath($Root)
 
-function Write-Title([string]$Text) {
-    Write-Host ""
-    Write-Host ("=" * 78) -ForegroundColor DarkCyan
-    Write-Host $Text -ForegroundColor Cyan
-    Write-Host ("=" * 78) -ForegroundColor DarkCyan
-}
+# These are intentionally local-only. Generated JSON is published by
+# powershell.bat, while source workbooks and pasted credentials never belong
+# in the application commit.
+$ExcludedDirectoryPattern = '(^|/)(\.git|\.next|node_modules|\.runtime|\.tmp|__pycache__|\.pytest_cache|logs|INPUT|Old workbooks|public/generated|samples)(/|$)'
+$ExcludedFilePattern = '(^|/)(Clean_Vercel|CrUp_JSON|powershell|push_main)\.bat$|(^|/)\.env($|\.)|\.(xlsx|xlsm|xlsb|xls|otf|xsf|xdf|pem|pfx|p12|key|tsbuildinfo)$'
 
-function Run-Git {
-    param([Parameter(Mandatory=$true)][string[]]$Arguments, [switch]$Network)
-    $prefix = @()
-    if ($Network -and -not [string]::IsNullOrWhiteSpace($script:GitHubToken)) {
-        $prefix = @("-c", "http.extraHeader=Authorization: Bearer $($script:GitHubToken)")
+function Get-NormalizedRelativePath([string]$FullPath) {
+    $rootPrefix = $Root.TrimEnd('\') + '\'
+    $relative = if ($FullPath.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+        $FullPath.Substring($rootPrefix.Length)
     }
-    # Keep stderr separate so harmless Git warnings can never be mistaken for
-    # filenames while a preview is being assembled.
-    $stderrFile = [IO.Path]::GetTempFileName()
-    $previousPreference = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
+    else {
+        throw "File is outside the repository root: $FullPath"
+    }
+    return ($relative -replace '\\', '/')
+}
+
+function Is-PublishablePath([string]$Path) {
+    $normalized = $Path -replace '\\', '/'
+    return ($normalized -notmatch $ExcludedDirectoryPattern -and $normalized -notmatch $ExcludedFilePattern)
+}
+
+function Get-GitBlobSha([byte[]]$Bytes) {
+    $sha1 = [Security.Cryptography.SHA1]::Create()
     try {
-        $output = & git @prefix @Arguments 2> $stderrFile
-        $exitCode = $LASTEXITCODE
-        $errorOutput = if (Test-Path -LiteralPath $stderrFile) { @(Get-Content -LiteralPath $stderrFile -ErrorAction SilentlyContinue) } else { @() }
+        $header = [Text.Encoding]::UTF8.GetBytes("blob $($Bytes.Length)`0")
+        [void]$sha1.TransformBlock($header, 0, $header.Length, $null, 0)
+        [void]$sha1.TransformFinalBlock($Bytes, 0, $Bytes.Length)
+        return (($sha1.Hash | ForEach-Object { $_.ToString("x2") }) -join "")
     }
     finally {
-        $ErrorActionPreference = $previousPreference
-        Remove-Item -LiteralPath $stderrFile -Force -ErrorAction SilentlyContinue
+        $sha1.Dispose()
     }
-    if ($exitCode -ne 0) {
-        $details = @($output) + @($errorOutput)
-        throw "git $($Arguments -join ' ') failed:`n$($details -join [Environment]::NewLine)"
-    }
-    return @($output)
 }
 
-function Get-CandidatePaths {
-    return @(Run-Git @("diff", "--cached", "origin/main", "--name-only", "--diff-filter=ACDMRTUXB", "--") | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+function Get-LocalSnapshot {
+    $files = @{}
+    Get-ChildItem -LiteralPath $Root -Recurse -Force -File -ErrorAction Stop |
+        ForEach-Object {
+            $relative = Get-NormalizedRelativePath $_.FullName
+            if (-not (Is-PublishablePath $relative)) { return }
+            $bytes = [IO.File]::ReadAllBytes($_.FullName)
+            $files[$relative] = [pscustomobject]@{
+                Path = $relative
+                File = $_.FullName
+                Bytes = $bytes
+                Sha = Get-GitBlobSha $bytes
+            }
+        }
+    return $files
 }
 
-function Show-Preview {
-    param([string]$Heading)
-    Write-Title $Heading
-    $status = @(Run-Git @("diff", "--cached", "origin/main", "--name-status", "--"))
-    $stat = @(Run-Git @("diff", "--cached", "origin/main", "--stat", "--"))
-    if ($status.Count -eq 0) {
-        Write-Host "No files selected." -ForegroundColor Yellow
-        return
+function Get-DeltaPlan([hashtable]$Local, [hashtable]$Remote) {
+    $changes = [System.Collections.Generic.List[object]]::new()
+    foreach ($path in @($Local.Keys | Sort-Object)) {
+        $remoteSha = if ($Remote.ContainsKey($path)) { [string]$Remote[$path].Sha } else { "" }
+        if ($remoteSha -ne [string]$Local[$path].Sha) {
+            $changes.Add([pscustomobject]@{
+                Path = $path
+                Kind = if ($remoteSha) { "UPDATE" } else { "NEW" }
+                Sha = [string]$Local[$path].Sha
+                File = $Local[$path].File
+                Bytes = $Local[$path].Bytes
+            })
+        }
     }
-    $status | ForEach-Object { Write-Host $_ -ForegroundColor White }
-    Write-Host ""
-    $stat | ForEach-Object { Write-Host $_ -ForegroundColor DarkGray }
+    return @($changes)
+}
+
+if ($SelfTest) {
+    $sample = [Text.Encoding]::ASCII.GetBytes("hello`n")
+    if ((Get-GitBlobSha $sample) -ne "ce013625030ba8dba906f756967f9e9ca394464a") { throw "Git blob hashing self-test failed." }
+    if (Is-PublishablePath "public/generated/projects/a.json") { throw "Generated exclusion self-test failed." }
+    if (Is-PublishablePath "CrUp_JSON.bat") { throw "Credential BAT exclusion self-test failed." }
+    if (-not (Is-PublishablePath "public/ola-rise/game.js")) { throw "Game-layer inclusion self-test failed." }
+    Write-Host "PUSH-MAIN SELF-TEST PASS" -ForegroundColor Green
+    exit 0
+}
+
+$token = $env:GITHUB_TOKEN
+if ([string]::IsNullOrWhiteSpace($token)) {
+    $tokenFilePath = Join-Path $Root ".runtime\github-token.txt"
+    if (Test-Path -LiteralPath $tokenFilePath -PathType Leaf) {
+        $stored = (Get-Content -LiteralPath $tokenFilePath -Raw).Trim()
+        if ($stored -and $stored -ne "PASTE_GITHUB_TOKEN_HERE") { $token = $stored }
+    }
+}
+if (-not $PlanOnly -and [string]::IsNullOrWhiteSpace($token)) {
+    $secureToken = Read-Host "Paste GitHub token (input is hidden)" -AsSecureString
+    $pointer = [IntPtr]::Zero
+    try {
+        $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secureToken)
+        $token = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer)
+    }
+    finally {
+        if ($pointer -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer) }
+    }
+}
+if (-not $PlanOnly -and [string]::IsNullOrWhiteSpace($token)) { throw "No GitHub token was provided. Nothing was published." }
+
+$headers = @{
+    Accept = "application/vnd.github+json"
+    "X-GitHub-Api-Version" = "2022-11-28"
+    "User-Agent" = "CTO-CostControl-Main-Publisher"
+}
+if ($token) { $headers.Authorization = "Bearer $token" }
+$api = "https://api.github.com/repos/$Owner/$Repository"
+
+function Invoke-GitHub([string]$Method, [string]$Uri, $Body = $null) {
+    $arguments = @{ Method = $Method; Headers = $headers; Uri = $Uri; TimeoutSec = 120 }
+    if ($null -ne $Body) {
+        $arguments.ContentType = "application/json"
+        $arguments.Body = ($Body | ConvertTo-Json -Depth 20 -Compress)
+    }
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try { return Invoke-RestMethod @arguments }
+        catch {
+            $caught = $_
+            $status = 0
+            try { $status = [int]$caught.Exception.Response.StatusCode } catch { }
+            if ($status -eq 401) { throw "GitHub rejected the token (401). Use a token with repository Contents read/write permission." }
+            if ($status -eq 403) { throw "GitHub refused repository access (403). Check token permissions and repository access." }
+            $retryable = $status -eq 0 -or $status -in @(408, 429, 500, 502, 503, 504)
+            if ($retryable -and $attempt -lt $MaxAttempts) {
+                $delay = [Math]::Min(8, [Math]::Pow(2, $attempt - 1))
+                Write-Host "Temporary GitHub connection failure; retrying in $delay second(s)..." -ForegroundColor Yellow
+                Start-Sleep -Seconds $delay
+                continue
+            }
+            throw $caught
+        }
+    }
+}
+
+function Get-RemoteSnapshot {
+    $ref = Invoke-GitHub GET "$api/git/ref/heads/$Branch"
+    $parentSha = [string]$ref.object.sha
+    $commit = Invoke-GitHub GET "$api/git/commits/$parentSha"
+    $tree = Invoke-GitHub GET "$api/git/trees/$([string]$commit.tree.sha)?recursive=1"
+    if ($tree.truncated) { throw "GitHub returned a truncated repository tree. Publishing stopped safely." }
+    $remote = @{}
+    foreach ($entry in $tree.tree) {
+        if ($entry.type -ne "blob") { continue }
+        $remote[[string]$entry.path] = [pscustomobject]@{ Sha = [string]$entry.sha; Mode = [string]$entry.mode }
+    }
+    return [pscustomobject]@{ ParentSha = $parentSha; TreeSha = [string]$commit.tree.sha; Files = $remote }
 }
 
 try {
-    Clear-Host
-    Write-Title "CTO COSTCONTROL - REVIEW, COMMIT, AND PUSH TO GITHUB MAIN"
-    Write-Host "This tool compares the current folder directly with GitHub origin/main." -ForegroundColor Gray
-    Write-Host "It does not alter your normal Git index or switch your working branch." -ForegroundColor Gray
-    Write-Host "Nothing is committed or pushed until you type: PUSH MAIN" -ForegroundColor Yellow
-    Write-Host "INPUT, Old workbooks, Excel/SAP source files, .env, and private keys are blocked." -ForegroundColor Yellow
+    Set-Location -LiteralPath $Root
+    Write-Host "CTO COSTCONTROL - REVIEW AND PUSH APPLICATION CHANGES" -ForegroundColor Cyan
+    Write-Host "Git executable is not required. This compares local source with GitHub $Branch through the API." -ForegroundColor Gray
+    Write-Host "Excluded: generated JSON, INPUT/source workbooks, caches, secrets, and token-bearing manual BAT files." -ForegroundColor Yellow
 
-    Set-Location -LiteralPath $RepoRoot
-    if (-not (Get-Command git -ErrorAction SilentlyContinue)) { throw "Git is not installed or is not available in PATH." }
-    $inside = ((Run-Git @("rev-parse", "--is-inside-work-tree")) -join "").Trim()
-    if ($inside -ne "true") { throw "$RepoRoot is not a Git repository." }
-    $remote = ((Run-Git @("remote", "get-url", "origin")) -join "").Trim()
-    Write-Host ""
-    Write-Host "Repository: $RepoRoot" -ForegroundColor DarkGray
-    Write-Host "Remote:     $remote" -ForegroundColor DarkGray
-    Write-Host "Target:     origin/main" -ForegroundColor DarkGray
+    $local = Get-LocalSnapshot
+    $remoteSnapshot = Get-RemoteSnapshot
+    $changes = @(Get-DeltaPlan $local $remoteSnapshot.Files)
 
-    if (Test-Path -LiteralPath $TempIndex) { Remove-Item -LiteralPath $TempIndex -Force }
-
-    Write-Host ""
-    Write-Host "Reading the current GitHub main branch..." -ForegroundColor Cyan
-    # The repository is public, so preview/fetch must still work if a stale token
-    # happens to exist in the environment. The token is reserved for the push.
-    Run-Git @("fetch", "--quiet", "origin", "main") | Out-Null
-
-    # Candidate paths come only from the user's real working-tree changes.
-    # Remote-only files are therefore preserved even when the local branch is behind.
-    $trackedChanges = @(Run-Git @("diff", "--name-only", "HEAD", "--"))
-    $untrackedChanges = @(Run-Git @("ls-files", "--others", "--exclude-standard"))
-    $allPaths = @($trackedChanges + $untrackedChanges | Where-Object { -not [string]::IsNullOrWhiteSpace($_) } | Select-Object -Unique)
-    $blocked = @($allPaths | Where-Object { ($_ -replace '\\','/') -match $BlockedPattern })
-    $allowedPaths = @($allPaths | Where-Object { $blocked -notcontains $_ })
-
-    $env:GIT_INDEX_FILE = $TempIndex
-    Run-Git @("read-tree", "origin/main") | Out-Null
-    if ($blocked.Count -gt 0) {
-        Write-Title "BLOCKED LOCAL-ONLY FILES - THESE WILL NOT BE UPLOADED"
-        $blocked | ForEach-Object { Write-Host "BLOCKED  $_" -ForegroundColor Yellow }
-    }
-    if ($allowedPaths.Count -gt 0) { Run-Git (@("add", "-A", "--") + $allowedPaths) | Out-Null }
-
-    $candidates = @(Get-CandidatePaths)
-    if ($candidates.Count -eq 0) {
-        Write-Host ""
-        Write-Host "Nothing is different from GitHub origin/main after safety exclusions." -ForegroundColor Green
+    Write-Host "Local publishable files: $($local.Count)" -ForegroundColor DarkGray
+    Write-Host "New or changed application files: $($changes.Count)" -ForegroundColor DarkGray
+    if ($changes.Count -eq 0) {
+        Write-Host "Nothing is different from GitHub main. Nothing was committed or pushed." -ForegroundColor Green
         exit 0
     }
 
-    Show-Preview "AVAILABLE CHANGES COMPARED WITH GITHUB MAIN"
     Write-Host ""
-    for ($i = 0; $i -lt $candidates.Count; $i++) {
-        Write-Host ("{0,3} - {1}" -f ($i + 1), $candidates[$i]) -ForegroundColor Gray
+    Write-Host "EXACT FILES AVAILABLE FOR COMMIT" -ForegroundColor Cyan
+    for ($i = 0; $i -lt $changes.Count; $i++) {
+        Write-Host ("{0,3} - {1} {2}" -f ($i + 1), $changes[$i].Kind, $changes[$i].Path) -ForegroundColor White
     }
-
     Write-Host ""
-    Write-Host "A = include every listed change" -ForegroundColor Cyan
+    Write-Host "A = include every listed application change" -ForegroundColor Cyan
     Write-Host "S = select file numbers" -ForegroundColor Cyan
     Write-Host "Q = exit without changing GitHub" -ForegroundColor Cyan
     $choice = (Read-Host "Choose").Trim().ToUpperInvariant()
     if ($choice -eq "Q") { Write-Host "Cancelled. Nothing was committed or pushed." -ForegroundColor Yellow; exit 0 }
-
     if ($choice -eq "S") {
-        $raw = Read-Host "Enter numbers separated by commas, for example 1,3,7"
+        $raw = Read-Host "Enter numbers separated by commas"
         $indexes = @($raw -split ',' | ForEach-Object {
             $number = 0
-            if (-not [int]::TryParse($_.Trim(), [ref]$number) -or $number -lt 1 -or $number -gt $candidates.Count) {
-                throw "Invalid selection: $_"
-            }
+            if (-not [int]::TryParse($_.Trim(), [ref]$number) -or $number -lt 1 -or $number -gt $changes.Count) { throw "Invalid selection: $_" }
             $number - 1
         } | Select-Object -Unique)
-        $selected = @($indexes | ForEach-Object { $candidates[$_] })
-        Run-Git @("read-tree", "origin/main") | Out-Null
-        Run-Git (@("add", "-A", "--") + $selected) | Out-Null
-    } elseif ($choice -ne "A") {
+        $changes = @($indexes | ForEach-Object { $changes[$_] })
+    }
+    elseif ($choice -ne "A") {
         throw "Invalid choice. Use A, S, or Q."
     }
-
-    $selectedPaths = @(Get-CandidatePaths)
-    if ($selectedPaths.Count -eq 0) { throw "No files are selected for the commit." }
-    Show-Preview "EXACT COMMIT CONTENT - THIS IS WHAT WILL REACH GITHUB"
-
-    $defaultMessage = "chore: update CTO CostControl main"
-    $message = Read-Host "Commit message [$defaultMessage]"
-    if ([string]::IsNullOrWhiteSpace($message)) { $message = $defaultMessage }
+    if ($changes.Count -eq 0) { throw "No files selected for the commit." }
 
     Write-Host ""
-    Write-Host "Target branch: GitHub origin/main" -ForegroundColor Yellow
-    Write-Host "Commit message: $message" -ForegroundColor Yellow
-    Write-Host "Files: $($selectedPaths.Count)" -ForegroundColor Yellow
+    Write-Host "SELECTED COMMIT CONTENT" -ForegroundColor Cyan
+    $changes | ForEach-Object { Write-Host ("{0} {1}" -f $_.Kind, $_.Path) }
+    if ([string]::IsNullOrWhiteSpace($CommitMessage)) {
+        $CommitMessage = Read-Host "Commit message [feat: publish application changes]"
+        if ([string]::IsNullOrWhiteSpace($CommitMessage)) { $CommitMessage = "feat: publish application changes" }
+    }
+    if ($PlanOnly) {
+        Write-Host "PLAN ONLY: GitHub was not changed." -ForegroundColor Yellow
+        exit 0
+    }
+
     $approval = Read-Host "Type PUSH MAIN exactly to commit and push"
     if ($approval -cne "PUSH MAIN") {
         Write-Host "Approval not received. Nothing was committed or pushed." -ForegroundColor Yellow
         exit 0
     }
 
-    $userName = ((& git config user.name 2>$null) -join "").Trim()
-    $userEmail = ((& git config user.email 2>$null) -join "").Trim()
-    if ([string]::IsNullOrWhiteSpace($userName)) {
-        $userName = (Read-Host "Git author name").Trim()
-        if ([string]::IsNullOrWhiteSpace($userName)) { throw "Git author name is required." }
-        Run-Git @("config", "user.name", $userName) | Out-Null
-    }
-    if ([string]::IsNullOrWhiteSpace($userEmail)) {
-        $userEmail = (Read-Host "Git author email").Trim()
-        if ([string]::IsNullOrWhiteSpace($userEmail)) { throw "Git author email is required." }
-        Run-Git @("config", "user.email", $userEmail) | Out-Null
+    # Re-read the branch before writing so a concurrent push cannot be overwritten.
+    $freshRef = Invoke-GitHub GET "$api/git/ref/heads/$Branch"
+    if ([string]$freshRef.object.sha -ne $remoteSnapshot.ParentSha) {
+        throw "GitHub main changed while this preview was open. Refresh and review again; nothing was pushed."
     }
 
-    $tree = ((Run-Git @("write-tree")) -join "").Trim()
-    $parent = ((Run-Git @("rev-parse", "origin/main")) -join "").Trim()
-    $commit = ((Run-Git @("commit-tree", $tree, "-p", $parent, "-m", $message)) -join "").Trim()
+    $treeEntries = @()
+    foreach ($change in $changes) {
+        $blob = Invoke-GitHub POST "$api/git/blobs" @{ content = [Convert]::ToBase64String([byte[]]$change.Bytes); encoding = "base64" }
+        if ([string]$blob.sha -ne [string]$change.Sha) { throw "GitHub blob verification failed for $($change.Path)." }
+        $treeEntries += @{ path = [string]$change.Path; mode = "100644"; type = "blob"; sha = [string]$blob.sha }
+        Write-Host "Uploaded $($change.Path)" -ForegroundColor DarkGray
+    }
+    $tree = Invoke-GitHub POST "$api/git/trees" @{ base_tree = $remoteSnapshot.TreeSha; tree = $treeEntries }
+    $newCommit = Invoke-GitHub POST "$api/git/commits" @{ message = $CommitMessage; tree = [string]$tree.sha; parents = @($remoteSnapshot.ParentSha) }
+    [void](Invoke-GitHub PATCH "$api/git/refs/heads/$Branch" @{ sha = [string]$newCommit.sha; force = $false })
+    $verifiedRef = Invoke-GitHub GET "$api/git/ref/heads/$Branch"
+    if ([string]$verifiedRef.object.sha -ne [string]$newCommit.sha) { throw "GitHub ref verification failed." }
 
     Write-Host ""
-    Write-Host "Pushing approved commit to GitHub main..." -ForegroundColor Cyan
-    Run-Git @("push", "origin", "${commit}:refs/heads/main") -Network | ForEach-Object { Write-Host $_ }
-
-    $remoteLine = ((Run-Git @("ls-remote", "origin", "refs/heads/main") -Network) -join "`n").Trim()
-    $remoteCommit = ($remoteLine -split '\s+')[0]
-    if ($remoteCommit -ne $commit) {
-        throw "GitHub verification failed. Expected $commit but origin/main reports $remoteCommit."
-    }
-
-    Write-Title "VERIFIED SUCCESS"
-    Write-Host "GitHub origin/main now contains the approved commit." -ForegroundColor Green
-    Write-Host "Commit: $commit" -ForegroundColor Green
-    Write-Host "Files committed: $($selectedPaths.Count)" -ForegroundColor Green
-    Write-Host "The normal working tree and normal Git index were not changed by this tool." -ForegroundColor Gray
+    Write-Host "VERIFIED SUCCESS" -ForegroundColor Green
+    Write-Host "Commit: $([string]$newCommit.sha)" -ForegroundColor Green
+    Write-Host "Files published: $($changes.Count)" -ForegroundColor Green
+    Write-Host "Vercel will build from GitHub main if its project is connected to this branch." -ForegroundColor Cyan
 }
 catch {
-    Write-Title "STOPPED - NOTHING ELSE WILL BE PUSHED"
-    Write-Host $_.Exception.Message -ForegroundColor Red
-    Write-Host "If the push step had already started, check the VERIFIED SUCCESS section; only that section confirms GitHub." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "STOPPED: $($_.Exception.Message)" -ForegroundColor Red
+    exit 1
 }
 finally {
-    if ([string]::IsNullOrEmpty($OriginalIndex)) { Remove-Item Env:GIT_INDEX_FILE -ErrorAction SilentlyContinue } else { $env:GIT_INDEX_FILE = $OriginalIndex }
-    if (Test-Path -LiteralPath $TempIndex) { Remove-Item -LiteralPath $TempIndex -Force -ErrorAction SilentlyContinue }
-    Write-Host ""
-    Write-Host "You may close this PowerShell window when finished." -ForegroundColor DarkGray
+    $token = $null
 }

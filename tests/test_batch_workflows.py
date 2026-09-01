@@ -144,12 +144,56 @@ class BatchWorkflowTests(unittest.TestCase):
     def test_wrappers_fail_loudly_and_return_child_exit_codes(self):
         powershell = (ROOT / "powershell.bat").read_text(encoding="utf-8")
         crup = (ROOT / "CrUp_JSON.bat").read_text(encoding="utf-8")
+        clean = (ROOT / "Clean_Vercel.bat").read_text(encoding="utf-8")
+        for name, wrapper in (("Clean_Vercel.bat", clean), ("CrUp_JSON.bat", crup), ("powershell.bat", powershell)):
+            self.assertTrue('set "MANUAL_GITHUB_TOKEN=' in wrapper, f"{name} is missing the manual token variable")
+            self.assertIn('never commit or share this BAT', wrapper, f"{name} is missing the token safety warning")
         self.assertIn("setlocal EnableExtensions DisableDelayedExpansion", powershell)
         self.assertIn("-MaxAttempts 6", powershell)
+        self.assertIn("-PowerShellOnly", powershell)
         self.assertIn("exit /b %RESULT%", powershell)
         self.assertIn("where python", crup)
         self.assertIn("python -u $helper", crup)
         self.assertIn("No success confirmation was issued for this source.", crup)
+        self.assertIn("-PowerShellOnly", clean)
+
+    def test_powershell_only_publisher_has_no_git_requirement(self):
+        script = (ROOT / "tools" / "publish_generated_delta.ps1").read_text(encoding="utf-8")
+        self.assertIn("PowerShellOnly", script)
+        self.assertIn("Publish-WithGitHubApi", script)
+        self.assertIn("git.exe is not required", script)
+        self.assertIn("Always hash the exact bytes that will be uploaded", script)
+        self.assertNotIn("Git is required for the safe generated-data publisher", script)
+
+    def test_push_main_uses_password_and_token_only_github_api(self):
+        wrapper = (ROOT / "push_main.bat").read_text(encoding="utf-8")
+        script = (ROOT / "tools" / "push_main.ps1").read_text(encoding="utf-8")
+        self.assertIn("require_manual_bat_password.ps1", wrapper)
+        self.assertIn('set "MANUAL_GITHUB_TOKEN=PASTE_GITHUB_TOKEN_HERE"', wrapper)
+        self.assertIn('set "GITHUB_TOKEN=%MANUAL_GITHUB_TOKEN%"', wrapper)
+        self.assertIn("never commit or share this BAT", wrapper)
+        self.assertIn("Get-RemoteSnapshot", script)
+        self.assertIn("Get-GitBlobSha", script)
+        self.assertIn("Get-DeltaPlan", script)
+        self.assertIn("public/generated", script)
+        self.assertIn("public/ola-rise/game.js", script)
+        self.assertIn("token-bearing manual BAT files", script)
+        self.assertIn("force = $false", script)
+        self.assertIn("Type PUSH MAIN exactly", script)
+        self.assertNotIn("Get-Command git", script)
+        self.assertNotIn("& git", script)
+
+    def test_start_local_app_supports_urls_and_ctrl_c_refresh(self):
+        wrapper = (ROOT / "START_LOCAL_APP.bat").read_text(encoding="utf-8")
+        script = (ROOT / "tools" / "start_local_app.ps1").read_text(encoding="utf-8")
+        self.assertIn("tools\\start_local_app.ps1", wrapper)
+        self.assertIn("ConsoleCancelEventHandler", script)
+        self.assertIn("Y = exit, N = keep/restart, R = refresh connection and restart", script)
+        self.assertIn(".next\\cache", script)
+        self.assertIn("/api/health?refresh=", script)
+        self.assertIn("Local URL:", script)
+        self.assertIn("Same-network URL:", script)
+        self.assertIn("Public Vercel URL:", script)
 
 
 if __name__ == "__main__":
