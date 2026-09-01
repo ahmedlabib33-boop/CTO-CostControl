@@ -1,5 +1,36 @@
 {
   "schema_version": 1,
-  "projects": [],
-  "updated_at": "2026-09-01T23:11:56.380264+00:00"
+  "projects": [
+    {
+      "internal_project_id": "gloria-hospital",
+      "identity_creation_source": "metadata_sheet",
+      "identity_history": [],
+      "created_at": "2026-09-01T23:33:28.795414+00:00",
+      "project_sap_id": "SAP_001",
+      "project_code": "GLR01",
+      "project_name": "Gloria Hospital",
+      "project_start": "2024-09-12",
+      "project_finish": "2025-10-12",
+      "project_finish_eot": "2026-07-15",
+      "effective_project_finish": "2026-07-15",
+      "latest_processed_reporting_period": "2026-06-01_to_2026-06-30",
+      "latest_validated_source_fingerprint": "c40526867b2629a06bb4320321fae6df43a26d47f34542bb869bdbcc535e200d"
+    },
+    {
+      "internal_project_id": "the-big",
+      "identity_creation_source": "metadata_sheet",
+      "identity_history": [],
+      "created_at": "2026-09-01T23:34:14.217238+00:00",
+      "project_sap_id": "SAP_002",
+      "project_code": "BIG01",
+      "project_name": "The BIG",
+      "project_start": "2026-09-11",
+      "project_finish": "2027-04-10",
+      "project_finish_eot": null,
+      "effective_project_finish": "2027-04-10",
+      "latest_processed_reporting_period": "2026-06-01_to_2026-06-30",
+      "latest_validated_source_fingerprint": "5362ab5333c6e524876be3694cde120b2049b8b0b665db37636ca5f32801e803"
+    }
+  ],
+  "updated_at": "2026-09-01T23:34:14.356406+00:00"
 }
