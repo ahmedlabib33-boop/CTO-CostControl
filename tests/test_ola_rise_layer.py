@@ -44,17 +44,19 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn("Memory. Decisions. Projects. Destiny.", html)
         self.assertIn('"short_name":"OLA: RISE"', manifest)
 
-    def test_opening_keeps_continue_and_moves_guide_line_to_layer_two_bubble(self):
+    def test_game_opens_directly_without_pre_game_story_layers(self):
         game_root = ROOT / "public/ola-rise"
         html = (game_root / "index.html").read_text(encoding="utf-8")
         script = (game_root / "game.js").read_text(encoding="utf-8")
-        css = (game_root / "style.css").read_text(encoding="utf-8")
-        self.assertIn('id="storyGuideBubble"', html)
-        self.assertIn('id="storyGuideText"', html)
-        self.assertIn('يا علا… محتاجينك في حوار صغير.', html)
-        self.assertIn('guideBubble.classList.toggle("hidden", storyIndex !== 1)', script)
-        self.assertIn('.story-copy > :not(#storyNext)', css)
-        self.assertIn('.story-guide-bubble', css)
+        self.assertIn('<section id="game" class="screen active">', html)
+        self.assertNotIn('<section id="story"', html)
+        self.assertNotIn('id="storyNext"', html)
+        self.assertIn("function startGameDirectly()", script)
+        self.assertIn("await ensureLiveProjects();", script)
+        self.assertIn("init3D();", script)
+        self.assertIn('id="retryLiveGame"', script)
+        self.assertNotIn("const story = [", script)
+        self.assertNotIn("renderStory()", script)
 
     def test_3d_game_has_direct_go_to_guidance_for_every_mission(self):
         game_root = ROOT / "public/ola-rise"

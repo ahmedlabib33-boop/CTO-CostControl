@@ -18,8 +18,8 @@ import {
   timePhaseFor,
   trainingSummary,
   trophySummary,
-} from "./systems.js?release=20260831-v23";
-import { loadLiveGameProjects } from "./live-data.js?release=20260831-v23";
+} from "./systems.js?release=20260901-v24";
+import { loadLiveGameProjects } from "./live-data.js?release=20260901-v24";
 
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
@@ -31,7 +31,7 @@ const escapeHtml = (value) =>
         character
       ],
   );
-const screens = ["story", "game", "success", "ending", "blackout"];
+const screens = ["game", "success", "ending", "blackout"];
 function show(id) {
   screens.forEach((x) => $("#" + x)?.classList.toggle("active", x === id));
 }
@@ -228,63 +228,6 @@ function setupMusic() {
     if (event.key === "AudioVolumeMute") { event.preventDefault(); setMusicVolume(audio.volume ? 0 : 0.7); }
   });
 }
-
-const story = [
-  {
-    k: "LAYER 1 · BAHRAIN",
-    t: "Childhood",
-    b: "Young Ola enters a place from her childhood. Familiar Bahrain memories are everywhere, with hidden messages about عُلا — elevation, rise and high standing.",
-    d: "",
-  },
-  {
-    k: "LAYER 2 · THE CALLING",
-    t: "The Old Guide",
-    b: "A mysterious good guide appears. He needs Ola to help Egypt put troubled projects back on track.",
-    d: "يا علا… محتاجينك في حوار صغير. صغير يعني… على قد كام مشروع كده واقعين على دماغنا.",
-  },
-  {
-    k: "LAYER 3 · EGYPT",
-    t: "The Projects",
-    b: "The nostalgic world opens into Egypt. The real management challenge begins: cost, forecast, cash, evidence, waste and control.",
-    d: "يلا يا كوتش… ورّينا بقى الشغل اللي الناس بتتكلم عنه.",
-  },
-];
-let storyIndex = 0;
-function renderStory() {
-  const s = story[storyIndex];
-  $("#storyImage").src = `assets/layer_${storyIndex + 1}.jpg`;
-  $("#storyKicker").textContent = s.k;
-  $("#storyTitle").textContent = s.t;
-  $("#storyBody").textContent = s.b;
-  $("#storyDialogue").textContent = s.d;
-  const guideBubble = $("#storyGuideBubble");
-  if (guideBubble) {
-    guideBubble.classList.toggle("hidden", storyIndex !== 1);
-    $("#storyGuideText").textContent = s.d;
-  }
-}
-$("#storyNext").onclick = async () => {
-  if (storyIndex < story.length - 1) {
-    storyIndex++;
-    renderStory();
-  } else {
-    const button = $("#storyNext");
-    button.disabled = true;
-    button.textContent = "Reading the current app snapshot…";
-    try {
-      await ensureLiveProjects();
-      show("game");
-      init3D();
-    } catch (error) {
-      console.error(error);
-      $("#storyKicker").textContent = "LIVE DATA REQUIRED";
-      $("#storyTitle").textContent = "The current game stage could not be built";
-      $("#storyBody").textContent = `${error.message} No older project questions were substituted.`;
-      button.disabled = false;
-      button.textContent = "Retry live reading";
-    }
-  }
-};
 
 const PROJECTS = [
   {
@@ -526,6 +469,35 @@ async function ensureLiveProjects() {
     JSON.parse(localStorage.getItem(stateStorageKey) || "null") || {},
   );
   $("#phaseLabel").textContent = `${PROJECTS.length} live stage${PROJECTS.length === 1 ? "" : "s"} · ${PROJECTS.map((project) => project.period).filter(Boolean).join(" · ")}`;
+}
+
+let directStartPromise = null;
+function renderDirectStartError(error) {
+  const loading = $("#loading");
+  if (!loading) return;
+  loading.classList.remove("hidden");
+  loading.classList.add("loading-error");
+  loading.innerHTML = `
+    <b>Current live game data could not be loaded</b>
+    <small>${escapeHtml(error?.message || "Unknown live-data error")} No older project questions were substituted.</small>
+    <button id="retryLiveGame" class="primary">Retry live reading</button>
+  `;
+  $("#retryLiveGame").onclick = () => startGameDirectly();
+}
+function startGameDirectly() {
+  if (directStartPromise) return directStartPromise;
+  const loading = $("#loading");
+  loading?.classList.remove("loading-error", "hidden");
+  directStartPromise = (async () => {
+    await ensureLiveProjects();
+    show("game");
+    init3D();
+  })().catch((error) => {
+    console.error(error);
+    directStartPromise = null;
+    renderDirectStartError(error);
+  });
+  return directStartPromise;
 }
 
 let state = normalizeGameState({});
@@ -2009,7 +1981,7 @@ function init3D() {
   animate();
   if (isBedtime(state.hour) && !state.nightSocial) setTimeout(openBedtimeGate, 0);
   if ("serviceWorker" in navigator)
-    navigator.serviceWorker.register("./sw.js?release=20260831-v23", { updateViaCache: "none" }).catch(() => {});
+    navigator.serviceWorker.register("./sw.js?release=20260901-v24", { updateViaCache: "none" }).catch(() => {});
 }
 function resize() {
   if (!renderer) return;
@@ -2946,5 +2918,5 @@ $("#restartStory").onclick = () => {
 
 setupMusic();
 renderWellbeingQuote();
-renderStory();
 updateHUD();
+startGameDirectly();
