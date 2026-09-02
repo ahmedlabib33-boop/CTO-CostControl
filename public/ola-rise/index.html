@@ -15,7 +15,7 @@
     <meta name="apple-mobile-web-app-title" content="OLA: RISE" />
     <title>OLA: RISE — Memory. Decisions. Projects. Destiny.</title>
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="stylesheet" href="style.css?release=20260901-v28" />
+    <link rel="stylesheet" href="style.css?release=20260902-v29" />
   </head>
   <body>
     <div id="app">
@@ -37,7 +37,7 @@
             </div>
           </div>
           <div class="campaign-progress" aria-label="Live management progress">
-            <div><small>CONTROLLED</small><b id="campaignProgress">0 / 0</b></div>
+            <div><small>DECISIONS</small><b id="campaignProgress">0 / 0</b></div>
             <i><span id="campaignProgressBar"></span></i>
           </div>
           <div class="clock">
@@ -90,11 +90,6 @@
           <div><small>REVIEW DUE</small><b id="trainingReviewDue">0</b></div>
         </section>
 
-        <div id="thoughtBubble" class="thought-bubble hidden" role="status">
-          <small>ENG. OLA · THINK ABOUT</small>
-          <b id="thoughtText"></b>
-          <i></i><i></i><i></i>
-        </div>
         <div id="actionFx" class="action-fx hidden" aria-live="polite"></div>
         <div id="ambientConversations" class="ambient-conversations" aria-live="polite"></div>
         <button id="wellbeingPrompt" class="wellbeing-prompt hidden" type="button">
@@ -230,15 +225,10 @@
               </div>
               <div id="decisionFramework" class="decision-framework"></div>
             </section>
-            <fieldset id="decisionConfidence" class="decision-confidence">
-              <legend>Before choosing, how confident are you?</legend>
-              <button type="button" data-confidence="1">1 · Unsure</button>
-              <button type="button" data-confidence="2" class="selected">2 · Reasoned</button>
-              <button type="button" data-confidence="3">3 · Certain</button>
-            </fieldset>
             <div id="decisionOptions" class="decision-options"></div>
             <section id="decisionFeedback" class="decision-feedback hidden" role="status">
-              <div><small id="decisionCalibration"></small><b id="decisionFeedbackTitle"></b></div>
+              <div><small id="decisionResultLabel"></small><b id="decisionFeedbackTitle"></b></div>
+              <p id="decisionSelected" class="decision-selected"></p>
               <p id="decisionFeedbackReason"></p>
                <p id="decisionConsequence"></p>
                <div id="decisionTrajectory" class="decision-trajectory" role="status"></div>
@@ -344,11 +334,11 @@
         <div class="final-result-card">
           <div class="final-mark">◆</div>
           <h1 id="labibResult" class="labib-result"></h1>
-          <p id="blackLine" class="arabic"></p>
+          <p id="blackLine"></p>
           <button id="restartStory" class="primary hidden">Play again</button>
         </div>
       </section>
     </div>
-    <script type="module" src="game.js?release=20260901-v28"></script>
+    <script type="module" src="game.js?release=20260902-v29"></script>
   </body>
 </html>

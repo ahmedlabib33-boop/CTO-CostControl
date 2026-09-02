@@ -2,6 +2,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  PROJECT_HEALTH_RULES,
+  applyProjectHealthImpact,
   applySimAction,
   buildDecisionLesson,
   buildLifePractice,
@@ -12,6 +14,7 @@ import {
   findCollisionSafeRoute,
   moodFor,
   normalizeGameState,
+  projectHealthState,
   recordDecisionAttempt,
   trainingSummary,
   projectIsControlled,
@@ -168,13 +171,15 @@ test("every live mission becomes a teach-practice-reflect decision lesson", () =
   assert.match(lesson.sourceBasis, /2026-07-01_to_2026-07-31/);
 });
 
-test("decision evaluation separates correctness, confidence calibration, and reflection", () => {
+test("decision evaluation makes the first choice final and explains its consequence", () => {
   const mission = ["CRITICAL", "Cost Performance", "CPI is 0.84.", "Recover cost performance.", ["Recover cost performance.", "Ignore the variance", "Hide the period"], 0, "July evidence"];
-  const wrong = evaluateDecisionChoice(mission, 1, 3);
+  const wrong = evaluateDecisionChoice(mission, 1);
   assert.equal(wrong.correct, false);
-  assert.equal(wrong.calibration, "overconfident");
+  assert.equal(wrong.selectedIndex, 1);
+  assert.equal(wrong.correctIndex, 0);
+  assert.match(wrong.nextAction, /final/i);
   assert.match(wrong.consequence, /exposure|control/i);
-  const right = evaluateDecisionChoice(mission, 0, 2);
+  const right = evaluateDecisionChoice(mission, 0);
   assert.equal(right.correct, true);
   assert.equal(right.requiresReflection, true);
   assert.match(right.reason, /evidence|controlled/i);
@@ -212,4 +217,34 @@ test("food-court navigation finds a route around building collisions", () => {
   assert.deepEqual(route.at(-1), { x: 10, z: 0 });
   assert.ok(route.some((point) => Math.abs(point.z) > 4));
   assert.ok(route.every((point) => !blocked(point.x, point.z)));
+});
+
+test("project health uses the final decision, reflection, exam, failure, and victory thresholds", () => {
+  assert.equal(PROJECT_HEALTH_RULES.failure, 35);
+  assert.equal(PROJECT_HEALTH_RULES.rising, 65);
+  assert.deepEqual(applyProjectHealthImpact(50, PROJECT_HEALTH_RULES.decisionCorrect).after, 58);
+  assert.deepEqual(applyProjectHealthImpact(50, PROJECT_HEALTH_RULES.decisionWrong).after, 40);
+  assert.deepEqual(applyProjectHealthImpact(40, PROJECT_HEALTH_RULES.reflectionWrong).after, 37);
+  assert.equal(projectHealthState(35).label, "FAILED");
+  assert.equal(projectHealthState(36).label, "OUT OF TRACK");
+  assert.equal(projectHealthState(50).label, "ON TRACK");
+  assert.equal(projectHealthState(65).label, "RISING");
+  assert.equal(projectHealthState(80).label, "THRIVING");
+});
+
+test("saved decision outcomes and legacy campaign state survive normalization", () => {
+  const state = normalizeGameState({
+    projectMomentum: { gloria: 42 },
+    resolved: { gloria: { 0: true } },
+    decisionOutcomes: { gloria: { 0: { correct: false, selectedIndex: 2 } } },
+    failedProjects: { big: { health: 35 } },
+    stageExamResults: { gloria: { score: 2, total: 3 } },
+    gameRulesVersion: 2,
+  });
+  assert.equal(state.projectMomentum.gloria, 42);
+  assert.equal(state.resolved.gloria[0], true);
+  assert.equal(state.decisionOutcomes.gloria[0].selectedIndex, 2);
+  assert.equal(state.failedProjects.big.health, 35);
+  assert.equal(state.stageExamResults.gloria.score, 2);
+  assert.equal(state.gameRulesVersion, 2);
 });

@@ -86,7 +86,7 @@ export default function OlaRiseLayer({ onExit }: { onExit: () => void }) {
     <div id="olaRiseOverlay" role="dialog" aria-modal="true" aria-label="OLA: RISE — Memory. Decisions. Projects. Destiny.">
       <iframe
         className="olaRiseFrame"
-        src="/ola-rise/index.html?release=20260901-v28"
+        src="/ola-rise/index.html?release=20260902-v29"
         title="OLA: RISE — Memory. Decisions. Projects. Destiny."
         allow="fullscreen; gamepad"
       />

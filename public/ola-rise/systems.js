@@ -1,5 +1,41 @@
 export const NEED_KEYS = ["energy", "focus", "patience", "social", "fun"];
 
+export const PROJECT_HEALTH_RULES = Object.freeze({
+  failure: 35,
+  rising: 65,
+  thriving: 80,
+  decisionCorrect: 8,
+  decisionWrong: -10,
+  reflectionCorrect: 3,
+  reflectionWrong: -3,
+  examCorrect: 2,
+  examWrong: -2,
+});
+
+export function projectHealthState(value) {
+  const momentum = Math.max(0, Math.min(100, Number(value) || 0));
+  if (momentum <= PROJECT_HEALTH_RULES.failure) {
+    return { momentum, label: "FAILED", tone: "failing", terminal: true };
+  }
+  if (momentum < 50) {
+    return { momentum, label: "OUT OF TRACK", tone: "risk", terminal: false };
+  }
+  if (momentum < PROJECT_HEALTH_RULES.rising) {
+    return { momentum, label: "ON TRACK", tone: "steady", terminal: false };
+  }
+  if (momentum < PROJECT_HEALTH_RULES.thriving) {
+    return { momentum, label: "RISING", tone: "rising", terminal: false };
+  }
+  return { momentum, label: "THRIVING", tone: "thriving", terminal: false };
+}
+
+export function applyProjectHealthImpact(value, delta) {
+  const before = Math.max(0, Math.min(100, Number(value) || 0));
+  const appliedDelta = Number(delta) || 0;
+  const after = Math.max(0, Math.min(100, before + appliedDelta));
+  return { before, after, delta: after - before, state: projectHealthState(after) };
+}
+
 const clampNeed = (value) => Math.max(0, Math.min(100, Number(value) || 0));
 
 const DECISION_FAMILIES = [
@@ -121,25 +157,24 @@ export function buildDecisionLesson(project, mission) {
   };
 }
 
-export function evaluateDecisionChoice(mission, selectedIndex, confidence = 2) {
+export function evaluateDecisionChoice(mission, selectedIndex) {
   const correctIndex = Number.isInteger(mission?.[5]) ? mission[5] : 0;
-  const selectedConfidence = Math.max(1, Math.min(3, Number(confidence) || 2));
   const correct = Number(selectedIndex) === correctIndex;
   const family = decisionFamilyFor(mission);
-  const calibration = correct
-    ? selectedConfidence === 1 ? "underconfident" : "calibrated"
-    : selectedConfidence === 3 ? "overconfident" : "uncertain";
   return {
     correct,
-    calibration,
     requiresReflection: correct,
+    selectedIndex: Number(selectedIndex),
+    correctIndex,
     reason: correct
       ? `This is controlled because it follows the available evidence and protects the next management control: ${mission?.[3] || mission?.[4]?.[correctIndex] || "validate before acting"}.`
       : `This choice does not resolve the verified condition. Re-read the evidence and test it against the required control: ${mission?.[3] || "validate before acting"}.`,
     consequence: correct
       ? `Benefit: the action keeps the decision traceable and creates a checkable next step. ${family.protect}`
       : `Risk: ${family.consequence}`,
-    nextAction: correct ? "Explain why it is controlled before closing the decision." : "Try again using Observe → Diagnose → Decide → Protect.",
+    nextAction: correct
+      ? "Explain why this control remains safe when the project changes."
+      : "The decision is final. Learn the control principle, then protect the next project decision.",
   };
 }
 
@@ -389,10 +424,27 @@ export function normalizeGameState(saved = {}) {
     speed: [0, 1, 2, 4].includes(Number(saved.speed)) ? Number(saved.speed) : 1,
     resolved: saved.resolved && typeof saved.resolved === "object" ? saved.resolved : {},
     projectMomentum,
+    decisionOutcomes:
+      saved.decisionOutcomes && typeof saved.decisionOutcomes === "object"
+        ? saved.decisionOutcomes
+        : {},
+    failedProjects:
+      saved.failedProjects && typeof saved.failedProjects === "object"
+        ? saved.failedProjects
+        : {},
+    lastDecisionOutcome:
+      saved.lastDecisionOutcome && typeof saved.lastDecisionOutcome === "object"
+        ? saved.lastDecisionOutcome
+        : null,
+    gameRulesVersion: Math.max(1, Number(saved.gameRulesVersion) || 1),
     trophies: saved.trophies && typeof saved.trophies === "object" ? saved.trophies : {},
     examAttempts:
       saved.examAttempts && typeof saved.examAttempts === "object"
         ? saved.examAttempts
+        : {},
+    stageExamResults:
+      saved.stageExamResults && typeof saved.stageExamResults === "object"
+        ? saved.stageExamResults
         : {},
     training: normalizeTrainingState(saved.training),
     coffeeServed: Math.max(0, Number(saved.coffeeServed ?? saved.teaServed) || 0),

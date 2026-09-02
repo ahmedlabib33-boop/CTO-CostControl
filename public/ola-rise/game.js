@@ -1,6 +1,8 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js";
 import {
   NEED_KEYS,
+  PROJECT_HEALTH_RULES,
+  applyProjectHealthImpact,
   applySimAction,
   buildDecisionLesson,
   buildLifePractice,
@@ -11,6 +13,7 @@ import {
   findCollisionSafeRoute,
   moodFor,
   normalizeGameState,
+  projectHealthState,
   projectIsControlled,
   recordDecisionAttempt,
   isBedtime,
@@ -18,11 +21,12 @@ import {
   timePhaseFor,
   trainingSummary,
   trophySummary,
-} from "./systems.js?release=20260901-v28";
-import { loadLiveGameProjects } from "./live-data.js?release=20260901-v28";
+} from "./systems.js?release=20260902-v29";
+import { loadLiveGameProjects } from "./live-data.js?release=20260902-v29";
 
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
+const qaEnabled = new URLSearchParams(location.search).get("qa") === "1";
 const escapeHtml = (value) =>
   String(value ?? "").replace(
     /[&<>'"]/g,
@@ -505,7 +509,6 @@ let state = normalizeGameState({});
 let gameFinished = false,
   gameOutcome = null;
 let currentDecisionPractice = null,
-  selectedDecisionConfidence = 2,
   activeLifePractice = null,
   lastLifePracticeSignature = "";
 function save() {
@@ -517,38 +520,111 @@ function saveWithToast() {
 }
 function ensureProjectMomentum() {
   state.projectMomentum ??= {};
+  state.decisionOutcomes ??= {};
+  state.failedProjects ??= {};
   PROJECTS.forEach((project) => {
-    if (Number.isFinite(Number(state.projectMomentum[project.id]))) return;
     const resolved = state.resolved[project.id] || {};
-    const controlled = project.missions.filter((_mission, index) => Boolean(resolved[index])).length;
-    const ratio = project.missions.length ? controlled / project.missions.length : 0;
+    state.decisionOutcomes[project.id] ??= {};
+    project.missions.forEach((_mission, index) => {
+      if (!resolved[index] || state.decisionOutcomes[project.id][index]) return;
+      state.decisionOutcomes[project.id][index] = {
+        selectedIndex: Number.isInteger(project.missions[index]?.[5]) ? project.missions[index][5] : 0,
+        correct: true,
+        legacy: true,
+        decisionImpact: 0,
+        reflectionCorrect: true,
+        reflectionImpact: 0,
+        reflectionCompleted: true,
+        completedDay: state.day,
+      };
+    });
+    if (Number.isFinite(Number(state.projectMomentum[project.id]))) return;
+    const completed = project.missions.filter((_mission, index) => Boolean(resolved[index])).length;
+    const ratio = project.missions.length ? completed / project.missions.length : 0;
     state.projectMomentum[project.id] = Math.round(50 + ratio * 20);
   });
+  state.gameRulesVersion = 2;
 }
 function trajectoryFor(project) {
   ensureProjectMomentum();
-  const momentum = Math.max(0, Math.min(100, Number(state.projectMomentum[project.id]) || 0));
-  if (momentum >= 72) return { momentum, label: "RISING", tone: "rising", detail: "Controlled decisions are strengthening this project’s path." };
-  if (momentum >= 52) return { momentum, label: "STEADY", tone: "steady", detail: "The project is holding course; keep checking the live evidence." };
-  if (momentum >= 35) return { momentum, label: "RECOVERING", tone: "recovering", detail: "Recovery is possible; protect the next decision and review the open exposure." };
-  if (momentum <= 20) return { momentum, label: "FAILING", tone: "failing", detail: "Repeated uncontrolled decisions have pushed this project into a failing trajectory. Recover the evidence-led control." };
-  return { momentum, label: "AT RISK", tone: "risk", detail: "Uncontrolled choices are weakening the project path; use the evidence-led recovery action." };
+  const base = projectHealthState(state.projectMomentum[project.id]);
+  const detail = {
+    THRIVING: "Strong, evidence-led decisions have moved this project beyond the recovery target.",
+    RISING: "Controlled decisions are lifting this project toward a successful outcome.",
+    "ON TRACK": "The project is stable, but more controlled decisions are required to secure success.",
+    "OUT OF TRACK": "Harmful decisions have pushed this project off track. Recovery is still possible above 35%.",
+    FAILED: "This project crossed the irreversible failure threshold after harmful decisions.",
+  }[base.label];
+  return { ...base, detail };
 }
-function applyProjectDecisionImpact(project, good, amount = null) {
+function applyProjectDecisionImpact(project, delta, context = {}) {
   ensureProjectMomentum();
-  const delta = amount ?? (good ? 8 : -10);
-  state.projectMomentum[project.id] = Math.max(0, Math.min(100, (Number(state.projectMomentum[project.id]) || 50) + delta));
-  return trajectoryFor(project);
+  const impact = applyProjectHealthImpact(state.projectMomentum[project.id] ?? 50, delta);
+  state.projectMomentum[project.id] = impact.after;
+  state.lastDecisionOutcome = {
+    projectId: project.id,
+    missionIndex: Number.isInteger(context.missionIndex) ? context.missionIndex : null,
+    phase: context.phase || "decision",
+    correct: Boolean(context.correct),
+    delta: impact.delta,
+    health: impact.after,
+    at: new Date().toISOString(),
+  };
+  const trajectory = trajectoryFor(project);
+  if (trajectory.terminal && context.armFailure !== false) {
+    state.failedProjects[project.id] = {
+      health: trajectory.momentum,
+      phase: context.phase || "decision",
+      missionIndex: Number.isInteger(context.missionIndex) ? context.missionIndex : null,
+      at: new Date().toISOString(),
+    };
+  }
+  return { ...trajectory, impact };
 }
 function updateProjectTrajectories() {
   ensureProjectMomentum();
   projectMeshes.forEach((model) => {
     const project = model.userData.project;
     const trajectory = trajectoryFor(project);
-    const color = trajectory.tone === "failing" || trajectory.tone === "risk" ? 0xff5566 : trajectory.tone === "recovering" ? 0xffc04f : trajectory.tone === "steady" ? 0x73c9ff : 0x58f29b;
+    const color = trajectory.tone === "failing"
+      ? 0x8f172d
+      : trajectory.tone === "risk"
+        ? 0xff5566
+        : trajectory.tone === "steady"
+          ? 0x73c9ff
+          : trajectory.tone === "thriving"
+            ? 0xb0ffcf
+            : 0x58f29b;
     model.userData.beacon?.children?.forEach((part) => {
       if (part.material?.color) part.material.color.setHex(color);
+      if (part.material?.emissive) part.material.emissive.setHex(color);
     });
+    model.userData.healthParts?.forEach(({ mesh, baseColor }) => {
+      const weight = trajectory.tone === "failing" ? 0.56 : trajectory.tone === "risk" ? 0.34 : trajectory.tone === "thriving" ? 0.3 : 0.18;
+      mesh.material.color.copy(baseColor).lerp(new THREE.Color(color), weight);
+      if (mesh.material.emissive) {
+        mesh.material.emissive.setHex(color);
+        mesh.material.emissiveIntensity = trajectory.tone === "failing" ? 0.16 : trajectory.tone === "thriving" ? 0.22 : 0.08;
+      }
+    });
+    if (model.userData.healthRing?.material) {
+      model.userData.healthRing.material.color.setHex(color);
+      model.userData.healthRing.material.opacity = trajectory.tone === "failing" ? 0.92 : 0.68;
+    }
+    const healthLabelKey = `${trajectory.label}:${Math.round(trajectory.momentum)}`;
+    if (model.userData.healthLabelKey !== healthLabelKey) {
+      if (model.userData.healthLabel) {
+        model.remove(model.userData.healthLabel);
+        model.userData.healthLabel.material.map?.dispose();
+        model.userData.healthLabel.material.dispose();
+      }
+      const healthLabel = textSprite(`${trajectory.label} · ${Math.round(trajectory.momentum)}%`, `#${new THREE.Color(color).getHexString()}`);
+      healthLabel.position.y = 6.25;
+      healthLabel.scale.set(4.7, 1.15, 1);
+      model.add(healthLabel);
+      model.userData.healthLabel = healthLabel;
+      model.userData.healthLabelKey = healthLabelKey;
+    }
     model.userData.trajectory = trajectory;
   });
 }
@@ -688,21 +764,23 @@ let lastStageRender = "",
 function renderStageRail() {
   const rail = $("#stageRail");
   if (!rail || !PROJECTS.length) return;
-  const signature = PROJECTS.map((project) => `${project.id}:${projectIsControlled(project, state.resolved[project.id] || {})}:${Boolean(state.trophies[project.id])}`).join("|");
+  const signature = PROJECTS.map((project) => `${project.id}:${projectIsControlled(project, state.resolved[project.id] || {})}:${Boolean(state.stageExamResults?.[project.id])}:${Boolean(state.trophies[project.id])}:${Math.round(trajectoryFor(project).momentum)}`).join("|");
   if (signature === lastStageRender && rail.children.length) return;
   lastStageRender = signature;
   rail.innerHTML = PROJECTS.map((project, index) => {
     const controlled = projectIsControlled(project, state.resolved[project.id] || {}),
       trophy = Boolean(state.trophies[project.id]),
-      stateClass = trophy ? "won" : controlled ? "exam" : "active";
-    return `<button class="stage-node ${stateClass}" data-stage-project="${escapeHtml(project.id)}" title="${escapeHtml(`${project.name} · ${project.period}`)}"><span>${trophy ? "🏆" : controlled ? "✎" : index + 1}</span><small>${escapeHtml(project.name)}</small></button>${index < PROJECTS.length - 1 ? '<i class="stage-link"></i>' : ""}`;
+      examDone = Boolean(state.stageExamResults?.[project.id]),
+      failed = trajectoryFor(project).terminal,
+      stateClass = failed ? "failed" : trophy ? "won" : examDone ? "exam-done" : controlled ? "exam" : "active";
+    return `<button class="stage-node ${stateClass}" data-stage-project="${escapeHtml(project.id)}" title="${escapeHtml(`${project.name} · ${project.period}`)}"><span>${failed ? "×" : trophy ? "🏆" : examDone ? "!" : controlled ? "✎" : index + 1}</span><small>${escapeHtml(project.name)}</small></button>${index < PROJECTS.length - 1 ? '<i class="stage-link"></i>' : ""}`;
   }).join("");
   rail.onclick = (event) => {
     const button = event.target.closest("[data-stage-project]");
     if (!button || !rail.contains(button)) return;
     const project = PROJECTS.find((item) => item.id === button.dataset.stageProject);
     if (!project) return;
-    if (projectIsControlled(project, state.resolved[project.id] || {}) && !state.trophies[project.id]) openStageExam(project);
+    if (projectIsControlled(project, state.resolved[project.id] || {}) && !state.stageExamResults?.[project.id]) openStageExam(project);
     else goToProject(project);
   };
 }
@@ -719,9 +797,10 @@ function renderTrophyShelf() {
     button.onclick = () => {
       const project = PROJECTS.find((item) => item.id === button.dataset.trophyProject);
       if (!project) return;
-      if (state.trophies[project.id]) showThought(`Trophy secured for ${project.name}. The next snapshot will create a fresh challenge.`);
-      else if (projectIsControlled(project, state.resolved[project.id] || {})) openStageExam(project);
-      else showThought(`Eng. Ola, control every live question for ${project.name} before the checkpoint exam.`);
+      if (state.trophies[project.id]) toast(`Trophy secured for ${project.name}.`);
+      else if (projectIsControlled(project, state.resolved[project.id] || {}) && !state.stageExamResults?.[project.id]) openStageExam(project);
+      else if (state.stageExamResults?.[project.id]) toast(`${project.name} checkpoint completed without a trophy.`);
+      else toast(`Complete every ${project.name} decision before its checkpoint exam.`);
     };
   });
 }
@@ -754,8 +833,7 @@ let scene,
   ambientActors = [],
   collisionBoxes = [],
   trophyMeshes = new Map(),
-  activeAction = null,
-  thoughtPersistent = false;
+  activeAction = null;
 const move = { x: 0, y: 0 },
   walkTarget = new THREE.Vector3();
 let hasWalkTarget = false,
@@ -812,38 +890,73 @@ function blockedAt(x, z, radius = 0.48) {
     z + radius > obstacle.minZ && z - radius < obstacle.maxZ,
   );
 }
+function collisionOverlapScore(x, z, radius = 0.48) {
+  if (Math.abs(x) > 73 || Math.abs(z) > 73) return 1000;
+  return collisionBoxes.reduce((score, obstacle) => {
+    const overlapX = Math.min(x + radius, obstacle.maxX) - Math.max(x - radius, obstacle.minX),
+      overlapZ = Math.min(z + radius, obstacle.maxZ) - Math.max(z - radius, obstacle.minZ);
+    return overlapX > 0 && overlapZ > 0 ? score + overlapX * overlapZ : score;
+  }, 0);
+}
+function ensureSafeOlaPosition(preferred = null) {
+  if (!ola) return false;
+  const origin = preferred || ola.position;
+  if (!blockedAt(origin.x, origin.z)) {
+    ola.position.set(origin.x, 0, origin.z);
+    return true;
+  }
+  for (let radius = 0.75; radius <= 8; radius += 0.5) {
+    for (let step = 0; step < 24; step += 1) {
+      const angle = (step / 24) * Math.PI * 2,
+        x = origin.x + Math.cos(angle) * radius,
+        z = origin.z + Math.sin(angle) * radius;
+      if (!blockedAt(x, z)) {
+        ola.position.set(x, 0, z);
+        return true;
+      }
+    }
+  }
+  return false;
+}
 function moveOlaWithCollision(direction, distance) {
   if (!ola) return false;
   const next = ola.position.clone().addScaledVector(direction, distance),
-    moved = ola.position.clone();
+    moved = ola.position.clone(),
+    currentScore = collisionOverlapScore(ola.position.x, ola.position.z),
+    nextScore = collisionOverlapScore(next.x, next.z);
   next.y = 0;
-  if (!blockedAt(next.x, next.z)) {
+  if (!blockedAt(next.x, next.z) || (currentScore > 0 && nextScore < currentScore)) {
     ola.position.copy(next);
     return true;
   }
   // Slide along a facade when a diagonal route meets a building corner.
-  if (!blockedAt(next.x, moved.z)) moved.x = next.x;
-  if (!blockedAt(moved.x, next.z)) moved.z = next.z;
+  const xScore = collisionOverlapScore(next.x, moved.z),
+    zScore = collisionOverlapScore(moved.x, next.z);
+  if (!blockedAt(next.x, moved.z) || (currentScore > 0 && xScore < currentScore)) moved.x = next.x;
+  if (!blockedAt(moved.x, next.z) || (currentScore > 0 && zScore < currentScore)) moved.z = next.z;
   const changed = moved.x !== ola.position.x || moved.z !== ola.position.z;
   if (changed) ola.position.copy(moved);
   return changed;
 }
-function planFoodCourtRoute() {
+function planWalkRoute(destination, radius = 0.56) {
   walkRoute = findCollisionSafeRoute(
     { x: ola.position.x, z: ola.position.z },
-    FOOD_COURT_ARRIVAL,
-    (x, z) => blockedAt(x, z, 0.62),
-    { step: 1.5, limit: 72 },
+    { x: destination.x, z: destination.z },
+    (x, z) => blockedAt(x, z, radius),
+    { step: 1.25, limit: 72 },
   );
   walkRouteIndex = 0;
-  const first = walkRoute[0] || FOOD_COURT_ARRIVAL;
+  const first = walkRoute[0] || destination;
   walkTarget.set(first.x, 0, first.z);
   hasWalkTarget = true;
   walkBlockedFrames = 0;
   drawNavigationLine(walkTarget);
 }
-function advanceFoodCourtRoute() {
-  if (!nightFoodTravel || walkRouteIndex >= walkRoute.length - 1) return false;
+function planFoodCourtRoute() {
+  planWalkRoute(FOOD_COURT_ARRIVAL, 0.62);
+}
+function advanceWalkRoute() {
+  if (walkRouteIndex >= walkRoute.length - 1) return false;
   walkRouteIndex += 1;
   const next = walkRoute[walkRouteIndex];
   walkTarget.set(next.x, 0, next.z);
@@ -1200,8 +1313,21 @@ function building(p, index) {
   const label = textSprite(p.alias, "#f6d98c");
   label.position.y = 7.3;
   g.add(label);
+  const healthRing = new THREE.Mesh(
+    new THREE.TorusGeometry(4.55, 0.09, 10, 64),
+    new THREE.MeshBasicMaterial({ color: 0x73c9ff, transparent: true, opacity: 0.68 }),
+  );
+  healthRing.rotation.x = Math.PI / 2;
+  healthRing.position.y = 0.18;
+  g.add(healthRing);
   g.userData.project = p;
   g.userData.beacon = beacon;
+  g.userData.healthRing = healthRing;
+  g.userData.healthParts = [];
+  g.traverse((part) => {
+    if (!part.isMesh || part === healthRing || part.isSprite || !part.material?.color) return;
+    g.userData.healthParts.push({ mesh: part, baseColor: part.material.color.clone() });
+  });
   g.position.set(...p.pos);
   registerCollider(g.position.x, g.position.z, 7.6, 5.4, 0.32);
   scene.add(g);
@@ -1845,28 +1971,10 @@ function restoreTrophies() {
   });
 }
 function showThought(text, duration = 6500, persistent = false) {
-  const bubble = $("#thoughtBubble");
-  if (!bubble) return;
-  clearTimeout(showThought.timer);
-  $("#thoughtText").textContent = text;
-  bubble.classList.remove("hidden");
-  thoughtPersistent = persistent;
-  if (!persistent) showThought.timer = setTimeout(hideThought, duration);
+  if (!text || persistent) return;
+  toast(text);
 }
-function hideThought() {
-  clearTimeout(showThought.timer);
-  thoughtPersistent = false;
-  $("#thoughtBubble")?.classList.add("hidden");
-}
-function positionThoughtBubble() {
-  const bubble = $("#thoughtBubble");
-  if (!ola || !camera || !bubble || bubble.classList.contains("hidden")) return;
-  const point = ola.position.clone().add(new THREE.Vector3(0, 5.2, 0)).project(camera),
-    x = (point.x * 0.5 + 0.5) * innerWidth,
-    y = (-point.y * 0.5 + 0.5) * innerHeight;
-  bubble.style.setProperty("--bubble-x", `${Math.max(150, Math.min(innerWidth - 150, x))}px`);
-  bubble.style.setProperty("--bubble-y", `${Math.max(205, Math.min(innerHeight - 180, y))}px`);
-}
+function hideThought() {}
 function actionProp(action) {
   const prop = new THREE.Group();
   if (action === "coffee") {
@@ -1971,7 +2079,6 @@ function updateWorldEffects(dt) {
       $("#actionFx").classList.add("hidden");
     }
   }
-  positionThoughtBubble();
 }
 function init3D() {
   if (running) return;
@@ -2013,8 +2120,9 @@ function init3D() {
   environment();
   PROJECTS.forEach(building);
   ola = createOla();
-  ola.position.set(-3.8, 0, -4.6);
+  ola.position.set(-2.7, 0, -4.6);
   scene.add(ola);
+  ensureSafeOlaPosition();
   restoreTrophies();
   walkTarget.copy(ola.position);
   raycaster = new THREE.Raycaster();
@@ -2025,10 +2133,11 @@ function init3D() {
   $("#loading").classList.add("hidden");
   updateHUD();
   updateGoToPrompt();
+  installQAInterface();
   animate();
   if (isBedtime(state.hour) && !state.nightSocial) setTimeout(openBedtimeGate, 0);
   if ("serviceWorker" in navigator)
-     navigator.serviceWorker.register("./sw.js?release=20260901-v28", { updateViaCache: "none" }).catch(() => {});
+     navigator.serviceWorker.register("./sw.js?release=20260902-v29", { updateViaCache: "none" }).catch(() => {});
 }
 function resize() {
   if (!renderer) return;
@@ -2055,8 +2164,27 @@ function nextOpenProject() {
 }
 function nextCheckpointProject() {
   return PROJECTS.find(
-    (project) => projectIsControlled(project, state.resolved[project.id] || {}) && !state.trophies[project.id],
+    (project) => projectIsControlled(project, state.resolved[project.id] || {}) && !state.stageExamResults?.[project.id],
   ) || null;
+}
+function installQAInterface() {
+  if (!qaEnabled || window.__OLA_RISE_QA__) return;
+  Object.defineProperty(window, "__OLA_RISE_QA__", {
+    configurable: true,
+    value: Object.freeze({
+      snapshot: () => ({
+        olaPosition: ola ? { x: ola.position.x, y: ola.position.y, z: ola.position.z } : null,
+        movementInput: { x: move.x, y: move.y },
+        hasWalkTarget,
+        activeRoute: walkRoute.map((point) => ({ x: point.x, z: point.z })),
+        routeIndex: walkRouteIndex,
+        guidedProjectId: guidedProject?.id || null,
+        projectHealth: Object.fromEntries(PROJECTS.map((project) => [project.id, trajectoryFor(project)])),
+        lastDecisionOutcome: state.lastDecisionOutcome,
+        gameOutcome,
+      }),
+    }),
+  });
 }
 function updateGoToPrompt() {
   const p = nextOpenProject(),
@@ -2074,8 +2202,8 @@ function updateGoToPrompt() {
     $("#objective b").textContent = `Live questions controlled. Pass the ${checkpoint.name} checkpoint to earn its trophy.`;
   } else {
     button.disabled = true;
-    button.textContent = "ALL STAGES CONTROLLED ✓";
-    $("#objective b").textContent = "All live questions and checkpoint trophies are controlled.";
+    button.textContent = "ALL DECISIONS COMPLETE ✓";
+    $("#objective b").textContent = "All project decisions and checkpoints are complete.";
   }
 }
 function goToProject(p) {
@@ -2084,10 +2212,8 @@ function goToProject(p) {
   if (!model) return;
   guidedProject = p;
   nearest = p;
-  walkTarget.copy(model.position).add(new THREE.Vector3(0, 0, 4.4));
-  hasWalkTarget = true;
-  walkBlockedFrames = 0;
-  drawNavigationLine(walkTarget);
+  const destination = model.position.clone().add(new THREE.Vector3(0, 0, 4.4));
+  planWalkRoute(destination);
   model.userData.beacon.visible = true;
   $("#projectSheet").classList.remove("open");
   document.body.classList.remove("project-sheet-open");
@@ -2219,6 +2345,8 @@ function animate() {
   if (dir.lengthSq() > 0.01) {
     guidedProject = null;
     hasWalkTarget = false;
+    walkRoute = [];
+    walkRouteIndex = 0;
     clearNavigationLine();
     dir.normalize();
     const moved = moveOlaWithCollision(dir, dt * 5.5);
@@ -2229,7 +2357,7 @@ function animate() {
     const d = walkTarget.clone().sub(ola.position);
     d.y = 0;
     if (d.length() < 0.28) {
-      if (advanceFoodCourtRoute()) {
+      if (advanceWalkRoute()) {
         // The next collision-safe segment is now active.
       } else if (guidedProject) {
         hasWalkTarget = false;
@@ -2253,6 +2381,8 @@ function animate() {
         } else {
           const detour = new THREE.Vector3(-d.z, 0, d.x).multiplyScalar((walkBlockedFrames % 2 ? 1 : -1) * 2.6);
           walkTarget.add(detour);
+          walkRoute = [];
+          walkRouteIndex = 0;
           walkBlockedFrames = 0;
           drawNavigationLine(walkTarget);
         }
@@ -2342,10 +2472,9 @@ function bindWorldControls() {
         let o = hits[0].object;
         while (o.parent && !o.userData.project) o = o.parent;
         if (o.userData.project) {
-          walkTarget.copy(o.position).add(new THREE.Vector3(0, 0, 4));
-          hasWalkTarget = true;
+          guidedProject = o.userData.project;
           nearest = o.userData.project;
-          setTimeout(() => openProject(o.userData.project), 850);
+          planWalkRoute(o.position.clone().add(new THREE.Vector3(0, 0, 4)));
           return;
         }
       }
@@ -2353,9 +2482,7 @@ function bindWorldControls() {
       if (gh.length) {
         guidedProject = null;
         clearNavigationLine();
-        walkTarget.copy(gh[0].point);
-        hasWalkTarget = true;
-        walkBlockedFrames = 0;
+        planWalkRoute(gh[0].point);
       }
     }
     if (!touches.size) last = null;
@@ -2420,13 +2547,15 @@ function bindWorldControls() {
     }
     joyAt(e.clientX, e.clientY);
   });
+  jr.addEventListener("contextmenu", (e) => e.preventDefault());
+  jr.addEventListener("dragstart", (e) => e.preventDefault());
   jr.addEventListener("pointermove", moveJoystickPointer);
   jr.addEventListener("pointerup", finishJoystickPointer);
   jr.addEventListener("pointercancel", finishJoystickPointer);
   jr.addEventListener("lostpointercapture", finishJoystickPointer);
-  document.addEventListener("pointermove", moveJoystickPointer, { passive: false });
-  document.addEventListener("pointerup", finishJoystickPointer, { passive: false });
-  document.addEventListener("pointercancel", finishJoystickPointer, { passive: false });
+  document.addEventListener("pointermove", moveJoystickPointer, { passive: false, capture: true });
+  document.addEventListener("pointerup", finishJoystickPointer, { passive: false, capture: true });
+  document.addEventListener("pointercancel", finishJoystickPointer, { passive: false, capture: true });
 
   // Older touch engines do not expose PointerEvent. Keep the same continuous
   // movement contract instead of degrading the joystick to a tap-only control.
@@ -2458,6 +2587,9 @@ function bindWorldControls() {
     document.addEventListener("touchcancel", finishTouch, { passive: false });
   }
   addEventListener("blur", resetJoystick);
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) resetJoystick();
+  });
 
   // Desktop keyboards use the same movement vector as the virtual joystick.
   const keys = new Set();
@@ -2500,13 +2632,18 @@ function openProject(p) {
     .join("");
   const done = state.resolved[p.id] || {};
   const controlledCount = p.missions.filter((_mission, index) => Boolean(done[index])).length;
-  $("#projectProgress").innerHTML = `<b>${controlledCount}/${p.missions.length}</b> live management decisions controlled for this stage`;
+  $("#projectProgress").innerHTML = `<b>${controlledCount}/${p.missions.length}</b> live management decisions completed for this stage`;
   renderProjectTrajectory(p);
   $("#missionList").innerHTML = p.missions
-    .map(
-      (m, i) =>
-        `<div class="mission ${done[i] ? "controlled" : ""}"><div class="dot ${escapeHtml(m[0])}"></div><div><b>${escapeHtml(m[1])}</b><br><small>${escapeHtml(m[0])} · ${done[i] ? "Controlled from this snapshot" : `Live question · ${escapeHtml(p.period)}`}</small></div><button data-mission="${i}">${done[i] ? "REVIEW ✓" : "GO TO →"}</button></div>`,
-    )
+    .map((m, i) => {
+      const outcome = state.decisionOutcomes?.[p.id]?.[i],
+        completed = Boolean(done[i]),
+        resultClass = completed ? (outcome?.correct === false ? "harmful" : "controlled") : "",
+        resultText = completed
+          ? `${outcome?.correct === false ? "Harmful decision" : "Controlled decision"} · ${Number(outcome?.totalImpact || 0) >= 0 ? "+" : ""}${Number(outcome?.totalImpact || 0)}% health`
+          : `Live question · ${escapeHtml(p.period)}`;
+      return `<div class="mission ${resultClass}"><div class="dot ${escapeHtml(m[0])}"></div><div><b>${escapeHtml(m[1])}</b><br><small>${escapeHtml(m[0])} · ${resultText}</small></div><button data-mission="${i}">${completed ? "REVIEW ✓" : "DECIDE →"}</button></div>`;
+    })
     .join("");
   $("#projectSheet").classList.remove("compact");
   $("#projectSheet").classList.add("open");
@@ -2519,9 +2656,9 @@ function openProject(p) {
 function openDecision(p, i) {
   if (!requireAwake()) return;
   const m = p.missions[i],
-    lesson = buildDecisionLesson(p, m);
-  currentDecisionPractice = { project: p, missionIndex: i, lesson, correctPending: false };
-  selectedDecisionConfidence = 2;
+    lesson = buildDecisionLesson(p, m),
+    storedOutcome = state.decisionOutcomes?.[p.id]?.[i];
+  currentDecisionPractice = { project: p, missionIndex: i, lesson, choiceLocked: Boolean(storedOutcome), outcome: storedOutcome || null };
   $("#decisionStatus").textContent = m[0];
   $("#decisionTitle").textContent = m[1];
   $("#decisionReading").textContent = m[2];
@@ -2534,18 +2671,11 @@ function openDecision(p, i) {
   $("#decisionFramework").innerHTML = lesson.steps
     .map((step) => `<article><small>${escapeHtml(step.label)}</small><p>${escapeHtml(step.text)}</p></article>`)
     .join("");
-  $$('[data-confidence]').forEach((button) => {
-    button.classList.toggle("selected", button.dataset.confidence === "2");
-    button.onclick = () => {
-      selectedDecisionConfidence = Number(button.dataset.confidence);
-      $$('[data-confidence]').forEach((item) => item.classList.toggle("selected", item === button));
-    };
-  });
   $("#decisionFeedback").classList.add("hidden");
+  $("#decisionSheet .decision").classList.remove("decision-confirming");
   $("#decisionReflection").classList.add("hidden");
   $("#decisionReflectionOptions").innerHTML = "";
   document.body.classList.add("modal-question-open");
-  showThought(hint, 0, true);
   $("#decisionOptions").innerHTML = orderedOptions
     .map(
       ({ option, originalIndex }, displayIndex) =>
@@ -2557,46 +2687,97 @@ function openDecision(p, i) {
     (b) => (b.onclick = () => choose(p, i, +b.dataset.opt)),
   );
   $("#decisionGuide").onclick = () => guideAnswer(p, i);
+  if (storedOutcome) renderStoredDecision(p, i, storedOutcome);
+}
+function renderStoredDecision(p, i, outcome) {
+  const mission = p.missions[i],
+    trajectory = trajectoryFor(p),
+    selectedText = mission[4][outcome.selectedIndex] || "Stored decision",
+    totalImpact = Number(outcome.totalImpact ?? outcome.decisionImpact ?? 0);
+  $$('[data-opt]').forEach((button) => {
+    button.disabled = true;
+    if (Number(button.dataset.opt) === Number(outcome.selectedIndex)) button.classList.add(outcome.correct ? "correct" : "wrong");
+    if (!outcome.correct && Number(button.dataset.opt) === Number(outcome.correctIndex)) button.classList.add("correct");
+  });
+  $("#decisionFeedback").classList.remove("hidden");
+  $("#decisionSheet .decision").classList.add("decision-confirming");
+  $("#decisionResultLabel").textContent = `RECORDED DECISION · ${totalImpact >= 0 ? "+" : ""}${totalImpact}% PROJECT HEALTH`;
+  $("#decisionFeedbackTitle").textContent = outcome.correct ? "This decision strengthened the project" : "This decision damaged the project";
+  $("#decisionSelected").textContent = `Ola chose: ${selectedText}`;
+  $("#decisionFeedbackReason").textContent = `WHY · ${outcome.reason || (outcome.correct ? mission[3] : `The safer control was: ${mission[4][outcome.correctIndex]}.`)}`;
+  $("#decisionConsequence").textContent = `CONSEQUENCE · ${outcome.consequence || "This outcome remains in the permanent project history."} PRINCIPLE · ${currentDecisionPractice?.lesson?.principle || buildDecisionLesson(p, mission).principle}`;
+  $("#decisionTrajectory").textContent = `PROJECT PATH · ${trajectory.label} · ${Math.round(trajectory.momentum)}% health`;
+  $("#decisionTrajectory").className = `decision-trajectory ${trajectory.tone}`;
+  $("#decisionNextAction").textContent = outcome.reflectionCompleted ? "Decision and reflection completed. This result cannot be retried." : "Complete the reflection to continue.";
+  if (!outcome.reflectionCompleted && !trajectory.terminal) {
+    const lesson = currentDecisionPractice?.lesson || buildDecisionLesson(p, mission);
+    $("#decisionReflectionPrompt").textContent = lesson.reflectionPrompt;
+    $("#decisionReflectionOptions").innerHTML = lesson.reflectionOptions
+      .map((option, index) => `<button type="button" data-reflection-opt="${index}">${String.fromCharCode(65 + index)}. ${escapeHtml(option)}</button>`)
+      .join("");
+    $("#decisionReflection").classList.remove("hidden");
+    $$('[data-reflection-opt]').forEach((button) => {
+      button.onclick = () => completeDecisionReflection(p, i, Number(button.dataset.reflectionOpt));
+    });
+  } else {
+    $("#decisionReflection").classList.add("hidden");
+  }
 }
 function choose(p, i, opt) {
+  if (currentDecisionPractice?.choiceLocked) return;
   state.energy = Math.max(0, state.energy - 6);
   state.focus = Math.max(0, state.focus - 8);
   const mission = p.missions[i],
-    evaluation = evaluateDecisionChoice(mission, opt, selectedDecisionConfidence),
+    evaluation = evaluateDecisionChoice(mission, opt),
     lesson = currentDecisionPractice?.lesson || buildDecisionLesson(p, mission),
-    attemptKey = `${p.id}:${i}`,
     buttons = $$('[data-opt]');
-  const trajectory = applyProjectDecisionImpact(p, evaluation.correct);
+  const decisionDelta = evaluation.correct ? PROJECT_HEALTH_RULES.decisionCorrect : PROJECT_HEALTH_RULES.decisionWrong,
+    trajectory = applyProjectDecisionImpact(p, decisionDelta, { missionIndex: i, phase: "decision", correct: evaluation.correct }),
+    outcome = {
+      selectedIndex: opt,
+      correctIndex: evaluation.correctIndex,
+      correct: evaluation.correct,
+      selectedText: mission[4][opt],
+      correctText: mission[4][evaluation.correctIndex],
+      reason: evaluation.reason,
+      consequence: evaluation.consequence,
+      decisionImpact: trajectory.impact.delta,
+      reflectionCompleted: false,
+      totalImpact: trajectory.impact.delta,
+      resultingHealth: trajectory.momentum,
+      decidedDay: state.day,
+      decidedHour: state.hour,
+    };
+  state.decisionOutcomes[p.id] ??= {};
+  state.decisionOutcomes[p.id][i] = outcome;
+  currentDecisionPractice = { project: p, missionIndex: i, lesson, choiceLocked: true, outcome };
   buttons.forEach((button) => {
+    button.disabled = true;
     button.classList.remove("correct", "wrong");
     if (Number(button.dataset.opt) === opt) button.classList.add(evaluation.correct ? "correct" : "wrong");
+    if (!evaluation.correct && Number(button.dataset.opt) === evaluation.correctIndex) button.classList.add("correct");
   });
   $("#decisionFeedback").classList.remove("hidden");
-  $("#decisionCalibration").textContent = `CONFIDENCE CHECK · ${evaluation.calibration.toUpperCase()}`;
-  $("#decisionFeedbackTitle").textContent = evaluation.correct ? "The control choice is sound" : "This choice leaves exposure open";
-  $("#decisionFeedbackReason").textContent = evaluation.reason;
-  $("#decisionConsequence").textContent = evaluation.consequence;
-  $("#decisionNextAction").textContent = evaluation.nextAction;
-  $("#decisionTrajectory").textContent = `PROJECT PATH · ${trajectory.label} · ${Math.round(trajectory.momentum)}% momentum`;
+  $("#decisionSheet .decision").classList.add("decision-confirming");
+  $("#decisionResultLabel").textContent = `DECISION FINAL · ${trajectory.impact.delta >= 0 ? "+" : ""}${trajectory.impact.delta}% PROJECT HEALTH`;
+  $("#decisionFeedbackTitle").textContent = evaluation.correct ? "The project moved upward" : "The project moved downward";
+  $("#decisionSelected").textContent = `Ola chose: ${mission[4][opt]}`;
+  $("#decisionFeedbackReason").textContent = `WHY · ${evaluation.reason}`;
+  $("#decisionConsequence").textContent = `CONSEQUENCE · ${evaluation.consequence} PRINCIPLE · ${lesson.principle}`;
+  $("#decisionNextAction").textContent = trajectory.terminal ? "The project crossed the irreversible 35% failure threshold." : evaluation.nextAction;
+  $("#decisionTrajectory").textContent = `PROJECT PATH · ${trajectory.label} · ${Math.round(trajectory.momentum)}% health`;
   $("#decisionTrajectory").className = `decision-trajectory ${trajectory.tone}`;
-  if (!evaluation.correct) {
-    state.training = recordDecisionAttempt(state.training, {
-      key: attemptKey,
-      correct: false,
-      confidence: selectedDecisionConfidence,
-      day: state.day,
-      reflected: false,
-    });
-    state.patience = Math.max(0, state.patience - 10);
-    toast("Exposure identified · this item entered the review queue");
-    showThought(decisionHint(p, mission), 0, true);
-    visualReaction(p, false);
+  visualReaction(p, evaluation.correct);
+  save();
+  updateHUD();
+  if (trajectory.terminal) {
+    state.resolved[p.id] ??= {};
+    state.resolved[p.id][i] = true;
+    outcome.reflectionSkippedByFailure = true;
     save();
-    updateHUD();
+    setTimeout(() => finishGame(false, { project: p, outcome }), 1000);
     return;
   }
-  currentDecisionPractice = { project: p, missionIndex: i, lesson, correctPending: true };
-  buttons.forEach((button) => (button.disabled = true));
   $("#decisionReflectionPrompt").textContent = lesson.reflectionPrompt;
   $("#decisionReflectionOptions").innerHTML = lesson.reflectionOptions
     .map((option, index) => `<button type="button" data-reflection-opt="${index}">${String.fromCharCode(65 + index)}. ${escapeHtml(option)}</button>`)
@@ -2605,63 +2786,64 @@ function choose(p, i, opt) {
   $$('[data-reflection-opt]').forEach((button) => {
     button.onclick = () => completeDecisionReflection(p, i, Number(button.dataset.reflectionOpt));
   });
-  toast("Choice controlled—now explain why it is safe");
-  showThought("Good choice. Now prove the reasoning so the lesson transfers to the next project.", 0, true);
-  save();
-  updateHUD();
+  requestAnimationFrame(() => $("#decisionFeedback").scrollIntoView({ behavior: "smooth", block: "center" }));
 }
 
 function completeDecisionReflection(p, i, selectedIndex) {
   const lesson = currentDecisionPractice?.lesson || buildDecisionLesson(p, p.missions[i]),
+    outcome = currentDecisionPractice?.outcome || state.decisionOutcomes?.[p.id]?.[i],
     buttons = $$('[data-reflection-opt]');
+  if (!outcome || outcome.reflectionCompleted) return;
+  const reflectionCorrect = selectedIndex === lesson.correctReflectionIndex,
+    reflectionDelta = reflectionCorrect ? PROJECT_HEALTH_RULES.reflectionCorrect : PROJECT_HEALTH_RULES.reflectionWrong,
+    trajectory = applyProjectDecisionImpact(p, reflectionDelta, { missionIndex: i, phase: "reflection", correct: reflectionCorrect });
   buttons.forEach((button) => {
+    button.disabled = true;
     button.classList.remove("correct", "wrong");
     if (Number(button.dataset.reflectionOpt) === selectedIndex) {
-      button.classList.add(selectedIndex === lesson.correctReflectionIndex ? "correct" : "wrong");
+      button.classList.add(reflectionCorrect ? "correct" : "wrong");
     }
+    if (!reflectionCorrect && Number(button.dataset.reflectionOpt) === lesson.correctReflectionIndex) button.classList.add("correct");
   });
-  if (selectedIndex !== lesson.correctReflectionIndex) {
-    const trajectory = applyProjectDecisionImpact(p, false, -3);
-    state.patience = Math.max(0, state.patience - 2);
-    $("#decisionFeedbackTitle").textContent = "The choice was right, but the reasoning is not protected yet";
-    $("#decisionFeedbackReason").textContent = lesson.riskIfRushed;
-    $("#decisionNextAction").textContent = "Try the reflection again: protect evidence, traceability, ownership, and the next check.";
-    $("#decisionTrajectory").textContent = `PROJECT PATH · ${trajectory.label} · ${Math.round(trajectory.momentum)}% momentum`;
-    $("#decisionTrajectory").className = `decision-trajectory ${trajectory.tone}`;
-    showThought("A correct answer is not enough. Choose the reason that would still work when the numbers change.", 0, true);
-    save();
-    return;
-  }
-  buttons.forEach((button) => (button.disabled = true));
+  outcome.reflectionSelectedIndex = selectedIndex;
+  outcome.reflectionCorrect = reflectionCorrect;
+  outcome.reflectionImpact = trajectory.impact.delta;
+  outcome.reflectionCompleted = true;
+  outcome.totalImpact = Number(outcome.decisionImpact || 0) + trajectory.impact.delta;
+  outcome.resultingHealth = trajectory.momentum;
+  outcome.completedDay = state.day;
   state.training = recordDecisionAttempt(state.training, {
     key: `${p.id}:${i}`,
-    correct: true,
-    confidence: selectedDecisionConfidence,
+    correct: outcome.correct,
+    confidence: 2,
     day: state.day,
-    reflected: true,
+    reflected: reflectionCorrect,
   });
   state.resolved[p.id] ??= {};
   state.resolved[p.id][i] = true;
-  state.patience = Math.min(100, state.patience + 4);
-  state.fun = Math.min(100, state.fun + 3);
-  const trajectory = trajectoryFor(p);
-  $("#decisionFeedbackTitle").textContent = "Decision transferred into a reusable skill";
-  $("#decisionFeedbackReason").textContent = lesson.principle;
-  $("#decisionNextAction").textContent = "Reflection stored · +20 decision mastery XP";
-  $("#decisionTrajectory").textContent = `PROJECT PATH · ${trajectory.label} · ${Math.round(trajectory.momentum)}% momentum`;
+  state.patience = Math.max(0, Math.min(100, state.patience + (reflectionCorrect ? 4 : -3)));
+  state.fun = Math.max(0, Math.min(100, state.fun + (reflectionCorrect ? 3 : -2)));
+  $("#decisionResultLabel").textContent = `DECISION ${outcome.decisionImpact >= 0 ? "+" : ""}${outcome.decisionImpact}% · REFLECTION ${trajectory.impact.delta >= 0 ? "+" : ""}${trajectory.impact.delta}%`;
+  $("#decisionFeedbackTitle").textContent = reflectionCorrect ? "The reasoning protected the next decision" : "Weak reasoning caused additional project damage";
+  $("#decisionFeedbackReason").textContent = reflectionCorrect ? lesson.principle : lesson.riskIfRushed;
+  $("#decisionNextAction").textContent = trajectory.terminal ? "The project crossed the irreversible 35% failure threshold." : "Decision and reflection stored permanently. Continue to the next project decision.";
+  $("#decisionTrajectory").textContent = `PROJECT PATH · ${trajectory.label} · ${Math.round(trajectory.momentum)}% health`;
   $("#decisionTrajectory").className = `decision-trajectory ${trajectory.tone}`;
-  visualReaction(p, true);
+  visualReaction(p, reflectionCorrect);
   save();
   updateHUD();
-  toast("Decision mastered · reflection stored · +20 XP");
-  showThought("Exactly. Evidence, ownership, and a next check—that is a decision you can reuse. ✦", 3600);
+  toast(reflectionCorrect ? "Reflection stored · project health improved" : "Reflection stored · project health decreased");
+  if (trajectory.terminal) {
+    setTimeout(() => finishGame(false, { project: p, outcome }), 1000);
+    return;
+  }
   setTimeout(() => {
     $("#decisionSheet").classList.add("hidden");
     document.body.classList.remove("modal-question-open");
     currentDecisionPractice = null;
     openProject(p);
     checkWin();
-  }, 650);
+  }, 900);
 }
 function visualReaction(p, good) {
   const g = projectMeshes.find((x) => x.userData.project.id === p.id);
@@ -2921,7 +3103,7 @@ function openStageExam(project) {
   $("#decisionSheet").classList.add("hidden");
   $("#examStageLabel").textContent = `${project.name.toUpperCase()} · ${project.period}`;
   $("#examTitle").textContent = "Management Mini Exam";
-  $("#examIntro").textContent = "Three compact questions sampled from this live project snapshot. Earn 3/3 to place its trophy in the world.";
+  $("#examIntro").textContent = "Three final checkpoint decisions. Every answer changes project health by ±2%. Earn at least 2/3 and finish at 65% health to secure the trophy.";
   $("#examSheet").classList.remove("hidden");
   document.body.classList.add("modal-question-open");
   renderExamQuestion();
@@ -2940,54 +3122,77 @@ function renderExamQuestion() {
   $$('[data-exam-opt]').forEach((button) => {
     button.onclick = () => answerExam(Number(button.dataset.examOpt));
   });
-  $("#examHintBtn").onclick = () => showThought(question.hint, 6500);
-  showThought(question.hint, 0, true);
+  $("#examHintBtn").onclick = () => {
+    $("#examEvidence").textContent = `${question.evidence} Hint: ${question.hint}`;
+  };
 }
 function answerExam(selected) {
   if (!activeExam) return;
   const question = activeExam.questions[activeExam.index],
-    buttons = $$('[data-exam-opt]');
-  if (selected !== question.correctIndex) {
+    buttons = $$('[data-exam-opt]'),
+    correct = selected === question.correctIndex,
+    delta = correct ? PROJECT_HEALTH_RULES.examCorrect : PROJECT_HEALTH_RULES.examWrong,
+    trajectory = applyProjectDecisionImpact(activeExam.project, delta, { phase: "exam", correct });
+  buttons.forEach((button) => {
+    button.disabled = true;
+    if (Number(button.dataset.examOpt) === selected) button.classList.add(correct ? "correct" : "wrong");
+    if (!correct && Number(button.dataset.examOpt) === question.correctIndex) button.classList.add("correct");
+  });
+  if (!correct) {
     state.examAttempts[activeExam.project.id] = (state.examAttempts[activeExam.project.id] || 0) + 1;
-    buttons[selected]?.classList.add("wrong");
     state.fun = Math.max(0, state.fun - 2);
-    save();
-    toast("Not controlled yet—use Eng. Ola's thought bubble");
-    showThought(question.hint, 0, true);
+    $("#examEvidence").textContent = `Wrong decision recorded (−2%). ${question.hint}`;
+  } else {
+    activeExam.score += 1;
+    state.focus = Math.min(100, state.focus + 3);
+    state.fun = Math.min(100, state.fun + 4);
+    $("#examEvidence").textContent = `Controlled decision recorded (+2%). ${question.hint}`;
+  }
+  activeExam.index += 1;
+  save();
+  updateHUD();
+  if (trajectory.terminal) {
+    setTimeout(() => finishGame(false, { project: activeExam.project, outcome: state.lastDecisionOutcome }), 850);
     return;
   }
-  buttons.forEach((button) => (button.disabled = true));
-  buttons[selected]?.classList.add("correct");
-  activeExam.score += 1;
-  activeExam.index += 1;
-  state.focus = Math.min(100, state.focus + 3);
-  state.fun = Math.min(100, state.fun + 4);
   if (activeExam.index < activeExam.questions.length) {
     $("#examProgressBar").style.width = `${(activeExam.index / activeExam.questions.length) * 100}%`;
-    setTimeout(renderExamQuestion, 520);
+    setTimeout(renderExamQuestion, 750);
   } else {
-    setTimeout(awardStageTrophy, 620);
+    setTimeout(completeStageExam, 850);
   }
 }
-function awardStageTrophy() {
+function completeStageExam() {
   if (!activeExam) return;
   const project = activeExam.project,
-    projectIndex = PROJECTS.findIndex((item) => item.id === project.id);
-  state.trophies[project.id] = {
-    period: project.period,
-    fingerprint: project.fingerprint,
-    earnedAt: new Date().toISOString(),
+    projectIndex = PROJECTS.findIndex((item) => item.id === project.id),
+    trajectory = trajectoryFor(project),
+    earned = activeExam.score >= 2 && trajectory.momentum >= PROJECT_HEALTH_RULES.rising;
+  state.stageExamResults[project.id] = {
+    score: activeExam.score,
+    total: activeExam.questions.length,
+    health: trajectory.momentum,
+    completedAt: new Date().toISOString(),
   };
-  state.patience = Math.min(100, state.patience + 8);
-  state.fun = Math.min(100, state.fun + 15);
+  if (earned) {
+    state.trophies[project.id] = {
+      period: project.period,
+      fingerprint: project.fingerprint,
+      earnedAt: new Date().toISOString(),
+    };
+    state.patience = Math.min(100, state.patience + 8);
+    state.fun = Math.min(100, state.fun + 15);
+  }
   save();
-  createTrophy(project, projectIndex, true);
+  if (earned) createTrophy(project, projectIndex, true);
   $("#examSheet").classList.add("hidden");
   document.body.classList.remove("modal-question-open");
-  $("#trophyTitle").textContent = `${project.name} Trophy Earned`;
-  $("#trophyText").textContent = `3/3 decisions passed for ${project.period}. This trophy belongs only to fingerprint ${project.fingerprint.slice(0, 12)}…; a changed upload creates fresh questions.`;
+  $("#trophyTitle").textContent = earned ? `${project.name} Trophy Earned` : `${project.name} Checkpoint Complete`;
+  $("#trophyText").textContent = earned
+    ? `${activeExam.score}/${activeExam.questions.length} checkpoint decisions were controlled and project health finished at ${Math.round(trajectory.momentum)}%.`
+    : `${activeExam.score}/${activeExam.questions.length} checkpoint decisions were controlled and project health is ${Math.round(trajectory.momentum)}%. A trophy requires 2/3 and at least 65% health.`;
   $("#trophyModal").classList.remove("hidden");
-  showThought("A trophy! Finally, a management report with handles. 🏆", 5000);
+  toast(earned ? "Checkpoint passed · trophy secured" : "Checkpoint completed · trophy not secured");
   activeExam = null;
   updateHUD();
 }
@@ -3007,14 +3212,18 @@ function checkWin() {
     return;
   }
   const allControlled = PROJECTS.length > 0 && PROJECTS.every((project) => projectIsControlled(project, state.resolved[project.id] || {})),
-    allTrophies = PROJECTS.length > 0 && PROJECTS.every((project) => Boolean(state.trophies[project.id]));
-  if (allControlled && allTrophies) {
+    allExamsComplete = PROJECTS.length > 0 && PROJECTS.every((project) => Boolean(state.stageExamResults?.[project.id])),
+    allTrophies = PROJECTS.length > 0 && PROJECTS.every((project) => Boolean(state.trophies[project.id])),
+    allRising = PROJECTS.length > 0 && PROJECTS.every((project) => trajectoryFor(project).momentum >= PROJECT_HEALTH_RULES.rising);
+  if (allControlled && allExamsComplete && allTrophies && allRising) {
     const total = PROJECTS.reduce((count, project) => count + project.missions.length, 0);
     $("#objective b").textContent = `Controlled ${total} live questions and earned ${PROJECTS.length} stage trophies`;
     finishGame(true);
+  } else if (allControlled && allExamsComplete) {
+    finishGame(false, { reason: "final-health" });
   } else updateGoToPrompt();
 }
-function finishGame(won) {
+function finishGame(won, details = {}) {
   if (gameFinished) return;
   gameFinished = true;
   gameOutcome = won ? "success" : "failure";
@@ -3026,8 +3235,18 @@ function finishGame(won) {
     return;
   }
   show("blackout");
-  $("#blackLine").textContent =
-    "The 30-day management window closed before every live decision and checkpoint was controlled. Review the evidence, recover the exposed stages, and rise again.";
+  const weakProjects = PROJECTS.filter((project) => trajectoryFor(project).momentum < PROJECT_HEALTH_RULES.rising || !state.trophies[project.id]),
+    failedProject = details.project,
+    failureLines = weakProjects.map((project) => {
+      const wrong = Object.entries(state.decisionOutcomes?.[project.id] || {})
+        .filter(([, outcome]) => outcome?.correct === false)
+        .map(([index, outcome]) => `${project.missions[Number(index)]?.[1] || "Decision"}: ${outcome.selectedText || "harmful choice"}`)
+        .slice(0, 3);
+      return `${project.name} finished at ${Math.round(trajectoryFor(project).momentum)}%${wrong.length ? ` after ${wrong.join("; ")}` : " without the required trophy"}`;
+    });
+  $("#blackLine").textContent = failedProject
+    ? `${failedProject.name} failed at ${Math.round(trajectoryFor(failedProject).momentum)}%. ${details.outcome?.selectedText ? `The final harmful decision was: ${details.outcome.selectedText}.` : "The project crossed the irreversible 35% threshold."}`
+    : `The projects did not all finish RISING at 65% with trophies. ${failureLines.join(" | ")}`;
   $("#restartStory").classList.remove("hidden");
 }
 $("#successNext").onclick = () => {

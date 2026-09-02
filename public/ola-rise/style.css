@@ -557,6 +557,10 @@ body[data-time-phase="night"] #game::before {
 .stage-node.exam span {
   background: linear-gradient(145deg, #ffe099, #bf842d);
 }
+.stage-node.exam-done { border-color: rgba(255, 125, 139, .44); }
+.stage-node.exam-done span { color: #fff; background: linear-gradient(145deg, #c35763, #742a39); }
+.stage-node.failed { border-color: rgba(255, 64, 87, .78); background: rgba(95, 20, 36, .45); }
+.stage-node.failed span { color: #fff; background: linear-gradient(145deg, #ff5d70, #7c182b); }
 .stage-node.won {
   border-color: rgba(240, 201, 111, 0.56);
 }
@@ -568,65 +572,6 @@ body[data-time-phase="night"] #game::before {
   height: 2px;
   background: linear-gradient(90deg, #5ed994, #e8bd67);
   opacity: 0.72;
-}
-.thought-bubble {
-  position: absolute;
-  z-index: 76;
-  left: var(--bubble-x, 50%);
-  top: var(--bubble-y, 58%);
-  transform: translate(-50%, calc(-100% - 26px));
-  width: min(390px, calc(100vw - 28px));
-  padding: 14px 16px;
-  border-radius: 22px;
-  color: #172016;
-  background: linear-gradient(145deg, #fffdf3, #e9f8e9);
-  border: 2px solid rgba(83, 193, 124, 0.78);
-  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.42), 0 0 34px rgba(89, 213, 139, 0.34);
-  pointer-events: none;
-  animation: thoughtPop 0.28s cubic-bezier(0.2, 1.5, 0.5, 1);
-}
-.thought-bubble small {
-  display: block;
-  color: #21754a;
-  font-size: 9px;
-  letter-spacing: 0.11em;
-  font-weight: 900;
-  margin-bottom: 4px;
-}
-.thought-bubble b {
-  display: block;
-  font-size: 14px;
-  line-height: 1.45;
-}
-.thought-bubble i {
-  position: absolute;
-  display: block;
-  border-radius: 50%;
-  background: #edf9ed;
-  border: 1px solid rgba(83, 193, 124, 0.72);
-  left: 50%;
-}
-.thought-bubble i:nth-of-type(1) { width: 18px; height: 18px; bottom: -17px; margin-left: -8px; }
-.thought-bubble i:nth-of-type(2) { width: 11px; height: 11px; bottom: -29px; margin-left: 5px; }
-.thought-bubble i:nth-of-type(3) { width: 6px; height: 6px; bottom: -38px; margin-left: -2px; }
-.modal-question-open .thought-bubble {
-  left: auto !important;
-  right: 12px;
-  top: 88px !important;
-  transform: none;
-  width: min(390px, calc(100vw - 24px));
-  max-height: min(220px, 30vh);
-  overflow: auto;
-  pointer-events: auto;
-  border-color: #65d98f;
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.58), 0 0 42px rgba(89, 213, 139, 0.45);
-}
-.modal-question-open .thought-bubble i {
-  left: auto;
-  right: 34px;
-}
-@keyframes thoughtPop {
-  from { opacity: 0; transform: translate(-50%, calc(-88% - 16px)) scale(0.75); }
 }
 .action-fx {
   position: absolute;
@@ -808,6 +753,8 @@ body[data-time-phase="night"] #game::before {
   display: grid;
   place-items: center;
   touch-action: none;
+  overscroll-behavior: contain;
+  -webkit-touch-callout: none;
   user-select: none;
   -webkit-user-select: none;
   cursor: grab;
@@ -1139,6 +1086,9 @@ body[data-time-phase="night"] #game::before {
 .project-trajectory.rising { border-color: rgba(88,242,155,.45); }
 .project-trajectory.rising .trajectory-head b { color: #58f29b; }
 .project-trajectory.rising .trajectory-track i { background: linear-gradient(90deg,#41b779,#58f29b); }
+.project-trajectory.thriving { border-color: rgba(92,255,189,.78); box-shadow: inset 0 0 22px rgba(88,242,155,.09); }
+.project-trajectory.thriving .trajectory-head b { color: #b0ffcf; }
+.project-trajectory.thriving .trajectory-track i { background: linear-gradient(90deg,#58f29b,#c5ffdc); }
 .project-trajectory.recovering { border-color: rgba(255,192,79,.45); }
 .project-trajectory.recovering .trajectory-head b { color: #ffc04f; }
 .project-trajectory.recovering .trajectory-track i { background: linear-gradient(90deg,#cc8736,#ffc04f); }
@@ -1203,6 +1153,11 @@ body[data-time-phase="night"] #game::before {
   background: rgba(56, 159, 101, 0.08);
   border-color: rgba(89, 213, 139, 0.22);
 }
+.mission.harmful {
+  background: rgba(157, 43, 62, 0.12);
+  border-color: rgba(255, 88, 106, 0.34);
+}
+.mission.harmful small { color: #ff9ca7; }
 .dot {
   width: 8px;
   height: 34px;
@@ -1310,18 +1265,6 @@ body.food-court-arrival::after {
 }
 .decision-framework small { color: var(--gold); font-size: 9px; font-weight: 900; letter-spacing: .05em; }
 .decision-framework p { margin: 5px 0 0; color: #c7d5df; font-size: 12px; line-height: 1.42; }
-.decision-confidence {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 7px;
-  margin: 12px 0;
-  padding: 10px;
-  border: 1px solid rgba(255,255,255,.1);
-  border-radius: 14px;
-}
-.decision-confidence legend { padding: 0 7px; color: #c7d5df; font-size: 12px; font-weight: 800; }
-.decision-confidence button { min-height: 40px; }
-.decision-confidence button.selected { border-color: var(--gold); color: #ffe7a8; background: rgba(196,143,36,.2); }
 .decision-feedback,
 .decision-reflection {
   margin: 12px 0;
@@ -1333,6 +1276,7 @@ body.food-court-arrival::after {
 .decision-feedback b { display: block; margin-top: 3px; font-size: 17px; }
 .decision-feedback p { margin: 8px 0; color: #d4e0e7; line-height: 1.48; }
 .decision-feedback strong { display: block; color: var(--gold); line-height: 1.45; }
+.decision-selected { padding: 9px 10px; border-radius: 10px; background: rgba(0,0,0,.22); border-left: 3px solid var(--gold); }
 .decision-trajectory {
   margin: 9px 0;
   padding: 8px 10px;
@@ -1344,7 +1288,39 @@ body.food-court-arrival::after {
   font-weight: 900;
   letter-spacing: .06em;
 }
+.decision.decision-confirming .decision-feedback {
+  border-color: rgba(240, 201, 111, .78);
+  box-shadow: 0 0 0 1px rgba(240, 201, 111, .18), 0 18px 48px rgba(0, 0, 0, .28);
+}
+.decision.decision-confirming {
+  width: min(650px, 100%);
+  background: linear-gradient(155deg, rgba(10, 27, 49, .98), rgba(5, 15, 31, .99));
+}
+.decision.decision-confirming > #decisionReading,
+.decision.decision-confirming > .evidence,
+.decision.decision-confirming > .hint-card,
+.decision.decision-confirming > #decisionLearning,
+.decision.decision-confirming > #decisionOptions,
+.decision.decision-confirming > #decisionGuide {
+  display: none;
+}
+.decision.decision-confirming > h2 {
+  margin: 10px 0 4px;
+  font-size: clamp(24px, 5vw, 34px);
+}
+.decision.decision-confirming .decision-feedback,
+.decision.decision-confirming .decision-reflection {
+  padding: 16px;
+}
+.decision.decision-confirming .decision-feedback:not(.hidden) {
+  animation: decision-confirmation-in .28s ease-out both;
+}
+@keyframes decision-confirmation-in {
+  from { opacity: .25; transform: translateY(8px) scale(.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
 .decision-trajectory.rising { border-color: #58f29b; color: #8af7bb; background: rgba(64, 177, 112, .13); }
+.decision-trajectory.thriving { border-color: #a2ffca; color: #c5ffdc; background: rgba(64, 177, 112, .2); }
 .decision-trajectory.recovering { border-color: #ffc04f; color: #ffd98c; background: rgba(205, 135, 54, .13); }
 .decision-trajectory.risk { border-color: #ff6677; color: #ff9ca7; background: rgba(189, 62, 82, .13); }
 .decision-trajectory.failing { border-color: #ff4057; color: #ff8996; background: rgba(160, 32, 54, .2); }
@@ -1679,12 +1655,8 @@ body.food-court-arrival::after {
   .decision-training-stats b { font-size: 10px; }
   .decision-framework { grid-template-columns: 1fr 1fr; }
   .decision { max-height: 92vh; padding: 15px 12px max(18px, env(safe-area-inset-bottom)); }
-  .decision-confidence { grid-template-columns: 1fr; }
   .stage-node {
     min-width: 104px;
-  }
-  .thought-bubble {
-    width: min(330px, calc(100vw - 18px));
   }
   .music-player {
     grid-template-columns: minmax(0, 1fr) repeat(5, auto);
@@ -1720,7 +1692,6 @@ body.food-court-arrival::after {
 @media (prefers-reduced-motion: reduce) {
   .plumbob,
   .go-to,
-  .thought-bubble,
   .trophy-burst b {
     animation: none;
   }

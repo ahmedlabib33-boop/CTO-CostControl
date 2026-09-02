@@ -75,8 +75,11 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn('project-sheet-open', script)
         self.assertIn('.project-sheet-open .joystick', css)
         self.assertIn('overscroll-behavior: none;', css)
-        self.assertIn('release=20260901-v28', html)
-        self.assertIn('release=20260901-v28', launcher)
+        self.assertIn('release=20260902-v29', html)
+        self.assertIn('release=20260902-v29', launcher)
+        self.assertIn('capture: true', script)
+        self.assertIn('function ensureSafeOlaPosition', script)
+        self.assertIn('function collisionOverlapScore', script)
 
     def test_decisions_change_project_trajectory_and_food_court_is_one_tap_at_night(self):
         game_root = ROOT / "public/ola-rise"
@@ -103,7 +106,8 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn("function goToProject", script)
         self.assertIn("function nextOpenProject", script)
         self.assertIn("TRAVELLING IN 3D", script)
-        self.assertIn("GO TO →", script)
+        self.assertIn("DECIDE →", script)
+        self.assertIn("function planWalkRoute", script)
         self.assertIn("openProject(arrived)", script)
         self.assertIn(".go-to", css)
 
@@ -123,7 +127,7 @@ class OlaRiseLayerTests(unittest.TestCase):
             "streetLight",
             "playSimAction",
             "openStageExam",
-            "awardStageTrophy",
+            "completeStageExam",
             "showThought",
         ]:
             self.assertIn(f"function {feature}", script)
@@ -152,10 +156,11 @@ class OlaRiseLayerTests(unittest.TestCase):
         game_root = ROOT / "public/ola-rise"
         html = (game_root / "index.html").read_text(encoding="utf-8")
         css = (game_root / "style.css").read_text(encoding="utf-8")
-        for element_id in ["thoughtBubble", "decisionHint", "examSheet", "trophyModal", "trophyShelf"]:
+        for element_id in ["decisionHint", "examSheet", "trophyModal", "trophyShelf"]:
             self.assertIn(f'id="{element_id}"', html)
-        self.assertIn("ENG. OLA · THINK ABOUT", html)
-        self.assertIn(".thought-bubble", css)
+        self.assertNotIn('id="thoughtBubble"', html)
+        self.assertNotIn(".thought-bubble", css)
+        self.assertNotIn('id="decisionConfidence"', html)
         self.assertIn(".trophy-card", css)
 
     def test_decision_academy_teaches_practices_reflects_and_tracks_life_management(self):
@@ -166,7 +171,7 @@ class OlaRiseLayerTests(unittest.TestCase):
         css = (game_root / "style.css").read_text(encoding="utf-8")
         service_worker = (game_root / "sw.js").read_text(encoding="utf-8")
         for element_id in [
-            "decisionLearning", "decisionFramework", "decisionConfidence",
+            "decisionLearning", "decisionFramework",
             "decisionFeedback", "decisionReflection", "decisionTrainingStats",
             "lifePractice", "lifePracticeOptions",
         ]:
@@ -178,6 +183,11 @@ class OlaRiseLayerTests(unittest.TestCase):
             self.assertIn(symbol, systems)
             self.assertIn(symbol, script)
         self.assertIn("completeDecisionReflection", script)
+        self.assertIn("decisionOutcomes", script)
+        self.assertIn("PROJECT_HEALTH_RULES", script)
+        self.assertIn("reflectionCompleted", script)
+        self.assertIn("The decision is final", systems)
+        self.assertNotIn("Try the reflection again", script)
         self.assertIn("renderDecisionTraining", script)
         self.assertIn("renderLifePractice", script)
         self.assertIn("findCollisionSafeRoute", script)
@@ -188,6 +198,33 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn(".life-practice", css)
         self.assertIn('cache: "no-store"', service_worker)
         self.assertNotIn("caches.open", service_worker)
+
+    def test_decisions_are_final_and_drive_irreversible_project_health(self):
+        game_root = ROOT / "public/ola-rise"
+        html = (game_root / "index.html").read_text(encoding="utf-8")
+        script = (game_root / "game.js").read_text(encoding="utf-8")
+        systems = (game_root / "systems.js").read_text(encoding="utf-8")
+        self.assertNotIn('id="thoughtBubble"', html)
+        self.assertNotIn('id="decisionConfidence"', html)
+        for text in [
+            "decisionCorrect: 8",
+            "decisionWrong: -10",
+            "reflectionCorrect: 3",
+            "reflectionWrong: -3",
+            "examCorrect: 2",
+            "examWrong: -2",
+            'label: "FAILED"',
+            'label: "OUT OF TRACK"',
+            'label: "RISING"',
+            'label: "THRIVING"',
+        ]:
+            self.assertIn(text, systems)
+        self.assertIn("state.decisionOutcomes[p.id][i] = outcome", script)
+        self.assertIn("button.disabled = true", script)
+        self.assertIn("finishGame(false, { project: p, outcome })", script)
+        self.assertIn("allRising", script)
+        self.assertIn("installQAInterface", script)
+        self.assertIn("__OLA_RISE_QA__", script)
 
     def test_soundtrack_has_ordered_tracks_and_windows_volume_controls(self):
         game_root = ROOT / "public/ola-rise"

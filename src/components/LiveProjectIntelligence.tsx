@@ -342,9 +342,9 @@ export default function LiveProjectIntelligence({ context, onBack }: { context: 
       : "Unavailable";
   const activeScopeLabel = scope === "application" ? "Entire application" : scope === "current" ? "Current page" : scope === "project" ? "Whole project" : "Portfolio";
   const viewItems: { id: LiveView; number: string; label: string; note: string }[] = [
-    { id: "charts", number: "01", label: "Charts & Explanations", note: "Visual performance reading" },
-    { id: "overview", number: "02", label: "Analysis & Tables", note: "Executive control register" },
-    { id: "decisions", number: "03", label: "Risk & Decisions", note: "Actions and mitigation" },
+    { id: "charts", number: "01", label: "Charts & Explanations", note: "All app Charts · second-layer reading" },
+    { id: "overview", number: "02", label: "Analysis & Tables", note: "All app analysis · interpreted" },
+    { id: "decisions", number: "03", label: "Risk & Decisions", note: "All app risks · actions and mitigation" },
     { id: "evidence", number: "04", label: "Evidence & Sources", note: "Rules and traceability" },
   ];
   return <section className="liveIntelligence">
@@ -371,6 +371,7 @@ export default function LiveProjectIntelligence({ context, onBack }: { context: 
         <div><span>Source refreshed</span><b>{application.refreshedAt ? new Date(application.refreshedAt).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "Waiting"}</b></div>
       </div>
       {scope === "application" && <p className={`liveCommandNote ${application.error ? "warning" : ""}`}>{application.error || "Registry fingerprints are rechecked every 15 seconds. Data reloads only when a controlled revision changes."}</p>}
+      <p className="liveCommandNote">No accuracy percentage is invented; evidence strength is shown only as a controlled-source label.</p>
     </section>
 
     <nav className="liveViewTabs" aria-label="Decision intelligence pages">{viewItems.map(item => <button type="button" key={item.id} aria-current={view === item.id ? "page" : undefined} className={view === item.id ? "active" : ""} onClick={() => setView(item.id)}><span className="liveViewNumber">{item.number}</span><span><b>{item.label}</b><small>{item.note}</small></span></button>)}</nav>
