@@ -22,12 +22,15 @@ import {
   timePhaseFor,
   trainingSummary,
   trophySummary,
-} from "./systems.js?release=20260907-v30";
-import { loadLiveGameProjects } from "./live-data.js?release=20260907-v30";
+} from "./systems.js?release=20260907-v31";
+import { loadLiveGameProjects } from "./live-data.js?release=20260907-v31";
 
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
-const qaEnabled = new URLSearchParams(location.search).get("qa") === "1";
+const queryParameters = new URLSearchParams(location.search);
+const qaEnabled = queryParameters.get("qa") === "1";
+const cinematicCapture = queryParameters.get("capture") === "1";
+if (cinematicCapture) document.body.classList.add("cinematic-capture");
 const escapeHtml = (value) =>
   String(value ?? "").replace(
     /[&<>'"]/g,
@@ -89,6 +92,12 @@ const BAHRAINI_CONVERSATIONS = [
   ["يا بعد قلبي، خذي نفس… الشغل ما يخلص وإنتي أهم.", "A warm Bahraini reminder: breathe, drink water, and do not disappear inside the workload."],
   ["وش هالهيبة؟ المشروع شافج وقال خلاص بنتعدل.", "Apparently your presence is now a mitigation strategy. Verify it before adding it to the register. 😄"],
   ["عُلا، ضحكتج أحلى من تقرير بدون ملاحظات.", "That is a very high compliment in this world. Smile, then check the source evidence."],
+  ["هلا عُلا، منوّرة الفود كورت الليلة.", "A warm welcome from the Food Court."],
+  ["شخبارج عُلا؟ تعالي خذي لج كرك.", "Karak and a friendly conversation are waiting."],
+  ["يا مرحبا عُلا، المكان مكانج.", "The table is open and the evening is yours."],
+  ["عُلا، خلّي الشغل شوي وتعالي ويانا.", "A gentle invitation to slow down and join the group."],
+  ["تفضلي عُلا، التميز توّه حار.", "Fresh tameez is ready at the table."],
+  ["عُلا، تبين كرك مضبوط ولا خفيف؟", "The important question tonight is how you take your karak."],
 ];
 let musicIndex = 0;
 let wellbeingIndex = 0,
@@ -132,11 +141,11 @@ function drinkWater() {
 function renderAmbientConversations() {
   const container = $("#ambientConversations");
   if (!container || !ambientActors.length) return;
-  const actorIndex = conversationActorIndex % Math.min(ambientActors.length, 6),
+  const actorIndex = conversationActorIndex % ambientActors.length,
     actor = ambientActors[actorIndex],
     [line] = ambientConversationFor(actor),
     persona = actor.userData.persona;
-  container.innerHTML = `<div class="conversation-sequence"><small>BAHRAIN STREET VOICE · ${actorIndex + 1} / ${Math.min(ambientActors.length, 6)}</small><button class="ambient-conversation" data-chat-actor="${actorIndex}" dir="rtl"><small>${escapeHtml(persona.name)} · ${escapeHtml(persona.role)}</small><b>${escapeHtml(line)}</b><span>روحي اسمعي السالفة ←</span></button></div>`;
+  container.innerHTML = `<div class="conversation-sequence"><small>FOOD COURT VOICE · ${actorIndex + 1} / ${ambientActors.length}</small><button class="ambient-conversation" data-chat-actor="${actorIndex}" dir="rtl"><small>${escapeHtml(persona.name)} · ${escapeHtml(persona.role)}</small><b>${escapeHtml(line)}</b><span>روحي اسمعي السالفة ←</span></button></div>`;
   $$('[data-chat-actor]').forEach((button) => {
     button.onclick = () => hearAmbientConversation(Number(button.dataset.chatActor));
   });
@@ -164,7 +173,7 @@ function hearAmbientConversation(actorIndex) {
   updateHUD();
   showThought(response, 6500);
   toast("Ola is going to hear the conversation…");
-  conversationActorIndex = (actorIndex + 1) % Math.min(ambientActors.length, 6);
+  conversationActorIndex = (actorIndex + 1) % ambientActors.length;
   conversationCycle = (conversationCycle + 1) % BAHRAINI_CONVERSATIONS.length;
   renderAmbientConversations();
 }
@@ -172,7 +181,8 @@ function hearAmbientConversation(actorIndex) {
 function positionAmbientConversations() {
   const container = $("#ambientConversations");
   if (!container || !camera || !ambientActors.length) return;
-  if ((isBedtime(state.hour) && !state.nightSocial) || $("#decisionSheet")?.classList.contains("hidden") === false || $("#drawer")?.classList.contains("open")) {
+  const nearFoodCourt = ola && Math.hypot(ola.position.x - FOOD_COURT_ARRIVAL.x, ola.position.z - FOOD_COURT_ARRIVAL.z) < 15;
+  if (walkthroughState.active || (!nearFoodCourt && !state.nightSocial) || (isBedtime(state.hour) && !state.nightSocial) || $("#decisionSheet")?.classList.contains("hidden") === false || $("#drawer")?.classList.contains("open")) {
     container.classList.add("hidden");
     return;
   }
@@ -599,6 +609,18 @@ function updateProjectTrajectories() {
   projectMeshes.forEach((model) => {
     const project = model.userData.project;
     const trajectory = trajectoryFor(project);
+    if (walkthroughState.active) {
+      if (model.userData.projectLabel) model.userData.projectLabel.visible = false;
+      if (model.userData.beacon) model.userData.beacon.visible = false;
+      if (model.userData.healthRing) model.userData.healthRing.visible = false;
+      if (model.userData.healthLabel) model.userData.healthLabel.visible = false;
+      model.userData.healthParts?.forEach(({ mesh, baseColor }) => {
+        mesh.material.color.copy(baseColor);
+        if (mesh.material.emissive) mesh.material.emissiveIntensity = 0;
+      });
+      model.userData.trajectory = trajectory;
+      return;
+    }
     const color = trajectory.tone === "failing"
       ? 0x8f172d
       : trajectory.tone === "risk"
@@ -833,6 +855,8 @@ let scene,
   navigationLine = null,
   sunLight = null,
   skyLight = null,
+  ambientLight = null,
+  moonLight = null,
   snowField = null,
   worldClock = 0,
   quality = "auto",
@@ -843,6 +867,9 @@ let scene,
   cloudGroups = [],
   ambientActors = [],
   collisionBoxes = [],
+  cinematicLights = [],
+  architecturalWindowMaterials = [],
+  lightPoolMaterials = [],
   trophyMeshes = new Map(),
   activeAction = null;
 const move = { x: 0, y: 0 },
@@ -856,19 +883,20 @@ let hasWalkTarget = false,
   nightFoodFallbackTimer = 0;
 const FOOD_COURT_ARRIVAL = { x: 35, z: 32.5 };
 const WALKTHROUGH_STEPS = Object.freeze([
-  { hour: 8, phase: "MORNING", icon: "☀", title: "Morning in Ola's city", text: "The city wakes gently as Ola begins a quiet walk through her world.", focus: ".mobile-top" },
-  { hour: 9, phase: "MORNING", icon: "✚", title: "Gloria Hospital", text: "Walk around the bright hospital, its entrance, windows, gardens, and open plaza.", focus: "#world3d", destination: () => projectTourPoint(PROJECTS[0]) },
-  { hour: 11, phase: "MORNING", icon: "◇", title: "The BIG", text: "Continue across the city to see the second landmark and its surrounding streets.", focus: "#world3d", destination: () => projectTourPoint(PROJECTS[1]) },
-  { hour: 16, phase: "EVENING", icon: "☕", title: "Coffee corner", text: "Slow down beside the outdoor coffee table as the afternoon light turns warm.", focus: "#world3d", destination: () => ({ x: -5.5, z: 10.5 }) },
-  { hour: 19, phase: "EVENING", icon: "◉", title: "Evening by the fountain", text: "Watch the sunset colors settle over the fountain, trees, lamps, and streets.", focus: ".clock", destination: () => ({ x: 4.8, z: 3.8 }) },
-  { hour: 21, phase: "NIGHT", icon: "☾", title: "Night at the Food Court", text: "Finish the walk beneath the lights and snow, with warm food and friendly conversation nearby.", focus: "#world3d", destination: () => foodCourtArrivalPoint() },
-  { hour: 6, phase: "MORNING", icon: "✦", title: "A new morning", text: "The visual walk is complete. Continue exploring freely whenever you are ready.", focus: "#walkthroughPanel" },
+  { hour: 8, duration: 6000, phase: "MORNING", icon: "☀", title: "Morning over the city", text: "The city wakes beneath clear light and a wide open skyline.", camera: { yaw: 0.38, pitch: 0.56, distance: 31, orbit: 0.035, sweep: 0.05, dolly: 1.4 }, destination: () => ({ x: -2.7, z: -4.6 }) },
+  { hour: 9, duration: 7000, phase: "MORNING", icon: "✦", title: "The sunlit plaza", text: "Warm light moves across pale stone, glass, gardens, and the open square.", camera: { yaw: 1.28, pitch: 0.8, distance: 22, orbit: 0.045, sweep: 0.07, dolly: 1.2 }, destination: () => projectTourPoint(PROJECTS[0]) },
+  { hour: 11, duration: 7000, phase: "MORNING", icon: "◇", title: "Across the skyline", text: "A slow sweep reveals towers, windows, rooftops, streets, and the river beyond.", camera: { yaw: 2.2, pitch: 1.26, distance: 18, orbit: 0.052, sweep: 0.08, dolly: 0.9 }, destination: () => projectTourPoint(PROJECTS[1]) },
+  { hour: 16, duration: 7000, phase: "EVENING", icon: "☕", title: "Golden-hour café", text: "Long shadows and amber light settle around the quiet outdoor tables.", camera: { yaw: 3.12, pitch: 0.72, distance: 23, orbit: 0.04, sweep: 0.07, dolly: 1.5 }, destination: () => ({ x: -5.5, z: 10.5 }) },
+  { hour: 19, duration: 7000, phase: "EVENING", icon: "◉", title: "Fountain at dusk", text: "The last light catches the water as the city lamps begin to glow.", camera: { yaw: 4.02, pitch: 0.96, distance: 18, orbit: 0.045, sweep: 0.08, dolly: 1.1 }, destination: () => ({ x: 4.8, z: 3.8 }) },
+  { hour: 21, duration: 16000, phase: "NIGHT", icon: "☾", title: "Night market lights", text: "Snow crosses the lantern glow while warm windows shine and Bahraini voices welcome Ola to the Food Court.", foodCourt: true, camera: { yaw: 7.7, pitch: 1.3, distance: 22, orbit: 0.045, sweep: 0.08, dolly: 1.5 }, destination: () => foodCourtArrivalPoint() },
+  { hour: 6, duration: 10000, phase: "MORNING", icon: "✦", title: "Dawn over the city", text: "Blue dawn opens across the whole city and the walk comes gently to an end.", camera: { yaw: 6.08, pitch: 0.58, distance: 32, orbit: 0.03, sweep: 0.06, dolly: 1.8 }, destination: () => ({ x: 0, z: 1.5 }) },
 ]);
 let walkthroughState = {
   active: false,
   index: 0,
   paused: false,
   timer: 0,
+  controlsTimer: 0,
   snapshot: null,
   highlight: null,
 };
@@ -1037,13 +1065,36 @@ function clearWalkthroughTimer() {
   clearTimeout(walkthroughState.timer);
   walkthroughState.timer = 0;
 }
+function revealWalkthroughControls() {
+  clearTimeout(walkthroughState.controlsTimer);
+  document.body.classList.add("walkthrough-controls-visible");
+  if (walkthroughState.paused) return;
+  walkthroughState.controlsTimer = setTimeout(() => {
+    document.body.classList.remove("walkthrough-controls-visible");
+    walkthroughState.controlsTimer = 0;
+  }, 3200);
+}
+function clearWalkthroughControls() {
+  clearTimeout(walkthroughState.controlsTimer);
+  walkthroughState.controlsTimer = 0;
+  document.body.classList.remove("walkthrough-controls-visible");
+}
 function clearWalkthroughHighlight() {
   walkthroughState.highlight?.classList.remove("walkthrough-focus");
   walkthroughState.highlight = null;
 }
 function showWalkthroughWorldLabels(showLabels) {
   projectMeshes.forEach((model) => {
+    if (model.userData.projectLabel) model.userData.projectLabel.visible = showLabels;
+    if (model.userData.beacon) model.userData.beacon.visible = showLabels;
+    if (model.userData.healthRing) model.userData.healthRing.visible = showLabels;
     if (model.userData.healthLabel) model.userData.healthLabel.visible = showLabels;
+    if (!showLabels) {
+      model.userData.healthParts?.forEach(({ mesh, baseColor }) => {
+        mesh.material.color.copy(baseColor);
+        if (mesh.material.emissive) mesh.material.emissiveIntensity = 0;
+      });
+    }
   });
 }
 function closeWalkthroughWorldPanels() {
@@ -1060,7 +1111,8 @@ function closeWalkthroughWorldPanels() {
 function scheduleWalkthroughAdvance() {
   clearWalkthroughTimer();
   if (!walkthroughState.active || walkthroughState.paused || walkthroughState.index >= WALKTHROUGH_STEPS.length - 1) return;
-  walkthroughState.timer = setTimeout(() => showWalkthroughStep(walkthroughState.index + 1), 8000);
+  const step = WALKTHROUGH_STEPS[walkthroughState.index];
+  walkthroughState.timer = setTimeout(() => showWalkthroughStep(walkthroughState.index + 1), step.duration);
 }
 function showWalkthroughStep(index) {
   if (!walkthroughState.active) return;
@@ -1079,6 +1131,11 @@ function showWalkthroughStep(index) {
   state.hour = step.hour;
   state.speed = 0;
   state.nightSocial = Boolean(step.nightSocial);
+  if (step.camera) {
+    camYaw = step.camera.yaw;
+    camPitch = step.camera.pitch;
+    camDist = step.camera.distance;
+  }
   updateHUD();
   showWalkthroughWorldLabels(false);
   if (step.destination && ola) planWalkRoute(step.destination(), 0.62);
@@ -1091,11 +1148,13 @@ function showWalkthroughStep(index) {
   $("#walkthroughBack").disabled = walkthroughState.index === 0;
   $("#walkthroughNext").textContent = walkthroughState.index === WALKTHROUGH_STEPS.length - 1 ? "Finish ✓" : "Next →";
   requestAnimationFrame(() => {
+    if (!step.focus) return;
     const targetElement = document.querySelector(step.focus);
     if (!targetElement || targetElement === $("#walkthroughPanel")) return;
     targetElement.classList.add("walkthrough-focus");
     walkthroughState.highlight = targetElement;
   });
+  revealWalkthroughControls();
   scheduleWalkthroughAdvance();
 }
 function startWalkthrough() {
@@ -1105,6 +1164,7 @@ function startWalkthrough() {
     speed: state.speed,
     nightSocial: state.nightSocial,
     olaPosition: ola.position.clone(),
+    olaVisible: ola.visible,
     camYaw,
     camPitch,
     camDist,
@@ -1120,6 +1180,7 @@ function startWalkthrough() {
   };
   walkthroughState.active = true;
   walkthroughState.paused = false;
+  ola.visible = false;
   document.body.classList.add("walkthrough-active");
   $("#walkthroughPanel").classList.remove("hidden");
   $("#walkthroughBtn").classList.add("hidden");
@@ -1129,6 +1190,7 @@ function startWalkthrough() {
 function finishWalkthrough() {
   if (!walkthroughState.active) return;
   clearWalkthroughTimer();
+  clearWalkthroughControls();
   clearWalkthroughHighlight();
   hasWalkTarget = false;
   walkRoute = [];
@@ -1143,6 +1205,7 @@ function finishWalkthrough() {
     state.speed = snapshot.speed;
     state.nightSocial = snapshot.nightSocial;
     ola.position.copy(snapshot.olaPosition);
+    ola.visible = snapshot.olaVisible;
     camYaw = snapshot.camYaw;
     camPitch = snapshot.camPitch;
     camDist = snapshot.camDist;
@@ -1167,12 +1230,14 @@ function finishWalkthrough() {
   document.body.classList.remove("walkthrough-active");
   updateHUD();
   showWalkthroughWorldLabels(true);
+  if (ola) ola.visible = snapshot?.olaVisible ?? true;
   if (snapshot?.bedtimeOpen) $("#bedtimeGate")?.classList.remove("hidden");
 }
 function toggleWalkthroughPause() {
   if (!walkthroughState.active) return;
   walkthroughState.paused = !walkthroughState.paused;
   $("#walkthroughPause").textContent = walkthroughState.paused ? "▶ Continue" : "❚❚ Pause";
+  revealWalkthroughControls();
   scheduleWalkthroughAdvance();
 }
 function setupWalkthrough() {
@@ -1186,6 +1251,12 @@ function setupWalkthrough() {
     if (walkthroughState.index >= WALKTHROUGH_STEPS.length - 1) finishWalkthrough();
     else showWalkthroughStep(walkthroughState.index + 1);
   };
+  $("#walkthroughPanel").addEventListener("pointerup", (event) => {
+    if (event.target === $("#walkthroughPanel")) revealWalkthroughControls();
+  });
+  addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && walkthroughState.active) finishWalkthrough();
+  });
 }
 function arriveAtFoodCourt({ cinematic = false } = {}) {
   if (!nightFoodTravel) return;
@@ -1236,6 +1307,30 @@ function textSprite(text, color = "#fff") {
   );
   sp.scale.set(5.5, 1.4, 1);
   return sp;
+}
+function cinematicDialogueSprite(text) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1024;
+  canvas.height = 192;
+  const context = canvas.getContext("2d");
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.direction = "rtl";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.lineJoin = "round";
+  context.font = '800 48px Tahoma, "Noto Naskh Arabic", Arial';
+  context.lineWidth = 13;
+  context.strokeStyle = "rgba(1, 7, 13, .92)";
+  context.strokeText(text, canvas.width / 2, canvas.height / 2);
+  context.fillStyle = "#fff4cc";
+  context.fillText(text, canvas.width / 2, canvas.height / 2);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
+  sprite.scale.set(8.6, 1.62, 1);
+  sprite.renderOrder = 30;
+  sprite.visible = false;
+  return sprite;
 }
 function createOla() {
   const g = new THREE.Group();
@@ -1386,6 +1481,8 @@ function createOla() {
 }
 function addWindows(group, width, floors, depth, startY = 1.15) {
   const windowMaterial = emissive(0x9bd9ed, 0.65);
+  windowMaterial.userData.nightIntensity = 1.45;
+  architecturalWindowMaterials.push(windowMaterial);
   for (let floor = 0; floor < floors; floor++) {
     for (let column = -2; column <= 2; column++) {
       const front = new THREE.Mesh(
@@ -1534,6 +1631,7 @@ function building(p, index) {
   healthRing.position.y = 0.18;
   g.add(healthRing);
   g.userData.project = p;
+  g.userData.projectLabel = label;
   g.userData.beacon = beacon;
   g.userData.healthRing = healthRing;
   g.userData.healthParts = [];
@@ -1612,6 +1710,27 @@ function streetLight(x, z) {
   g.position.set(x, 0, z);
   registerCollider(x, z, 0.32, 0.32, 0.08);
   scene.add(g);
+}
+function cinematicLight(x, y, z, color, intensity = 2.4, distance = 16, poolRadius = 2.2) {
+  const light = new THREE.PointLight(color, 0, distance, 1.7);
+  light.position.set(x, y, z);
+  light.userData.nightIntensity = intensity;
+  scene.add(light);
+  cinematicLights.push(light);
+  const poolMaterial = new THREE.MeshBasicMaterial({
+    color,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+  });
+  poolMaterial.userData.nightOpacity = 0.16;
+  const pool = new THREE.Mesh(new THREE.CircleGeometry(poolRadius, 32), poolMaterial);
+  pool.rotation.x = -Math.PI / 2;
+  pool.position.set(x, 0.085, z);
+  scene.add(pool);
+  lightPoolMaterials.push(poolMaterial);
+  return light;
 }
 function road(x, z, width, depth, rotation = 0) {
   const r = box(width, 0.04, depth, 0x222d35);
@@ -1745,6 +1864,9 @@ function foodCourt() {
     courtyard = box(24, 0.16, 19, 0xb5a88f),
     street = box(27, 0.1, 4.8, 0x343b3d),
     curb = box(27, 0.18, 0.34, 0xe5d9bf);
+  const shopWindowMaterial = emissive(0xffd58b, 0.12);
+  shopWindowMaterial.userData.nightIntensity = 1.8;
+  architecturalWindowMaterials.push(shopWindowMaterial);
   courtyard.position.y = 0.08;
   street.position.set(0, 0.1, 10.4);
   curb.position.set(0, 0.18, 7.9);
@@ -1780,6 +1902,7 @@ function foodCourt() {
         const gap = width / Math.max(2, Math.floor(width / 2.3) + 1),
           frame = box(0.92, 0.82, 0.07, 0xc5e0e5),
           pane = box(0.68, 0.56, 0.08, floor ? 0x7ea8b9 : 0x96c4cf);
+        pane.material = shopWindowMaterial;
         frame.position.set(-width / 2 + gap * (column + 1), 3.05 + floor * 1.12, 1.96);
         pane.position.set(frame.position.x, frame.position.y, 2.0);
         block.add(frame, pane);
@@ -1970,16 +2093,23 @@ function ambientActor(x, z, color, persona) {
   hijab.position.set(0, 1.96, -0.02);
   hijab.scale.set(1.02, 0.96, 1.02);
   scarf.position.set(0, 1.61, -0.06);
-  actor.add(skirt, body, head, hijab, scarf);
+  const dialogueLine = BAHRAINI_CONVERSATIONS[persona.lines?.[0] ?? 0]?.[0] || "هلا عُلا";
+  const dialogueSprite = cinematicDialogueSprite(dialogueLine);
+  dialogueSprite.position.set(0, 3.08, 0);
+  actor.add(skirt, body, head, hijab, scarf, dialogueSprite);
   actor.position.set(x, 0, z);
   actor.scale.setScalar(persona.scale);
   actor.userData.origin = new THREE.Vector3(x, 0, z);
   actor.userData.phase = Math.random() * Math.PI * 2;
   actor.userData.persona = persona;
+  actor.userData.dialogueSprite = dialogueSprite;
   scene.add(actor);
   ambientActors.push(actor);
 }
 function environment() {
+  const skylineWindowMaterial = emissive(0x9edcff, 0.12);
+  skylineWindowMaterial.userData.nightIntensity = 1.05;
+  architecturalWindowMaterials.push(skylineWindowMaterial);
   ground = new THREE.Mesh(
     new THREE.PlaneGeometry(160, 160),
     new THREE.MeshStandardMaterial({ color: 0x3f684f, roughness: 0.94, metalness: 0.02 }),
@@ -2040,6 +2170,23 @@ function environment() {
       b.geometry.parameters.height / 2,
       Math.sin(a) * r,
     );
+    if (i < 26) {
+      const width = b.geometry.parameters.width,
+        height = b.geometry.parameters.height,
+        depth = b.geometry.parameters.depth,
+        rows = Math.max(2, Math.floor(height / 1.7));
+      for (let row = 0; row < rows; row++) {
+        const windowBand = new THREE.Mesh(
+          new THREE.BoxGeometry(Math.max(0.7, width * 0.62), 0.13, 0.045),
+          skylineWindowMaterial,
+        );
+        windowBand.position.set(0, -height / 2 + 0.85 + row * 1.45, depth / 2 + 0.03);
+        b.add(windowBand);
+      }
+      const roofCap = box(width + 0.16, 0.12, depth + 0.16, i % 2 ? 0x776e62 : 0x52636c);
+      roofCap.position.y = height / 2 + 0.06;
+      b.add(roofCap);
+    }
     registerCollider(b.position.x, b.position.z, b.geometry.parameters.width, b.geometry.parameters.depth, 0.24);
     scene.add(b);
   }
@@ -2094,7 +2241,7 @@ function environment() {
     skin: 0xb87958,
     hijab: 0xe4c98b,
     scale: 0.98,
-    lines: [2, 6, 0],
+    lines: [11, 13, 9],
     walks: true,
   });
   ambientActor(32.5, 22.5, 0x8d5e72, {
@@ -2103,7 +2250,7 @@ function environment() {
     skin: 0xc98b69,
     hijab: 0x315f73,
     scale: 0.94,
-    lines: [1, 3, 4, 8],
+    lines: [9, 10, 14],
     walks: true,
   });
   ambientActor(36.5, 28.0, 0x6e8b59, {
@@ -2112,7 +2259,7 @@ function environment() {
     skin: 0xd39a76,
     hijab: 0xb46a86,
     scale: 0.86,
-    lines: [5, 7, 2],
+    lines: [13, 11, 10],
     walks: true,
   });
   ambientActor(40.0, 22.8, 0x6d4e88, {
@@ -2121,7 +2268,7 @@ function environment() {
     skin: 0xbc7f5e,
     hijab: 0xd6b6d9,
     scale: 0.92,
-    lines: [0, 6, 2],
+    lines: [10, 12, 9],
     walks: true,
   });
   ambientActor(33.0, 29.2, 0x4b7690, {
@@ -2130,7 +2277,7 @@ function environment() {
     skin: 0xce9070,
     hijab: 0xe2b55d,
     scale: 0.91,
-    lines: [4, 3, 8],
+    lines: [14, 9, 13],
     walks: false,
   });
   ambientActor(39.0, 27.0, 0x92715b, {
@@ -2139,7 +2286,43 @@ function environment() {
     skin: 0xd69b79,
     hijab: 0x6f8ea8,
     scale: 0.84,
-    lines: [5, 7, 1],
+    lines: [12, 11, 10],
+    walks: false,
+  });
+  ambientActor(30.5, 29.4, 0x8b6a55, {
+    name: "فاطمة",
+    role: "صاحبة القعدة الحلوة",
+    skin: 0xc98c67,
+    hijab: 0xd9a75e,
+    scale: 0.9,
+    lines: [9, 12, 10],
+    walks: false,
+  });
+  ambientActor(35.3, 24.8, 0x557b70, {
+    name: "حصة",
+    role: "من أهل الفريج",
+    skin: 0xb97a57,
+    hijab: 0xe8d8b2,
+    scale: 0.93,
+    lines: [10, 14, 11],
+    walks: false,
+  });
+  ambientActor(38.2, 30.2, 0x8c667d, {
+    name: "لولوة",
+    role: "تحب السوالف والكرك",
+    skin: 0xd29874,
+    hijab: 0x456d86,
+    scale: 0.87,
+    lines: [14, 9, 13],
+    walks: false,
+  });
+  ambientActor(42.0, 25.6, 0x6f7951, {
+    name: "زينب",
+    role: "جارة طيبة",
+    skin: 0xc38866,
+    hijab: 0xb78265,
+    scale: 0.95,
+    lines: [11, 13, 9],
     walks: false,
   });
   renderAmbientConversations();
@@ -2249,10 +2432,20 @@ function updateWorldEffects(dt) {
     fountainWater.scale.y = 1 + Math.sin(worldClock * 2.2) * 0.05;
   }
   if (fountainJet) fountainJet.scale.y = 0.9 + Math.sin(worldClock * 3.4) * 0.12;
+  if (walkthroughState.active && !walkthroughState.paused) {
+    const directorCamera = WALKTHROUGH_STEPS[walkthroughState.index]?.camera;
+    if (directorCamera) {
+      camYaw += dt * directorCamera.orbit;
+      camPitch = directorCamera.pitch + Math.sin(worldClock * 0.34 + walkthroughState.index * 0.8) * directorCamera.sweep;
+      camDist = directorCamera.distance + Math.sin(worldClock * 0.2 + walkthroughState.index) * directorCamera.dolly;
+    }
+  }
   cloudGroups.forEach((item) => {
     item.position.x += item.userData.speed * dt;
     if (item.position.x > 58) item.position.x = -58;
   });
+  const foodCourtTour = walkthroughState.active && Boolean(WALKTHROUGH_STEPS[walkthroughState.index]?.foodCourt);
+  const featuredConversation = foodCourtTour ? Math.floor(worldClock / 4.5) % ambientActors.length : -1;
   ambientActors.forEach((actor, index) => {
     const phase = worldClock * 0.45 + actor.userData.phase;
     if (activeAction?.action === "team") {
@@ -2269,6 +2462,10 @@ function updateWorldEffects(dt) {
       actor.lookAt(35, actor.position.y, 25);
     }
     actor.position.y = Math.abs(Math.sin(phase * 3)) * 0.025;
+    if (actor.userData.dialogueSprite) {
+      actor.userData.dialogueSprite.visible = foodCourtTour && index === featuredConversation;
+      actor.userData.dialogueSprite.material.opacity = 0.82 + Math.sin(worldClock * 2.2) * 0.14;
+    }
   });
   trophyMeshes.forEach((trophy) => {
     trophy.rotation.y += dt * 0.7;
@@ -2329,9 +2526,19 @@ function init3D() {
   sunLight.shadow.camera.top = 35;
   sunLight.shadow.camera.bottom = -35;
   scene.add(sunLight);
-  scene.add(new THREE.AmbientLight(0x9fcfff, 0.42));
+  moonLight = new THREE.DirectionalLight(0x86a8ff, 0);
+  moonLight.position.set(22, 30, -28);
+  scene.add(moonLight);
+  ambientLight = new THREE.AmbientLight(0x9fcfff, 0.42);
+  scene.add(ambientLight);
   environment();
   PROJECTS.forEach(building);
+  cinematicLight(0, 4.8, 1.5, 0x9cecff, 2.4, 16, 2.8);
+  cinematicLight(-8, 4.4, 0.8, 0x9bdcff, 1.9, 15, 2.2);
+  cinematicLight(8, 4.4, 1.8, 0xffcf88, 1.8, 15, 2.2);
+  cinematicLight(29, 4.8, 30, 0xffb24c, 2.8, 18, 3.0);
+  cinematicLight(35, 5.2, 27, 0xffcc73, 3.3, 20, 3.4);
+  cinematicLight(41, 4.8, 30, 0xffa94a, 2.8, 18, 3.0);
   ola = createOla();
   ola.position.set(-2.7, 0, -4.6);
   scene.add(ola);
@@ -2356,7 +2563,7 @@ function init3D() {
   }
   if (isBedtime(state.hour) && !state.nightSocial) setTimeout(openBedtimeGate, 0);
   if ("serviceWorker" in navigator)
-     navigator.serviceWorker.register("./sw.js?release=20260907-v30", { updateViaCache: "none" }).catch(() => {});
+     navigator.serviceWorker.register("./sw.js?release=20260907-v31", { updateViaCache: "none" }).catch(() => {});
 }
 function resize() {
   if (!renderer) return;
@@ -2393,6 +2600,7 @@ function installQAInterface() {
     value: Object.freeze({
       snapshot: () => ({
         olaPosition: ola ? { x: ola.position.x, y: ola.position.y, z: ola.position.z } : null,
+        olaVisible: ola?.visible ?? null,
         gameTime: { day: state.day, hour: state.hour, phase: timePhaseFor(state.hour).id },
         movementInput: { x: move.x, y: move.y },
         hasWalkTarget,
@@ -2408,7 +2616,16 @@ function installQAInterface() {
           index: walkthroughState.index,
           phase: WALKTHROUGH_STEPS[walkthroughState.index]?.phase || null,
           paused: walkthroughState.paused,
+          foodCourt: Boolean(WALKTHROUGH_STEPS[walkthroughState.index]?.foodCourt),
         },
+        ambientActorCount: ambientActors.length,
+        visibleCinematicConversations: ambientActors.filter((actor) => actor.userData.dialogueSprite?.visible).length,
+        projectPresentation: projectMeshes.map((model) => ({
+          labelVisible: model.userData.projectLabel?.visible ?? null,
+          beaconVisible: model.userData.beacon?.visible ?? null,
+          healthRingVisible: model.userData.healthRing?.visible ?? null,
+          healthLabelVisible: model.userData.healthLabel?.visible ?? null,
+        })),
         projectHealth: Object.fromEntries(PROJECTS.map((project) => [project.id, trajectoryFor(project)])),
         lastDecisionOutcome: state.lastDecisionOutcome,
         gameOutcome: gameOutcome || state.finalOutcomeSummary?.result || null,
@@ -2509,26 +2726,44 @@ function animateOla(dt, moving) {
 function updateDayLight() {
   const hour = state.hour,
     daylight = hour < 5.5
-      ? 0.3
+      ? 0.12
       : hour < 7.5
-        ? THREE.MathUtils.lerp(0.3, 0.88, (hour - 5.5) / 2)
+        ? THREE.MathUtils.lerp(0.12, 0.88, (hour - 5.5) / 2)
         : hour < 16.5
           ? 1
           : hour < 19.5
             ? THREE.MathUtils.lerp(1, 0.5, (hour - 16.5) / 3)
             : hour < 21
-              ? THREE.MathUtils.lerp(0.5, 0.3, (hour - 19.5) / 1.5)
-              : 0.3,
+              ? THREE.MathUtils.lerp(0.5, 0.12, (hour - 19.5) / 1.5)
+              : 0.12,
     warmWeight = Math.max(0, 1 - Math.abs(hour - 18) / 2.8),
-    dayColor = new THREE.Color(0x84c8df).lerp(new THREE.Color(0xf09a68), warmWeight * 0.42);
-  const nightColor = new THREE.Color(0x173654);
+    nightWeight = 1 - daylight,
+    dayColor = new THREE.Color(0x8fd6ec).lerp(new THREE.Color(0xf08d55), warmWeight * 0.58);
+  const nightColor = new THREE.Color(0x071329);
   const sky = nightColor.clone().lerp(dayColor, daylight);
   scene.background.copy(sky);
   scene.fog.color.copy(sky);
-  sunLight.intensity = 0.85 + daylight * 3.0;
-  sunLight.color.copy(new THREE.Color(0xffe4aa).lerp(new THREE.Color(0xff8b57), warmWeight * 0.7));
-  skyLight.intensity = 1.05 + daylight * 1.55;
-  if (starField) starField.material.opacity = THREE.MathUtils.clamp((0.72 - daylight) * 2.2, 0, 0.95);
+  scene.fog.near = THREE.MathUtils.lerp(48, 64, daylight);
+  scene.fog.far = THREE.MathUtils.lerp(104, 132, daylight);
+  sunLight.intensity = 0.24 + daylight * 4.1;
+  sunLight.color.copy(new THREE.Color(0xffe9b7).lerp(new THREE.Color(0xff7948), warmWeight * 0.78));
+  sunLight.position.set(Math.cos((hour - 6) / 24 * Math.PI * 2) * 28, 12 + daylight * 24, Math.sin((hour - 6) / 24 * Math.PI * 2) * 24);
+  skyLight.intensity = 0.42 + daylight * 2.18;
+  if (ambientLight) ambientLight.intensity = 0.2 + daylight * 0.38;
+  if (moonLight) moonLight.intensity = nightWeight * 1.35;
+  renderer.toneMappingExposure = (walkthroughState.active ? 1.2 : 1.12) + daylight * 0.16 + warmWeight * 0.08;
+  cinematicLights.forEach((light) => { light.intensity = nightWeight * light.userData.nightIntensity; });
+  architecturalWindowMaterials.forEach((material) => {
+    material.emissiveIntensity = 0.08 + nightWeight * material.userData.nightIntensity;
+  });
+  lightPoolMaterials.forEach((material) => {
+    material.opacity = nightWeight * material.userData.nightOpacity;
+  });
+  if (starField) starField.material.opacity = THREE.MathUtils.clamp((0.78 - daylight) * 2.7, 0, 1);
+  if (snowField) {
+    snowField.material.opacity = 0.24 + nightWeight * 0.72;
+    snowField.material.size = 0.12 + nightWeight * 0.07;
+  }
   cloudGroups.forEach((item) => {
     item.children.forEach((puff) => {
       if (puff.material) puff.material.opacity = 0.24 + daylight * 0.54;

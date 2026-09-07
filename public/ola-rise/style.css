@@ -844,16 +844,15 @@ body[data-time-phase="night"] #game::before {
   pointer-events: none;
 }
 .walkthrough-card {
-  pointer-events: auto;
+  pointer-events: none;
   position: relative;
-  width: min(640px, 100%);
-  padding: 18px;
-  border-radius: 24px;
-  border-color: rgba(255, 217, 125, .58);
-  background:
-    radial-gradient(circle at 8% 0, rgba(77, 197, 220, .18), transparent 44%),
-    linear-gradient(150deg, rgba(11, 33, 52, .98), rgba(33, 25, 22, .97));
-  box-shadow: 0 25px 80px rgba(0,0,0,.62), 0 0 36px rgba(240,201,111,.18);
+  width: min(760px, 100%);
+  padding: 0 58px 8px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 .walkthrough-progress {
   height: 4px;
@@ -871,14 +870,19 @@ body[data-time-phase="night"] #game::before {
   transition: width .35s ease;
 }
 .walkthrough-close {
-  position: absolute;
-  top: 11px;
-  right: 12px;
+  pointer-events: auto;
+  position: fixed;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
   width: 34px;
   height: 34px;
   padding: 0;
-  border-radius: 50%;
-  font-size: 20px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #fff;
+  font-size: 28px;
+  text-shadow: 0 2px 12px #000, 0 0 22px rgba(0,0,0,.9);
 }
 .walkthrough-heading { display: flex; align-items: center; gap: 13px; }
 .walkthrough-heading > span {
@@ -887,35 +891,49 @@ body[data-time-phase="night"] #game::before {
   place-items: center;
   width: 48px;
   height: 48px;
-  border-radius: 15px;
+  border-radius: 0;
   color: #ffe29a;
   font-size: 26px;
-  background: rgba(240,201,111,.13);
-  border: 1px solid rgba(240,201,111,.35);
+  background: transparent;
+  border: 0;
+  filter: drop-shadow(0 3px 10px rgba(0,0,0,.9));
 }
-.walkthrough-heading small { color: #7de6a8; font-size: 9px; font-weight: 900; letter-spacing: .14em; }
-.walkthrough-heading h2 { margin: 3px 38px 0 0; font-size: clamp(20px, 3vw, 28px); }
-.walkthrough-card > p { margin: 12px 0 14px; color: #cfdae4; line-height: 1.55; }
-.walkthrough-actions { display: grid; grid-template-columns: auto auto 1fr; gap: 8px; }
-.walkthrough-actions button { min-height: 44px; }
-.walkthrough-count { display: block; margin-top: 9px; color: #9fb0c1; text-align: center; }
+.walkthrough-heading small { color: #a9ffd0; font-size: 9px; font-weight: 900; letter-spacing: .14em; text-shadow: 0 2px 10px #000; }
+.walkthrough-heading h2 { margin: 3px 38px 0 0; font-size: clamp(20px, 3vw, 28px); text-shadow: 0 3px 16px #000, 0 0 34px rgba(0,0,0,.95); }
+.walkthrough-card > p { margin: 7px 0 11px 61px; color: #f2f7fb; line-height: 1.45; text-shadow: 0 2px 12px #000, 0 0 26px rgba(0,0,0,.95); }
+.walkthrough-actions { pointer-events: auto; display: grid; grid-template-columns: auto auto minmax(110px,180px); justify-content: center; gap: 8px; }
+.walkthrough-actions button { min-height: 38px; border-color: rgba(255,255,255,.22); background: rgba(5,13,24,.48); backdrop-filter: blur(7px); box-shadow: 0 6px 22px rgba(0,0,0,.26); }
+.walkthrough-count { display: block; margin-top: 7px; color: #eef6ff; text-align: center; text-shadow: 0 2px 10px #000; }
 .walkthrough-focus {
   outline: 3px solid #ffe08b !important;
   outline-offset: 5px;
   box-shadow: 0 0 0 8px rgba(240,201,111,.14), 0 0 40px rgba(240,201,111,.4) !important;
 }
-body.walkthrough-active .ambient-conversations,
-body.walkthrough-active .wellbeing-prompt,
-body.walkthrough-active .status-strip,
-body.walkthrough-active .objective,
-body.walkthrough-active .stage-rail,
-body.walkthrough-active .decision-training-stats,
-body.walkthrough-active .campaign-progress,
-body.walkthrough-active .mood-chip,
-body.walkthrough-active .touch-actions,
-body.walkthrough-active .joystick,
-body.walkthrough-active .camera-hint { display: none !important; }
-body.walkthrough-active .identity small { display: none; }
+body.walkthrough-active #game > :not(#world3d):not(#walkthroughPanel) { display: none !important; visibility: hidden !important; opacity: 0 !important; pointer-events: none !important; transition: none !important; }
+body.walkthrough-active #walkthroughPanel { pointer-events: auto; }
+body.walkthrough-active .walkthrough-progress,
+body.walkthrough-active .walkthrough-heading,
+body.walkthrough-active .walkthrough-card > p,
+body.walkthrough-active .walkthrough-actions,
+body.walkthrough-active .walkthrough-count,
+body.walkthrough-active .walkthrough-close { opacity: 0; transform: translateY(8px); transition: opacity .5s ease, transform .5s ease; }
+body.walkthrough-active.walkthrough-controls-visible .walkthrough-progress,
+body.walkthrough-active.walkthrough-controls-visible .walkthrough-heading,
+body.walkthrough-active.walkthrough-controls-visible .walkthrough-card > p,
+body.walkthrough-active.walkthrough-controls-visible .walkthrough-actions,
+body.walkthrough-active.walkthrough-controls-visible .walkthrough-count,
+body.walkthrough-active.walkthrough-controls-visible .walkthrough-close { opacity: 1; transform: none; }
+body.walkthrough-active:not(.walkthrough-controls-visible) .walkthrough-actions { pointer-events: none; }
+body.cinematic-capture .walkthrough-progress,
+body.cinematic-capture .walkthrough-actions,
+body.cinematic-capture .walkthrough-count,
+body.cinematic-capture .walkthrough-close { display: none !important; }
+body.cinematic-capture .walkthrough-card { padding-bottom: 34px; }
+body.walkthrough-active #game::before {
+  background:
+    linear-gradient(180deg, rgba(0,0,0,.12), transparent 19%, transparent 78%, rgba(0,0,0,.32)),
+    radial-gradient(circle at 50% 45%, transparent 48%, rgba(0,3,9,.19) 100%);
+}
 .drawer {
   position: absolute;
   z-index: 50;
