@@ -310,7 +310,13 @@ async function clearAndOpen(context, url) {
     const iframePage = await clearAndOpen(iframeContext, `${baseUrl}/`);
     await iframePage.waitForSelector("header.top", { timeout: 30000 });
     await iframePage.waitForFunction(() => Object.keys(document.querySelector(".gameEntryBtn") || {}).some((key) => key.startsWith("__reactProps")), null, { timeout: 10000 });
-    await iframePage.locator(".gameEntryBtn").click();
+    const gameEntry = iframePage.locator(".gameEntryBtn");
+    await gameEntry.waitFor({ state: "visible" });
+    assert.equal(await gameEntry.getAttribute("href"), "/ola-rise/index.html?release=20260907-v30", "main navigation must retain a direct game URL");
+    const gameEntryBox = await gameEntry.boundingBox();
+    assert.ok(gameEntryBox && gameEntryBox.x >= 0 && gameEntryBox.x + gameEntryBox.width <= 390, "GO TO GAME must fit the mobile navigation viewport");
+    await iframePage.screenshot({ path: path.join(artifactDir, "mobile-main-go-to-game-entry.png"), fullPage: false });
+    await gameEntry.click();
     const iframeElement = iframePage.locator("iframe.olaRiseFrame");
     await iframeElement.waitFor({ state: "visible", timeout: 10000 });
     await iframeElement.evaluate((element) => {
