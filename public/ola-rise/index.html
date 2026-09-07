@@ -15,7 +15,7 @@
     <meta name="apple-mobile-web-app-title" content="OLA: RISE" />
     <title>OLA: RISE — Memory. Decisions. Projects. Destiny.</title>
     <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="stylesheet" href="style.css?release=20260902-v29" />
+    <link rel="stylesheet" href="style.css?release=20260907-v30" />
   </head>
   <body>
     <div id="app">
@@ -44,6 +44,9 @@
             <b id="dayLabel">Day 1/30</b><span id="timeLabel">08:00</span><small id="timePhase">Morning</small>
           </div>
           <div id="moodLabel" class="mood-chip good">Focused &amp; formidable</div>
+          <button id="walkthroughBtn" class="walkthrough-launch" type="button" aria-haspopup="dialog">
+            <span>🚶</span><b>WALK THROUGH</b>
+          </button>
           <button id="menuBtn" class="icon-btn">☰</button>
         </header>
 
@@ -286,6 +289,7 @@
             <div class="kicker">NIGHT ROUTINE · 21:00</div>
             <h2>Management is closed for the night.</h2>
             <p>No management decisions are allowed after 21:00. Ola can move freely to the Food Court for food and conversation, or choose Bed Time and return at 06:00.</p>
+            <button id="walkthroughNightBtn" class="walkthrough-night-start full" type="button">🚶 WALK THROUGH THE WORLD</button>
             <button id="goNightFoodCourt" class="gold full">GO TO FOOD COURT →</button>
             <button id="sleepUntilMorning" class="primary full">BED TIME →</button>
           </div>
@@ -300,6 +304,24 @@
             <button data-food="karak" aria-label="Order karak tea">🫖</button>
           </div>
           <button id="nightSleepNow" class="primary">BED TIME →</button>
+        </section>
+
+        <section id="walkthroughPanel" class="walkthrough-panel hidden" role="dialog" aria-modal="true" aria-labelledby="walkthroughTitle">
+          <div class="walkthrough-card glass">
+            <button id="walkthroughClose" class="walkthrough-close" type="button" aria-label="Close walk through">×</button>
+            <div class="walkthrough-progress"><i id="walkthroughProgressBar"></i></div>
+            <div class="walkthrough-heading">
+              <span id="walkthroughIcon">☀</span>
+              <div><small id="walkthroughPhase">MORNING</small><h2 id="walkthroughTitle">Welcome to Ola's world</h2></div>
+            </div>
+            <p id="walkthroughText">A calm visual tour through the city.</p>
+            <div class="walkthrough-actions">
+              <button id="walkthroughBack" type="button">← Back</button>
+              <button id="walkthroughPause" type="button">❚❚ Pause</button>
+              <button id="walkthroughNext" class="primary" type="button">Next →</button>
+            </div>
+            <small id="walkthroughCount" class="walkthrough-count">1 / 7</small>
+          </div>
         </section>
       </section>
 
@@ -339,6 +361,6 @@
         </div>
       </section>
     </div>
-    <script type="module" src="game.js?release=20260902-v29"></script>
+    <script type="module" src="game.js?release=20260907-v30"></script>
   </body>
 </html>

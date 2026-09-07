@@ -818,6 +818,104 @@ body[data-time-phase="night"] #game::before {
   white-space: nowrap;
   pointer-events: none;
 }
+.walkthrough-launch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 9px 14px;
+  border-color: rgba(255, 219, 132, .7);
+  background: linear-gradient(135deg, rgba(15, 49, 66, .96), rgba(125, 82, 25, .96));
+  box-shadow: 0 12px 34px rgba(0,0,0,.4), 0 0 26px rgba(240,201,111,.16);
+  letter-spacing: .06em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.walkthrough-launch span { font-size: 17px; }
+.walkthrough-launch b { font-size: 10px; }
+.walkthrough-panel {
+  position: absolute;
+  z-index: 220;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 18px max(14px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(14px, env(safe-area-inset-left));
+  pointer-events: none;
+}
+.walkthrough-card {
+  pointer-events: auto;
+  position: relative;
+  width: min(640px, 100%);
+  padding: 18px;
+  border-radius: 24px;
+  border-color: rgba(255, 217, 125, .58);
+  background:
+    radial-gradient(circle at 8% 0, rgba(77, 197, 220, .18), transparent 44%),
+    linear-gradient(150deg, rgba(11, 33, 52, .98), rgba(33, 25, 22, .97));
+  box-shadow: 0 25px 80px rgba(0,0,0,.62), 0 0 36px rgba(240,201,111,.18);
+}
+.walkthrough-progress {
+  height: 4px;
+  margin: 0 42px 15px 0;
+  overflow: hidden;
+  border-radius: 99px;
+  background: rgba(255,255,255,.12);
+}
+.walkthrough-progress i {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #67e3a0, #f0c96f);
+  transition: width .35s ease;
+}
+.walkthrough-close {
+  position: absolute;
+  top: 11px;
+  right: 12px;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 20px;
+}
+.walkthrough-heading { display: flex; align-items: center; gap: 13px; }
+.walkthrough-heading > span {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 15px;
+  color: #ffe29a;
+  font-size: 26px;
+  background: rgba(240,201,111,.13);
+  border: 1px solid rgba(240,201,111,.35);
+}
+.walkthrough-heading small { color: #7de6a8; font-size: 9px; font-weight: 900; letter-spacing: .14em; }
+.walkthrough-heading h2 { margin: 3px 38px 0 0; font-size: clamp(20px, 3vw, 28px); }
+.walkthrough-card > p { margin: 12px 0 14px; color: #cfdae4; line-height: 1.55; }
+.walkthrough-actions { display: grid; grid-template-columns: auto auto 1fr; gap: 8px; }
+.walkthrough-actions button { min-height: 44px; }
+.walkthrough-count { display: block; margin-top: 9px; color: #9fb0c1; text-align: center; }
+.walkthrough-focus {
+  outline: 3px solid #ffe08b !important;
+  outline-offset: 5px;
+  box-shadow: 0 0 0 8px rgba(240,201,111,.14), 0 0 40px rgba(240,201,111,.4) !important;
+}
+body.walkthrough-active .ambient-conversations,
+body.walkthrough-active .wellbeing-prompt,
+body.walkthrough-active .status-strip,
+body.walkthrough-active .objective,
+body.walkthrough-active .stage-rail,
+body.walkthrough-active .decision-training-stats,
+body.walkthrough-active .campaign-progress,
+body.walkthrough-active .mood-chip,
+body.walkthrough-active .touch-actions,
+body.walkthrough-active .joystick,
+body.walkthrough-active .camera-hint { display: none !important; }
+body.walkthrough-active .identity small { display: none; }
 .drawer {
   position: absolute;
   z-index: 50;
@@ -1455,6 +1553,7 @@ body.food-court-arrival::after {
 }
 .bedtime-card h2 { margin: 10px 0 8px; font-size: 29px; }
 .bedtime-card p { color: #c3cee0; line-height: 1.6; }
+.walkthrough-night-start { margin-bottom: 9px; border-color: rgba(115,218,236,.5); background: rgba(38,118,139,.22); }
 .bedtime-card .gold { margin-bottom: 9px; }
 .night-social-dock {
   position: absolute;
@@ -1609,6 +1708,8 @@ body.food-court-arrival::after {
 }
 @media (max-width: 620px) {
   .campaign-progress { display: none; }
+  .walkthrough-launch { min-width: 40px; padding: 8px; }
+  .walkthrough-launch b { display: none; }
   .mood-chip {
     display: none;
   }
@@ -1688,6 +1789,13 @@ body.food-court-arrival::after {
     flex-direction: column;
   }
   .night-social-dock button { width: 100%; }
+  .walkthrough-panel { padding: 10px max(8px, env(safe-area-inset-right)) max(10px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
+  .walkthrough-card { padding: 14px; border-radius: 20px; }
+  .walkthrough-heading > span { width: 40px; height: 40px; font-size: 22px; }
+  .walkthrough-heading h2 { font-size: 20px; }
+  .walkthrough-card > p { margin: 9px 0 11px; font-size: 13px; }
+  .walkthrough-actions { grid-template-columns: 1fr 1fr 1.35fr; gap: 5px; }
+  .walkthrough-actions button { min-width: 0; padding: 9px 6px; font-size: 11px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .plumbob,

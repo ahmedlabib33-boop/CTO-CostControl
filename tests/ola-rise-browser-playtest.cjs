@@ -12,7 +12,17 @@ function distance(a, b) {
 }
 
 async function waitForGame(page) {
-  await page.waitForFunction(() => window.__OLA_RISE_QA__?.snapshot().olaPosition, null, { timeout: 30000 });
+  try {
+    await page.waitForFunction(() => window.__OLA_RISE_QA__?.snapshot().olaPosition, null, { timeout: 30000 });
+  } catch (error) {
+    const diagnostics = await page.evaluate(() => ({
+      readyState: document.readyState,
+      loadingText: document.querySelector("#loading")?.textContent,
+      qaType: typeof window.__OLA_RISE_QA__,
+      scripts: [...document.scripts].map((script) => script.src),
+    })).catch((diagnosticError) => ({ diagnosticError: String(diagnosticError) }));
+    throw new Error(`OLA: RISE did not initialize: ${JSON.stringify(diagnostics)}; ${error.message}`);
+  }
   await page.waitForSelector("#loading", { state: "hidden", timeout: 30000 });
 }
 
@@ -37,6 +47,7 @@ async function touchJoystick(page, frame = page) {
 
 async function clearAndOpen(context, url) {
   const page = await context.newPage();
+  page.on("pageerror", (error) => console.error("PAGE ERROR", url, String(error)));
   await page.addInitScript(() => {
     if (!sessionStorage.getItem("ola-rise-playtest-initialized")) {
       localStorage.clear();
@@ -55,11 +66,63 @@ async function clearAndOpen(context, url) {
   const report = { baseUrl, checks: {}, consoleErrors: [] };
   try {
     const desktop = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-    const page = await clearAndOpen(desktop, `${baseUrl}/ola-rise/index.html?qa=1&release=20260902-v29`);
+    const page = await clearAndOpen(desktop, `${baseUrl}/ola-rise/index.html?qa=1&release=20260907-v30`);
     page.on("pageerror", (error) => report.consoleErrors.push(String(error)));
     await waitForGame(page);
     assert.equal(await page.locator("#thoughtBubble").count(), 0, "floating Think About bubble must be removed");
     assert.equal(await page.locator("#decisionConfidence").count(), 0, "confidence question must be removed");
+
+    const tourStart = await snapshot(page);
+    const storedBeforeTour = await page.evaluate(() => Object.fromEntries(Object.keys(localStorage).map((key) => [key, localStorage.getItem(key)])));
+    await page.locator("#walkthroughBtn").click();
+    await page.waitForSelector("#walkthroughPanel:not(.hidden)");
+    assert.equal((await snapshot(page)).walkthrough.active, true);
+    assert.equal((await snapshot(page)).gameTime.phase, "morning");
+    assert.equal(await page.locator(".status-strip").evaluate((element) => getComputedStyle(element).display), "none", "the visual tour must hide management UI");
+    await page.locator("#walkthroughPause").click();
+    assert.equal((await snapshot(page)).walkthrough.paused, true);
+    await page.locator("#walkthroughPause").click();
+    for (let index = 0; index < 4; index += 1) await page.locator("#walkthroughNext").click();
+    assert.equal((await snapshot(page)).walkthrough.phase, "EVENING");
+    assert.equal((await snapshot(page)).gameTime.phase, "evening");
+    await page.locator("#walkthroughNext").click();
+    assert.equal((await snapshot(page)).walkthrough.phase, "NIGHT");
+    assert.equal((await snapshot(page)).gameTime.phase, "night");
+    assert.equal((await page.locator("#walkthroughText").innerText()).toLowerCase().includes("decision"), false);
+    await page.waitForFunction(() => {
+      const position = window.__OLA_RISE_QA__.snapshot().olaPosition;
+      return Math.hypot(position.x - 35, position.z - 32.5) < 4;
+    }, null, { timeout: 8000 });
+    await page.screenshot({ path: path.join(artifactDir, "desktop-visual-walkthrough-night.png"), fullPage: true });
+    await page.locator("#walkthroughNext").click();
+    await page.locator("#walkthroughNext").click();
+    const tourEnd = await snapshot(page);
+    assert.equal(tourEnd.walkthrough.active, false);
+    assert.ok(distance(tourStart.olaPosition, tourEnd.olaPosition) < 0.05, "closing the tour must restore Ola's position");
+    assert.ok(Math.abs(tourEnd.gameTime.hour - tourStart.gameTime.hour) < 0.1, "closing the tour must restore game time before normal simulation resumes");
+    assert.deepEqual(await page.evaluate(() => Object.fromEntries(Object.keys(localStorage).map((key) => [key, localStorage.getItem(key)]))), storedBeforeTour, "the visual tour must not change saved progress");
+    report.checks.visualWalkthrough = { phases: ["morning", "evening", "night"], savedProgressUnchanged: true };
+
+    const collisionStart = await snapshot(page);
+    await page.screenshot({ path: path.join(artifactDir, "desktop-movement-before.png"), fullPage: true });
+    await page.keyboard.down("w");
+    await page.keyboard.down("d");
+    await page.waitForTimeout(1400);
+    await page.keyboard.up("d");
+    await page.keyboard.up("w");
+    const collisionSlide = await snapshot(page);
+    await page.screenshot({ path: path.join(artifactDir, "desktop-movement-after-collision-slide.png"), fullPage: true });
+    const collisionEvidence = JSON.stringify({ start: collisionStart.olaPosition, end: collisionSlide.olaPosition, blocked: collisionSlide.collisionBlocked, colliders: collisionSlide.collisionBoxes });
+    assert.ok(collisionSlide.olaPosition.z < collisionStart.olaPosition.z - 0.35, `diagonal movement must reach the Gloria facade: ${collisionEvidence}`);
+    assert.ok(collisionSlide.olaPosition.z > -5.56, `collision must prevent Ola from entering the Gloria facade: ${collisionEvidence}`);
+    assert.ok(collisionSlide.olaPosition.x < collisionStart.olaPosition.x - 0.2, `blocked diagonal movement must slide along the facade: ${collisionEvidence}`);
+    assert.equal(collisionSlide.collisionBlocked, false, `Ola must never finish a movement frame inside a collider: ${collisionEvidence}`);
+    report.checks.collisionSlide = {
+      xDelta: collisionSlide.olaPosition.x - collisionStart.olaPosition.x,
+      zDelta: collisionSlide.olaPosition.z - collisionStart.olaPosition.z,
+    };
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await waitForGame(page);
 
     const desktopStart = await snapshot(page);
     await page.keyboard.down("w");
@@ -75,7 +138,12 @@ async function clearAndOpen(context, url) {
     await page.waitForFunction(() => window.__OLA_RISE_QA__.snapshot().hasWalkTarget, null, { timeout: 3000 });
     const planned = await snapshot(page);
     assert.ok(planned.activeRoute.length >= 1, "GO TO must create a collision-safe route");
-    await page.waitForSelector("#projectSheet.open", { timeout: 12000 });
+    assert.equal(planned.activeRouteBlocked.some(Boolean), false, "every GO TO route point must be outside colliders");
+    try {
+      await page.waitForSelector("#projectSheet.open", { timeout: 16000 });
+    } catch (error) {
+      throw new Error(`GO TO did not arrive. Snapshot: ${JSON.stringify(await snapshot(page))}`, { cause: error });
+    }
     const goEnd = await snapshot(page);
     const goDistance = distance(goStart, goEnd.olaPosition);
     assert.ok(goDistance > 2, `GO TO should visibly move Ola, measured ${goDistance}`);
@@ -92,6 +160,14 @@ async function clearAndOpen(context, url) {
     assert.match(await page.locator("#decisionSelected").innerText(), /Ola chose:/);
     assert.match(await page.locator("#decisionFeedbackTitle").innerText(), /downward|damaged/i);
     assert.ok(await page.locator("#decisionReflection:not(.hidden)").isVisible(), "reflection must appear after the final choice");
+    const storedDecision = await page.evaluate((id) => {
+      const key = Object.keys(localStorage).find((item) => item.startsWith("ola3d-live:"));
+      return JSON.parse(localStorage.getItem(key)).decisionOutcomes[id][0];
+    }, projectId);
+    assert.equal(storedDecision.schemaVersion, 2);
+    assert.equal(storedDecision.projectId, projectId);
+    assert.equal(storedDecision.missionIndex, 0);
+    assert.ok(storedDecision.missionTitle);
     await page.screenshot({ path: path.join(artifactDir, "out-of-track-confirmation.png"), fullPage: true });
     const lockedHealth = wrongDecision.projectHealth[projectId].momentum;
     await page.locator('[data-opt="1"]').click({ force: true }).catch(() => {});
@@ -110,16 +186,26 @@ async function clearAndOpen(context, url) {
     assert.equal(failed.gameOutcome, "failure", "crossing the failure threshold must end the run as a loss");
     report.checks.failedHealth = 27;
     await page.screenshot({ path: path.join(artifactDir, "failed-project-ending.png"), fullPage: true });
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await waitForGame(page);
+    await page.waitForSelector("#blackout.active", { timeout: 5000 });
+    const restoredFailure = await snapshot(page);
+    assert.equal(restoredFailure.gameOutcome, "failure", "an irreversible failure must restore after reload");
+    assert.equal(restoredFailure.finalOutcomeSummary?.result, "failure", "the final project-outcome summary must be persisted");
+    report.checks.failureRestoredAfterReload = true;
     await desktop.close();
 
     const recovery = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-    const recoveryPage = await clearAndOpen(recovery, `${baseUrl}/ola-rise/index.html?qa=1&release=20260902-v29&recovery=1`);
+    const recoveryPage = await clearAndOpen(recovery, `${baseUrl}/ola-rise/index.html?qa=1&release=20260907-v30&recovery=1`);
     await waitForGame(recoveryPage);
     await recoveryPage.locator("#goToBtn").click({ force: true });
     await recoveryPage.waitForSelector("#projectSheet.open", { timeout: 12000 });
     for (const missionIndex of [0, 1]) {
       await recoveryPage.locator(`[data-mission="${missionIndex}"]`).click();
       await recoveryPage.locator('[data-opt="0"]').click();
+      const decisionState = await snapshot(recoveryPage);
+      assert.equal(decisionState.lastDecisionOutcome.correct, true, "correct decisions must finalize immediately");
+      assert.ok(await recoveryPage.locator("#decisionReflection:not(.hidden)").isVisible(), "correct decisions must also open reflection");
       await recoveryPage.locator('[data-reflection-opt="0"]').click();
       await recoveryPage.waitForTimeout(1200);
     }
@@ -131,17 +217,63 @@ async function clearAndOpen(context, url) {
     report.checks.risingHealth = 72;
     await recovery.close();
 
+    const legacy = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const legacyPage = await clearAndOpen(legacy, `${baseUrl}/ola-rise/index.html?qa=1&release=20260907-v30&legacy=1`);
+    await waitForGame(legacyPage);
+    await legacyPage.locator("#menuBtn").click({ force: true });
+    await legacyPage.locator("#saveBtn").evaluate((button) => button.click());
+    await legacyPage.evaluate(() => {
+      const key = Object.keys(localStorage).find((item) => item.startsWith("ola3d-live:"));
+      const saved = JSON.parse(localStorage.getItem(key));
+      const projectId = Object.keys(window.__OLA_RISE_QA__.snapshot().projectHealth)[0];
+      saved.projectMomentum = { ...(saved.projectMomentum || {}), [projectId]: 30 };
+      saved.failedProjects = {};
+      saved.finalOutcomeSummary = null;
+      localStorage.setItem(key, JSON.stringify(saved));
+    });
+    await legacyPage.reload({ waitUntil: "domcontentloaded" });
+    await waitForGame(legacyPage);
+    const legacyLow = await snapshot(legacyPage);
+    const legacyProject = Object.keys(legacyLow.projectHealth)[0];
+    assert.equal(legacyLow.projectHealth[legacyProject].label, "FAILED");
+    assert.equal(legacyLow.gameOutcome, null, "an old below-threshold save must not fail before a new impact");
+    await legacyPage.screenshot({ path: path.join(artifactDir, "failed-project-world-legacy-save.png"), fullPage: true });
+    await legacyPage.locator("#goToBtn").click({ force: true });
+    await legacyPage.waitForSelector("#projectSheet.open", { timeout: 12000 });
+    await legacyPage.locator('[data-mission="0"]').click();
+    await legacyPage.locator('[data-opt="0"]').click();
+    const legacyRecovered = await snapshot(legacyPage);
+    assert.equal(Math.round(legacyRecovered.projectHealth[legacyProject].momentum), 38);
+    assert.equal(legacyRecovered.projectHealth[legacyProject].label, "OUT OF TRACK");
+    assert.equal(legacyRecovered.gameOutcome, null);
+    report.checks.legacyBelowThresholdRecovered = 38;
+    await legacy.close();
+
     const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 1 });
-    const mobilePage = await clearAndOpen(mobile, `${baseUrl}/ola-rise/index.html?qa=1&release=20260902-v29&mobile=1`);
+    const mobilePage = await clearAndOpen(mobile, `${baseUrl}/ola-rise/index.html?qa=1&release=20260907-v30&mobile=1`);
     mobilePage.on("pageerror", (error) => report.consoleErrors.push(String(error)));
     await waitForGame(mobilePage);
+    await mobilePage.locator("#walkthroughBtn").click();
+    await mobilePage.waitForSelector("#walkthroughPanel:not(.hidden)");
+    const mobileTourBox = await mobilePage.locator(".walkthrough-card").boundingBox();
+    assert.ok(mobileTourBox && mobileTourBox.x >= 0 && mobileTourBox.y >= 0 && mobileTourBox.x + mobileTourBox.width <= 390 && mobileTourBox.y + mobileTourBox.height <= 844, "walk through controls must fit the mobile viewport");
+    for (let index = 0; index < 5; index += 1) await mobilePage.locator("#walkthroughNext").click();
+    assert.equal((await snapshot(mobilePage)).gameTime.phase, "night");
+    await mobilePage.waitForFunction(() => {
+      const position = window.__OLA_RISE_QA__.snapshot().olaPosition;
+      return Math.hypot(position.x - 35, position.z - 32.5) < 4;
+    }, null, { timeout: 8000 });
+    await mobilePage.screenshot({ path: path.join(artifactDir, "mobile-visual-walkthrough-night.png"), fullPage: true });
+    await mobilePage.locator("#walkthroughClose").click();
     const mobileStart = await snapshot(mobilePage);
+    await mobilePage.screenshot({ path: path.join(artifactDir, "mobile-movement-before.png"), fullPage: true });
     await touchJoystick(mobilePage);
     const mobileEnd = await snapshot(mobilePage);
     const mobileDistance = distance(mobileStart.olaPosition, mobileEnd.olaPosition);
     assert.ok(mobileDistance > 0.35, `mobile touch joystick should move Ola, measured ${mobileDistance}`);
     assert.deepEqual(mobileEnd.movementInput, { x: 0, y: 0 }, "joystick input must reset after touch end");
     report.checks.mobileJoystickDistance = mobileDistance;
+    await mobilePage.screenshot({ path: path.join(artifactDir, "mobile-movement-after.png"), fullPage: true });
     await mobilePage.screenshot({ path: path.join(artifactDir, "mobile-joystick-moved.png"), fullPage: true });
 
     await mobilePage.click("#menuBtn");
@@ -177,15 +309,9 @@ async function clearAndOpen(context, url) {
     const iframeContext = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 1 });
     const iframePage = await clearAndOpen(iframeContext, `${baseUrl}/`);
     await iframePage.waitForSelector("header.top", { timeout: 30000 });
-    await iframePage.waitForTimeout(700);
-    await iframePage.keyboard.type("654123", { delay: 90 });
+    await iframePage.waitForFunction(() => Object.keys(document.querySelector(".gameEntryBtn") || {}).some((key) => key.startsWith("__reactProps")), null, { timeout: 10000 });
+    await iframePage.locator(".gameEntryBtn").click();
     const iframeElement = iframePage.locator("iframe.olaRiseFrame");
-    if ((await iframeElement.count()) === 0) {
-      for (const key of "654123") {
-        await iframePage.evaluate((pressed) => window.dispatchEvent(new KeyboardEvent("keydown", { key: pressed })), key);
-        await iframePage.waitForTimeout(80);
-      }
-    }
     await iframeElement.waitFor({ state: "visible", timeout: 10000 });
     await iframeElement.evaluate((element) => {
       const url = new URL(element.src);

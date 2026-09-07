@@ -7,6 +7,7 @@ import {
   buildDecisionLesson,
   buildLifePractice,
   buildStageExam,
+  campaignOutcomeState,
   decisionHint,
   evaluateDecisionChoice,
   evaluateLifePractice,
@@ -21,8 +22,8 @@ import {
   timePhaseFor,
   trainingSummary,
   trophySummary,
-} from "./systems.js?release=20260902-v29";
-import { loadLiveGameProjects } from "./live-data.js?release=20260902-v29";
+} from "./systems.js?release=20260907-v30";
+import { loadLiveGameProjects } from "./live-data.js?release=20260907-v30";
 
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
@@ -528,7 +529,13 @@ function ensureProjectMomentum() {
     project.missions.forEach((_mission, index) => {
       if (!resolved[index] || state.decisionOutcomes[project.id][index]) return;
       state.decisionOutcomes[project.id][index] = {
+        schemaVersion: 2,
+        projectId: project.id,
+        projectName: project.name,
+        missionIndex: index,
+        missionTitle: project.missions[index]?.[1] || "Legacy decision",
         selectedIndex: Number.isInteger(project.missions[index]?.[5]) ? project.missions[index][5] : 0,
+        correctIndex: Number.isInteger(project.missions[index]?.[5]) ? project.missions[index][5] : 0,
         correct: true,
         legacy: true,
         decisionImpact: 0,
@@ -562,8 +569,12 @@ function applyProjectDecisionImpact(project, delta, context = {}) {
   const impact = applyProjectHealthImpact(state.projectMomentum[project.id] ?? 50, delta);
   state.projectMomentum[project.id] = impact.after;
   state.lastDecisionOutcome = {
+    schemaVersion: 2,
     projectId: project.id,
+    projectName: project.name,
     missionIndex: Number.isInteger(context.missionIndex) ? context.missionIndex : null,
+    missionTitle: context.missionTitle || null,
+    selectedText: context.selectedText || null,
     phase: context.phase || "decision",
     correct: Boolean(context.correct),
     delta: impact.delta,
@@ -576,6 +587,8 @@ function applyProjectDecisionImpact(project, delta, context = {}) {
       health: trajectory.momentum,
       phase: context.phase || "decision",
       missionIndex: Number.isInteger(context.missionIndex) ? context.missionIndex : null,
+      missionTitle: context.missionTitle || null,
+      selectedText: context.selectedText || null,
       at: new Date().toISOString(),
     };
   }
@@ -727,7 +740,6 @@ function handleLifePractice(action) {
     state.training = recordDecisionAttempt(state.training, {
       key,
       correct: false,
-      confidence: 2,
       day: state.day,
       reflected: false,
     });
@@ -740,7 +752,6 @@ function handleLifePractice(action) {
   state.training = recordDecisionAttempt(state.training, {
     key,
     correct: true,
-    confidence: 2,
     day: state.day,
     reflected: true,
   });
@@ -844,6 +855,23 @@ let hasWalkTarget = false,
   nightFoodReplans = 0,
   nightFoodFallbackTimer = 0;
 const FOOD_COURT_ARRIVAL = { x: 35, z: 32.5 };
+const WALKTHROUGH_STEPS = Object.freeze([
+  { hour: 8, phase: "MORNING", icon: "☀", title: "Morning in Ola's city", text: "The city wakes gently as Ola begins a quiet walk through her world.", focus: ".mobile-top" },
+  { hour: 9, phase: "MORNING", icon: "✚", title: "Gloria Hospital", text: "Walk around the bright hospital, its entrance, windows, gardens, and open plaza.", focus: "#world3d", destination: () => projectTourPoint(PROJECTS[0]) },
+  { hour: 11, phase: "MORNING", icon: "◇", title: "The BIG", text: "Continue across the city to see the second landmark and its surrounding streets.", focus: "#world3d", destination: () => projectTourPoint(PROJECTS[1]) },
+  { hour: 16, phase: "EVENING", icon: "☕", title: "Coffee corner", text: "Slow down beside the outdoor coffee table as the afternoon light turns warm.", focus: "#world3d", destination: () => ({ x: -5.5, z: 10.5 }) },
+  { hour: 19, phase: "EVENING", icon: "◉", title: "Evening by the fountain", text: "Watch the sunset colors settle over the fountain, trees, lamps, and streets.", focus: ".clock", destination: () => ({ x: 4.8, z: 3.8 }) },
+  { hour: 21, phase: "NIGHT", icon: "☾", title: "Night at the Food Court", text: "Finish the walk beneath the lights and snow, with warm food and friendly conversation nearby.", focus: "#world3d", destination: () => foodCourtArrivalPoint() },
+  { hour: 6, phase: "MORNING", icon: "✦", title: "A new morning", text: "The visual walk is complete. Continue exploring freely whenever you are ready.", focus: "#walkthroughPanel" },
+]);
+let walkthroughState = {
+  active: false,
+  index: 0,
+  paused: false,
+  timer: 0,
+  snapshot: null,
+  highlight: null,
+};
 function mat(c, metal = 0.05, rough = 0.75) {
   return new THREE.MeshStandardMaterial({
     color: c,
@@ -920,40 +948,67 @@ function ensureSafeOlaPosition(preferred = null) {
 }
 function moveOlaWithCollision(direction, distance) {
   if (!ola) return false;
-  const next = ola.position.clone().addScaledVector(direction, distance),
-    moved = ola.position.clone(),
-    currentScore = collisionOverlapScore(ola.position.x, ola.position.z),
-    nextScore = collisionOverlapScore(next.x, next.z);
-  next.y = 0;
-  if (!blockedAt(next.x, next.z) || (currentScore > 0 && nextScore < currentScore)) {
-    ola.position.copy(next);
-    return true;
+  if (blockedAt(ola.position.x, ola.position.z)) ensureSafeOlaPosition(ola.position.clone());
+  const requestedDistance = Number(distance) || 0;
+  if (!requestedDistance || direction.lengthSq() < 0.0001) return false;
+  // Sweep in short steps so keyboard, joystick, tap routes and GO TO cannot
+  // jump across a narrow collider during a long or delayed animation frame.
+  const stepCount = Math.max(1, Math.ceil(Math.abs(requestedDistance) / 0.1)),
+    step = direction.clone().normalize().multiplyScalar(requestedDistance / stepCount);
+  let moved = false;
+  for (let index = 0; index < stepCount; index += 1) {
+    const targetX = ola.position.x + step.x,
+      targetZ = ola.position.z + step.z;
+    if (!blockedAt(targetX, targetZ)) {
+      ola.position.set(targetX, 0, targetZ);
+      moved = true;
+      continue;
+    }
+    // Resolve one axis at a time to slide along the facade without entering it.
+    if (!blockedAt(targetX, ola.position.z)) {
+      ola.position.x = targetX;
+      moved = true;
+    }
+    if (!blockedAt(ola.position.x, targetZ)) {
+      ola.position.z = targetZ;
+      moved = true;
+    }
+    ola.position.y = 0;
   }
-  // Slide along a facade when a diagonal route meets a building corner.
-  const xScore = collisionOverlapScore(next.x, moved.z),
-    zScore = collisionOverlapScore(moved.x, next.z);
-  if (!blockedAt(next.x, moved.z) || (currentScore > 0 && xScore < currentScore)) moved.x = next.x;
-  if (!blockedAt(moved.x, next.z) || (currentScore > 0 && zScore < currentScore)) moved.z = next.z;
-  const changed = moved.x !== ola.position.x || moved.z !== ola.position.z;
-  if (changed) ola.position.copy(moved);
-  return changed;
+  return moved;
+}
+function nearestCollisionSafePoint(destination, radius = 0.56) {
+  const preferred = { x: Number(destination.x) || 0, z: Number(destination.z) || 0 };
+  if (!blockedAt(preferred.x, preferred.z, radius)) return preferred;
+  for (let searchRadius = 0.5; searchRadius <= 6; searchRadius += 0.5) {
+    for (let step = 0; step < 32; step += 1) {
+      const angle = (step / 32) * Math.PI * 2,
+        candidate = {
+          x: preferred.x + Math.cos(angle) * searchRadius,
+          z: preferred.z + Math.sin(angle) * searchRadius,
+        };
+      if (!blockedAt(candidate.x, candidate.z, radius)) return candidate;
+    }
+  }
+  return preferred;
 }
 function planWalkRoute(destination, radius = 0.56) {
+  const safeDestination = nearestCollisionSafePoint(destination, radius);
   walkRoute = findCollisionSafeRoute(
     { x: ola.position.x, z: ola.position.z },
-    { x: destination.x, z: destination.z },
+    safeDestination,
     (x, z) => blockedAt(x, z, radius),
     { step: 1.25, limit: 72 },
   );
   walkRouteIndex = 0;
-  const first = walkRoute[0] || destination;
+  const first = walkRoute[0] || safeDestination;
   walkTarget.set(first.x, 0, first.z);
   hasWalkTarget = true;
   walkBlockedFrames = 0;
   drawNavigationLine(walkTarget);
 }
 function planFoodCourtRoute() {
-  planWalkRoute(FOOD_COURT_ARRIVAL, 0.62);
+  planWalkRoute(foodCourtArrivalPoint(), 0.62);
 }
 function advanceWalkRoute() {
   if (walkRouteIndex >= walkRoute.length - 1) return false;
@@ -973,6 +1028,164 @@ function foodCourtArrivalPoint() {
     { x: 38, z: 32.5 },
   ];
   return candidates.find((point) => !blockedAt(point.x, point.z, 0.62)) || FOOD_COURT_ARRIVAL;
+}
+function projectTourPoint(project) {
+  if (!project?.pos) return { x: 0, z: -4.6 };
+  return nearestCollisionSafePoint({ x: project.pos[0], z: project.pos[2] + 5.1 }, 0.62);
+}
+function clearWalkthroughTimer() {
+  clearTimeout(walkthroughState.timer);
+  walkthroughState.timer = 0;
+}
+function clearWalkthroughHighlight() {
+  walkthroughState.highlight?.classList.remove("walkthrough-focus");
+  walkthroughState.highlight = null;
+}
+function showWalkthroughWorldLabels(showLabels) {
+  projectMeshes.forEach((model) => {
+    if (model.userData.healthLabel) model.userData.healthLabel.visible = showLabels;
+  });
+}
+function closeWalkthroughWorldPanels() {
+  $("#drawer")?.classList.remove("open");
+  $("#projectSheet")?.classList.remove("open");
+  $("#decisionSheet")?.classList.add("hidden");
+  $("#examSheet")?.classList.add("hidden");
+  $("#trophyModal")?.classList.add("hidden");
+  $("#guideModal")?.classList.add("hidden");
+  $("#bedtimeGate")?.classList.add("hidden");
+  document.body.classList.remove("project-sheet-open", "modal-question-open");
+  currentDecisionPractice = null;
+}
+function scheduleWalkthroughAdvance() {
+  clearWalkthroughTimer();
+  if (!walkthroughState.active || walkthroughState.paused || walkthroughState.index >= WALKTHROUGH_STEPS.length - 1) return;
+  walkthroughState.timer = setTimeout(() => showWalkthroughStep(walkthroughState.index + 1), 8000);
+}
+function showWalkthroughStep(index) {
+  if (!walkthroughState.active) return;
+  clearWalkthroughTimer();
+  clearWalkthroughHighlight();
+  walkthroughState.index = Math.max(0, Math.min(WALKTHROUGH_STEPS.length - 1, index));
+  const step = WALKTHROUGH_STEPS[walkthroughState.index];
+  closeWalkthroughWorldPanels();
+  guidedProject = null;
+  nightFoodTravel = false;
+  hasWalkTarget = false;
+  walkRoute = [];
+  walkRouteIndex = 0;
+  clearNavigationLine();
+  move.x = move.y = 0;
+  state.hour = step.hour;
+  state.speed = 0;
+  state.nightSocial = Boolean(step.nightSocial);
+  updateHUD();
+  showWalkthroughWorldLabels(false);
+  if (step.destination && ola) planWalkRoute(step.destination(), 0.62);
+  $("#walkthroughIcon").textContent = step.icon;
+  $("#walkthroughPhase").textContent = `${step.phase} · ${String(step.hour).padStart(2, "0")}:00`;
+  $("#walkthroughTitle").textContent = step.title;
+  $("#walkthroughText").textContent = step.text;
+  $("#walkthroughCount").textContent = `${walkthroughState.index + 1} / ${WALKTHROUGH_STEPS.length}`;
+  $("#walkthroughProgressBar").style.width = `${((walkthroughState.index + 1) / WALKTHROUGH_STEPS.length) * 100}%`;
+  $("#walkthroughBack").disabled = walkthroughState.index === 0;
+  $("#walkthroughNext").textContent = walkthroughState.index === WALKTHROUGH_STEPS.length - 1 ? "Finish ✓" : "Next →";
+  requestAnimationFrame(() => {
+    const targetElement = document.querySelector(step.focus);
+    if (!targetElement || targetElement === $("#walkthroughPanel")) return;
+    targetElement.classList.add("walkthrough-focus");
+    walkthroughState.highlight = targetElement;
+  });
+  scheduleWalkthroughAdvance();
+}
+function startWalkthrough() {
+  if (!ola || walkthroughState.active || gameFinished) return;
+  walkthroughState.snapshot = {
+    hour: state.hour,
+    speed: state.speed,
+    nightSocial: state.nightSocial,
+    olaPosition: ola.position.clone(),
+    camYaw,
+    camPitch,
+    camDist,
+    drawerOpen: $("#drawer")?.classList.contains("open"),
+    projectOpen: $("#projectSheet")?.classList.contains("open"),
+    bedtimeOpen: !$("#bedtimeGate")?.classList.contains("hidden"),
+    hasWalkTarget,
+    walkTarget: walkTarget.clone(),
+    walkRoute: walkRoute.map((point) => ({ x: point.x, z: point.z })),
+    walkRouteIndex,
+    guidedProjectId: guidedProject?.id || null,
+    nightFoodTravel,
+  };
+  walkthroughState.active = true;
+  walkthroughState.paused = false;
+  document.body.classList.add("walkthrough-active");
+  $("#walkthroughPanel").classList.remove("hidden");
+  $("#walkthroughBtn").classList.add("hidden");
+  $("#walkthroughPause").textContent = "❚❚ Pause";
+  showWalkthroughStep(0);
+}
+function finishWalkthrough() {
+  if (!walkthroughState.active) return;
+  clearWalkthroughTimer();
+  clearWalkthroughHighlight();
+  hasWalkTarget = false;
+  walkRoute = [];
+  walkRouteIndex = 0;
+  guidedProject = null;
+  nightFoodTravel = false;
+  clearNavigationLine();
+  closeWalkthroughWorldPanels();
+  const snapshot = walkthroughState.snapshot;
+  if (snapshot) {
+    state.hour = snapshot.hour;
+    state.speed = snapshot.speed;
+    state.nightSocial = snapshot.nightSocial;
+    ola.position.copy(snapshot.olaPosition);
+    camYaw = snapshot.camYaw;
+    camPitch = snapshot.camPitch;
+    camDist = snapshot.camDist;
+    if (snapshot.drawerOpen) $("#drawer")?.classList.add("open");
+    if (snapshot.projectOpen) {
+      $("#projectSheet")?.classList.add("open");
+      document.body.classList.add("project-sheet-open");
+    }
+    hasWalkTarget = snapshot.hasWalkTarget;
+    walkTarget.copy(snapshot.walkTarget);
+    walkRoute = snapshot.walkRoute;
+    walkRouteIndex = snapshot.walkRouteIndex;
+    guidedProject = PROJECTS.find((project) => project.id === snapshot.guidedProjectId) || null;
+    nightFoodTravel = snapshot.nightFoodTravel;
+    if (hasWalkTarget) drawNavigationLine(walkTarget);
+  }
+  walkthroughState.active = false;
+  walkthroughState.paused = false;
+  walkthroughState.snapshot = null;
+  $("#walkthroughPanel").classList.add("hidden");
+  $("#walkthroughBtn").classList.remove("hidden");
+  document.body.classList.remove("walkthrough-active");
+  updateHUD();
+  showWalkthroughWorldLabels(true);
+  if (snapshot?.bedtimeOpen) $("#bedtimeGate")?.classList.remove("hidden");
+}
+function toggleWalkthroughPause() {
+  if (!walkthroughState.active) return;
+  walkthroughState.paused = !walkthroughState.paused;
+  $("#walkthroughPause").textContent = walkthroughState.paused ? "▶ Continue" : "❚❚ Pause";
+  scheduleWalkthroughAdvance();
+}
+function setupWalkthrough() {
+  [$("#walkthroughBtn"), $("#walkthroughNightBtn")].filter(Boolean).forEach((button) => {
+    button.onclick = startWalkthrough;
+  });
+  $("#walkthroughClose").onclick = finishWalkthrough;
+  $("#walkthroughPause").onclick = toggleWalkthroughPause;
+  $("#walkthroughBack").onclick = () => showWalkthroughStep(walkthroughState.index - 1);
+  $("#walkthroughNext").onclick = () => {
+    if (walkthroughState.index >= WALKTHROUGH_STEPS.length - 1) finishWalkthrough();
+    else showWalkthroughStep(walkthroughState.index + 1);
+  };
 }
 function arriveAtFoodCourt({ cinematic = false } = {}) {
   if (!nightFoodTravel) return;
@@ -2135,9 +2348,15 @@ function init3D() {
   updateGoToPrompt();
   installQAInterface();
   animate();
+  const restoredFailureProject = PROJECTS.find((project) => Boolean(state.failedProjects?.[project.id]));
+  if (restoredFailureProject) {
+    const failure = state.failedProjects[restoredFailureProject.id],
+      storedOutcome = state.decisionOutcomes?.[restoredFailureProject.id]?.[failure.missionIndex] || state.lastDecisionOutcome;
+    setTimeout(() => finishGame(false, { project: restoredFailureProject, outcome: storedOutcome, restored: true }), 0);
+  }
   if (isBedtime(state.hour) && !state.nightSocial) setTimeout(openBedtimeGate, 0);
   if ("serviceWorker" in navigator)
-     navigator.serviceWorker.register("./sw.js?release=20260902-v29", { updateViaCache: "none" }).catch(() => {});
+     navigator.serviceWorker.register("./sw.js?release=20260907-v30", { updateViaCache: "none" }).catch(() => {});
 }
 function resize() {
   if (!renderer) return;
@@ -2174,14 +2393,26 @@ function installQAInterface() {
     value: Object.freeze({
       snapshot: () => ({
         olaPosition: ola ? { x: ola.position.x, y: ola.position.y, z: ola.position.z } : null,
+        gameTime: { day: state.day, hour: state.hour, phase: timePhaseFor(state.hour).id },
         movementInput: { x: move.x, y: move.y },
         hasWalkTarget,
         activeRoute: walkRoute.map((point) => ({ x: point.x, z: point.z })),
+        activeRouteBlocked: walkRoute.map((point) => blockedAt(point.x, point.z, 0.56)),
         routeIndex: walkRouteIndex,
         guidedProjectId: guidedProject?.id || null,
+        collisionBlocked: ola ? blockedAt(ola.position.x, ola.position.z) : null,
+        collisionCount: collisionBoxes.length,
+        collisionBoxes: collisionBoxes.map((box) => ({ ...box })),
+        walkthrough: {
+          active: walkthroughState.active,
+          index: walkthroughState.index,
+          phase: WALKTHROUGH_STEPS[walkthroughState.index]?.phase || null,
+          paused: walkthroughState.paused,
+        },
         projectHealth: Object.fromEntries(PROJECTS.map((project) => [project.id, trajectoryFor(project)])),
         lastDecisionOutcome: state.lastDecisionOutcome,
-        gameOutcome,
+        gameOutcome: gameOutcome || state.finalOutcomeSummary?.result || null,
+        finalOutcomeSummary: state.finalOutcomeSummary,
       }),
     }),
   });
@@ -2353,7 +2584,7 @@ function animate() {
     ola.rotation.y = Math.atan2(dir.x, dir.z);
     characterMoving = moved;
     updateGoToPrompt();
-  } else if (hasWalkTarget) {
+  } else if (hasWalkTarget && !(walkthroughState.active && walkthroughState.paused)) {
     const d = walkTarget.clone().sub(ola.position);
     d.y = 0;
     if (d.length() < 0.28) {
@@ -2368,10 +2599,13 @@ function animate() {
         updateGoToPrompt();
       } else if (nightFoodTravel) {
         arriveAtFoodCourt();
+      } else if (walkthroughState.active) {
+        hasWalkTarget = false;
+        clearNavigationLine();
       }
     } else {
       d.normalize();
-      const moved = moveOlaWithCollision(d, dt * (guidedProject || nightFoodTravel ? 12 : 4.6));
+      const moved = moveOlaWithCollision(d, dt * (walkthroughState.active ? 13 : guidedProject || nightFoodTravel ? 12 : 4.6));
       walkBlockedFrames = moved ? 0 : walkBlockedFrames + 1;
       if (walkBlockedFrames > 24) {
         if (nightFoodTravel) {
@@ -2732,8 +2966,13 @@ function choose(p, i, opt) {
     lesson = currentDecisionPractice?.lesson || buildDecisionLesson(p, mission),
     buttons = $$('[data-opt]');
   const decisionDelta = evaluation.correct ? PROJECT_HEALTH_RULES.decisionCorrect : PROJECT_HEALTH_RULES.decisionWrong,
-    trajectory = applyProjectDecisionImpact(p, decisionDelta, { missionIndex: i, phase: "decision", correct: evaluation.correct }),
+    trajectory = applyProjectDecisionImpact(p, decisionDelta, { missionIndex: i, missionTitle: mission[1], selectedText: mission[4][opt], phase: "decision", correct: evaluation.correct }),
     outcome = {
+      schemaVersion: 2,
+      projectId: p.id,
+      projectName: p.name,
+      missionIndex: i,
+      missionTitle: mission[1],
       selectedIndex: opt,
       correctIndex: evaluation.correctIndex,
       correct: evaluation.correct,
@@ -2796,7 +3035,7 @@ function completeDecisionReflection(p, i, selectedIndex) {
   if (!outcome || outcome.reflectionCompleted) return;
   const reflectionCorrect = selectedIndex === lesson.correctReflectionIndex,
     reflectionDelta = reflectionCorrect ? PROJECT_HEALTH_RULES.reflectionCorrect : PROJECT_HEALTH_RULES.reflectionWrong,
-    trajectory = applyProjectDecisionImpact(p, reflectionDelta, { missionIndex: i, phase: "reflection", correct: reflectionCorrect });
+    trajectory = applyProjectDecisionImpact(p, reflectionDelta, { missionIndex: i, missionTitle: p.missions[i]?.[1], selectedText: outcome.selectedText, phase: "reflection", correct: reflectionCorrect });
   buttons.forEach((button) => {
     button.disabled = true;
     button.classList.remove("correct", "wrong");
@@ -2815,7 +3054,6 @@ function completeDecisionReflection(p, i, selectedIndex) {
   state.training = recordDecisionAttempt(state.training, {
     key: `${p.id}:${i}`,
     correct: outcome.correct,
-    confidence: 2,
     day: state.day,
     reflected: reflectionCorrect,
   });
@@ -3132,7 +3370,12 @@ function answerExam(selected) {
     buttons = $$('[data-exam-opt]'),
     correct = selected === question.correctIndex,
     delta = correct ? PROJECT_HEALTH_RULES.examCorrect : PROJECT_HEALTH_RULES.examWrong,
-    trajectory = applyProjectDecisionImpact(activeExam.project, delta, { phase: "exam", correct });
+    trajectory = applyProjectDecisionImpact(activeExam.project, delta, {
+      missionTitle: question.prompt,
+      selectedText: question.options[selected],
+      phase: "exam",
+      correct,
+    });
   buttons.forEach((button) => {
     button.disabled = true;
     if (Number(button.dataset.examOpt) === selected) button.classList.add(correct ? "correct" : "wrong");
@@ -3211,15 +3454,19 @@ function checkWin() {
     setTimeout(() => openStageExam(checkpoint), 520);
     return;
   }
-  const allControlled = PROJECTS.length > 0 && PROJECTS.every((project) => projectIsControlled(project, state.resolved[project.id] || {})),
-    allExamsComplete = PROJECTS.length > 0 && PROJECTS.every((project) => Boolean(state.stageExamResults?.[project.id])),
-    allTrophies = PROJECTS.length > 0 && PROJECTS.every((project) => Boolean(state.trophies[project.id])),
-    allRising = PROJECTS.length > 0 && PROJECTS.every((project) => trajectoryFor(project).momentum >= PROJECT_HEALTH_RULES.rising);
-  if (allControlled && allExamsComplete && allTrophies && allRising) {
+  const outcome = campaignOutcomeState(PROJECTS.map((project) => ({
+    projectId: project.id,
+    health: trajectoryFor(project).momentum,
+    decisionsComplete: projectIsControlled(project, state.resolved[project.id] || {}),
+    examComplete: Boolean(state.stageExamResults?.[project.id]),
+    trophy: Boolean(state.trophies[project.id]),
+    failureArmed: Boolean(state.failedProjects?.[project.id]),
+  })));
+  if (outcome.status === "victory") {
     const total = PROJECTS.reduce((count, project) => count + project.missions.length, 0);
     $("#objective b").textContent = `Controlled ${total} live questions and earned ${PROJECTS.length} stage trophies`;
     finishGame(true);
-  } else if (allControlled && allExamsComplete) {
+  } else if (outcome.status === "hard-luck" || outcome.status === "failed") {
     finishGame(false, { reason: "final-health" });
   } else updateGoToPrompt();
 }
@@ -3229,6 +3476,30 @@ function finishGame(won, details = {}) {
   gameOutcome = won ? "success" : "failure";
   state.speed = 0;
   $("#labibResult").textContent = won ? "Congrats from Labib" : "Hard Luck from Labib";
+  const projectSummaries = PROJECTS.map((project) => {
+    const harmfulDecisions = Object.entries(state.decisionOutcomes?.[project.id] || {})
+      .filter(([, outcome]) => outcome?.correct === false)
+      .map(([index, outcome]) => ({
+        missionIndex: Number(index),
+        missionTitle: outcome.missionTitle || project.missions[Number(index)]?.[1] || "Decision",
+        selectedText: outcome.selectedText || "harmful choice",
+        totalImpact: Number(outcome.totalImpact ?? outcome.decisionImpact ?? 0),
+      }));
+    return {
+      projectId: project.id,
+      projectName: project.name,
+      health: trajectoryFor(project).momentum,
+      status: trajectoryFor(project).label,
+      trophy: Boolean(state.trophies[project.id]),
+      harmfulDecisions,
+    };
+  });
+  state.finalOutcomeSummary = {
+    schemaVersion: 2,
+    result: gameOutcome,
+    completedAt: new Date().toISOString(),
+    projects: projectSummaries,
+  };
   save();
   if (won) {
     setTimeout(() => show("success"), 700);
@@ -3238,9 +3509,8 @@ function finishGame(won, details = {}) {
   const weakProjects = PROJECTS.filter((project) => trajectoryFor(project).momentum < PROJECT_HEALTH_RULES.rising || !state.trophies[project.id]),
     failedProject = details.project,
     failureLines = weakProjects.map((project) => {
-      const wrong = Object.entries(state.decisionOutcomes?.[project.id] || {})
-        .filter(([, outcome]) => outcome?.correct === false)
-        .map(([index, outcome]) => `${project.missions[Number(index)]?.[1] || "Decision"}: ${outcome.selectedText || "harmful choice"}`)
+      const wrong = projectSummaries.find((summary) => summary.projectId === project.id)?.harmfulDecisions
+        .map((outcome) => `${outcome.missionTitle}: ${outcome.selectedText}`)
         .slice(0, 3);
       return `${project.name} finished at ${Math.round(trajectoryFor(project).momentum)}%${wrong.length ? ` after ${wrong.join("; ")}` : " without the required trophy"}`;
     });
@@ -3296,6 +3566,7 @@ $("#restartStory").onclick = () => {
 };
 
 setupMusic();
+setupWalkthrough();
 renderWellbeingQuote();
 updateHUD();
 startGameDirectly();

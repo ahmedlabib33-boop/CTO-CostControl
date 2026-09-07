@@ -254,6 +254,9 @@ body{font-size:14px;line-height:1.5}
 @media(max-width:700px){.liveCoverage{grid-template-columns:1fr;margin:8px 13px 0}.liveCoverage>div{padding:7px 8px}.liveCoverage b{font-size:13px}}
 @media(max-width:600px){body{font-size:15px}.subtitle{font-size:12px}.nav button,.anchorNav a,.ctrl,.back,.pager button,.chip{font-size:13px}.card h3{font-size:17px}.sub{font-size:14px}.kpi span,.kpi small{font-size:12px}table{font-size:13px}.sectionTitle p,.projectHead p,.studioHero p{font-size:13px}}
 
+.nav .gameEntryBtn{display:inline-flex;align-items:center;margin-left:auto;padding:8px 12px;border:1px solid #e6b954;border-radius:999px;background:linear-gradient(135deg,#f1cb72,#9a681d);color:#201405;box-shadow:0 5px 18px rgba(217,164,65,.24);font-weight:900;letter-spacing:.04em;white-space:nowrap;cursor:pointer}.nav .gameEntryBtn:hover{color:#160f05;background:linear-gradient(135deg,#ffe193,#c48a2f)}
+@media(max-width:780px){.nav .gameEntryBtn{margin-left:0}}
+
 /* Eng. Olla Trick layer — main-application navigation with the original black / gold identity */
 .ollaCommandShell{position:relative;z-index:1;display:grid;grid-template-rows:auto minmax(0,1fr);gap:11px;width:min(1600px,calc(100% - 28px));height:100dvh;margin:0 auto;padding:66px 0 14px;min-width:0}
 .ollaAppChrome{display:grid;gap:10px;padding:11px;border:1px solid var(--olla-line);border-radius:17px;background:linear-gradient(150deg,rgba(18,15,10,.98),rgba(7,7,6,.98));box-shadow:0 18px 55px rgba(0,0,0,.45)}

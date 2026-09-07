@@ -58,6 +58,30 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertNotIn("const story = [", script)
         self.assertNotIn("renderStory()", script)
 
+    def test_visual_walkthrough_and_main_game_button_are_directly_available(self):
+        game_root = ROOT / "public/ola-rise"
+        html = (game_root / "index.html").read_text(encoding="utf-8")
+        script = (game_root / "game.js").read_text(encoding="utf-8")
+        css = (game_root / "style.css").read_text(encoding="utf-8")
+        dashboard = (ROOT / "src/components/Dashboard.tsx").read_text(encoding="utf-8")
+        for element_id in [
+            "walkthroughBtn", "walkthroughNightBtn", "walkthroughPanel",
+            "walkthroughBack", "walkthroughPause", "walkthroughNext",
+        ]:
+            self.assertIn(f'id="{element_id}"', html)
+        tour = script.split("const WALKTHROUGH_STEPS", 1)[1].split("let walkthroughState", 1)[0]
+        self.assertIn('phase: "MORNING"', tour)
+        self.assertIn('phase: "EVENING"', tour)
+        self.assertIn('phase: "NIGHT"', tour)
+        self.assertNotIn("decision", tour.lower())
+        self.assertNotIn("technical", tour.lower())
+        self.assertIn("function startWalkthrough", script)
+        self.assertIn("function finishWalkthrough", script)
+        self.assertIn("walkthroughState.active ? 13", script)
+        self.assertIn(".walkthrough-panel", css)
+        self.assertIn('const OLA_RISE_OPEN_EVENT="ola-rise:open"', dashboard)
+        self.assertIn("◆ GO TO GAME", dashboard)
+
     def test_mobile_controls_survive_cancelled_or_unsupported_pointer_capture(self):
         game_root = ROOT / "public/ola-rise"
         launcher = (ROOT / "src/components/OlaRiseLayer.tsx").read_text(encoding="utf-8")
@@ -75,8 +99,8 @@ class OlaRiseLayerTests(unittest.TestCase):
         self.assertIn('project-sheet-open', script)
         self.assertIn('.project-sheet-open .joystick', css)
         self.assertIn('overscroll-behavior: none;', css)
-        self.assertIn('release=20260902-v29', html)
-        self.assertIn('release=20260902-v29', launcher)
+        self.assertIn('release=20260907-v30', html)
+        self.assertIn('release=20260907-v30', launcher)
         self.assertIn('capture: true', script)
         self.assertIn('function ensureSafeOlaPosition', script)
         self.assertIn('function collisionOverlapScore', script)
@@ -220,11 +244,17 @@ class OlaRiseLayerTests(unittest.TestCase):
         ]:
             self.assertIn(text, systems)
         self.assertIn("state.decisionOutcomes[p.id][i] = outcome", script)
+        self.assertIn("schemaVersion: 2", script)
+        self.assertIn("projectId: p.id", script)
+        self.assertIn("missionTitle: mission[1]", script)
+        self.assertIn("state.finalOutcomeSummary", script)
+        self.assertIn("restoredFailureProject", script)
         self.assertIn("button.disabled = true", script)
         self.assertIn("finishGame(false, { project: p, outcome })", script)
-        self.assertIn("allRising", script)
+        self.assertIn("campaignOutcomeState", script)
         self.assertIn("installQAInterface", script)
         self.assertIn("__OLA_RISE_QA__", script)
+        self.assertNotIn("confidence: 2", script)
 
     def test_soundtrack_has_ordered_tracks_and_windows_volume_controls(self):
         game_root = ROOT / "public/ola-rise"

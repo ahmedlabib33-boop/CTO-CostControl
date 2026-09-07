@@ -8,6 +8,7 @@ import {
   buildDecisionLesson,
   buildLifePractice,
   buildStageExam,
+  campaignOutcomeState,
   decisionHint,
   evaluateDecisionChoice,
   evaluateLifePractice,
@@ -179,6 +180,7 @@ test("decision evaluation makes the first choice final and explains its conseque
   assert.equal(wrong.correctIndex, 0);
   assert.match(wrong.nextAction, /final/i);
   assert.match(wrong.consequence, /exposure|control/i);
+  assert.equal(wrong.requiresReflection, true);
   const right = evaluateDecisionChoice(mission, 0);
   assert.equal(right.correct, true);
   assert.equal(right.requiresReflection, true);
@@ -187,8 +189,8 @@ test("decision evaluation makes the first choice final and explains its conseque
 
 test("training state records attempts, review due items, reflections, and mastery without inventing project values", () => {
   let state = normalizeGameState({ day: 3 });
-  state.training = recordDecisionAttempt(state.training, { key: "p:0", correct: false, confidence: 3, day: 3 });
-  state.training = recordDecisionAttempt(state.training, { key: "p:0", correct: true, confidence: 2, day: 3, reflected: true });
+  state.training = recordDecisionAttempt(state.training, { key: "p:0", correct: false, day: 3 });
+  state.training = recordDecisionAttempt(state.training, { key: "p:0", correct: true, day: 3, reflected: true });
   const summary = trainingSummary(state.training, 3);
   assert.equal(summary.attempts, 2);
   assert.equal(summary.correct, 1);
@@ -196,6 +198,7 @@ test("training state records attempts, review due items, reflections, and master
   assert.equal(summary.reviewDue, 1);
   assert.ok(summary.xp > 0);
   assert.equal(state.training.attempts["p:0"].length, 2);
+  assert.equal("confidence" in state.training.attempts["p:0"][0], false);
 });
 
 test("life practice adapts to Ola's current needs and applies only the selected real Sims action", () => {
@@ -230,6 +233,19 @@ test("project health uses the final decision, reflection, exam, failure, and vic
   assert.equal(projectHealthState(50).label, "ON TRACK");
   assert.equal(projectHealthState(65).label, "RISING");
   assert.equal(projectHealthState(80).label, "THRIVING");
+  assert.equal(campaignOutcomeState([
+    { health: 65, decisionsComplete: true, examComplete: true, trophy: true },
+    { health: 80, decisionsComplete: true, examComplete: true, trophy: true },
+  ]).status, "victory");
+  assert.equal(campaignOutcomeState([
+    { health: 64, decisionsComplete: true, examComplete: true, trophy: false },
+  ]).status, "hard-luck");
+  assert.equal(campaignOutcomeState([
+    { health: 35, decisionsComplete: false, examComplete: false, trophy: false, failureArmed: true },
+  ]).status, "failed");
+  assert.equal(campaignOutcomeState([
+    { health: 72, decisionsComplete: false, examComplete: false, trophy: false },
+  ]).status, "active");
 });
 
 test("saved decision outcomes and legacy campaign state survive normalization", () => {
@@ -239,6 +255,7 @@ test("saved decision outcomes and legacy campaign state survive normalization", 
     decisionOutcomes: { gloria: { 0: { correct: false, selectedIndex: 2 } } },
     failedProjects: { big: { health: 35 } },
     stageExamResults: { gloria: { score: 2, total: 3 } },
+    finalOutcomeSummary: { result: "failure", projects: [{ projectId: "gloria", health: 35 }] },
     gameRulesVersion: 2,
   });
   assert.equal(state.projectMomentum.gloria, 42);
@@ -247,4 +264,5 @@ test("saved decision outcomes and legacy campaign state survive normalization", 
   assert.equal(state.failedProjects.big.health, 35);
   assert.equal(state.stageExamResults.gloria.score, 2);
   assert.equal(state.gameRulesVersion, 2);
+  assert.equal(state.finalOutcomeSummary.result, "failure");
 });

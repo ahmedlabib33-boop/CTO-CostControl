@@ -36,6 +36,16 @@ export function applyProjectHealthImpact(value, delta) {
   return { before, after, delta: after - before, state: projectHealthState(after) };
 }
 
+export function campaignOutcomeState(projects = []) {
+  if (!Array.isArray(projects) || projects.length === 0) return { status: "active", projects: [] };
+  const failed = projects.filter((project) => Boolean(project?.failureArmed));
+  if (failed.length) return { status: "failed", projects: failed };
+  const complete = projects.every((project) => Boolean(project?.decisionsComplete) && Boolean(project?.examComplete));
+  if (!complete) return { status: "active", projects };
+  const successful = projects.every((project) => Number(project?.health) >= PROJECT_HEALTH_RULES.rising && Boolean(project?.trophy));
+  return { status: successful ? "victory" : "hard-luck", projects };
+}
+
 const clampNeed = (value) => Math.max(0, Math.min(100, Number(value) || 0));
 
 const DECISION_FAMILIES = [
@@ -115,7 +125,6 @@ export function normalizeTrainingState(saved = {}) {
     Object.entries(saved.attempts).forEach(([key, history]) => {
       attempts[key] = Array.isArray(history) ? history.slice(-20).map((entry) => ({
         correct: Boolean(entry?.correct),
-        confidence: Math.max(1, Math.min(3, Number(entry?.confidence) || 1)),
         day: Math.max(1, Number(entry?.day) || 1),
         reflected: Boolean(entry?.reflected),
       })) : [];
@@ -163,7 +172,7 @@ export function evaluateDecisionChoice(mission, selectedIndex) {
   const family = decisionFamilyFor(mission);
   return {
     correct,
-    requiresReflection: correct,
+    requiresReflection: true,
     selectedIndex: Number(selectedIndex),
     correctIndex,
     reason: correct
@@ -183,7 +192,6 @@ export function recordDecisionAttempt(current, event) {
   const key = String(event?.key || "decision");
   const record = {
     correct: Boolean(event?.correct),
-    confidence: Math.max(1, Math.min(3, Number(event?.confidence) || 2)),
     day: Math.max(1, Number(event?.day) || 1),
     reflected: Boolean(event?.reflected),
   };
@@ -446,6 +454,10 @@ export function normalizeGameState(saved = {}) {
       saved.stageExamResults && typeof saved.stageExamResults === "object"
         ? saved.stageExamResults
         : {},
+    finalOutcomeSummary:
+      saved.finalOutcomeSummary && typeof saved.finalOutcomeSummary === "object"
+        ? saved.finalOutcomeSummary
+        : null,
     training: normalizeTrainingState(saved.training),
     coffeeServed: Math.max(0, Number(saved.coffeeServed ?? saved.teaServed) || 0),
     mealsServed: Math.max(0, Number(saved.mealsServed) || 0),
